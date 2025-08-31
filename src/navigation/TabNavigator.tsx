@@ -1,58 +1,60 @@
 import React from 'react';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createDrawerNavigator } from '@react-navigation/drawer';
+import { View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ChatScreen from '../screens/ChatScreen';
 import RecordingScreen from '../screens/RecordingScreen';
 
-const Tab = createBottomTabNavigator();
+const Drawer = createDrawerNavigator();
 
-export default function TabNavigator() {
+function CustomDrawerContent({ navigation }: any) {
   return (
-    <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName: keyof typeof Ionicons.glyphMap;
+    <View className="flex-1 bg-white pt-12">
+      <View className="px-6 py-4 border-b border-gray-200">
+        <Text className="text-xl font-semibold text-black">Menu</Text>
+      </View>
+      
+      <View className="flex-1 pt-4">
+        <View
+          className="flex-row items-center px-6 py-4 active:bg-gray-100"
+          onTouchEnd={() => navigation.navigate('Chat')}
+        >
+          <Ionicons name="chatbubble-outline" size={24} color="#374151" />
+          <Text className="ml-4 text-base text-gray-700">Chat</Text>
+        </View>
+        
+        <View
+          className="flex-row items-center px-6 py-4 active:bg-gray-100"
+          onTouchEnd={() => navigation.navigate('Recording')}
+        >
+          <Ionicons name="mic-outline" size={24} color="#374151" />
+          <Text className="ml-4 text-base text-gray-700">Recording</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
 
-          if (route.name === 'Chat') {
-            iconName = focused ? 'chatbubble' : 'chatbubble-outline';
-          } else if (route.name === 'Recording') {
-            iconName = focused ? 'mic' : 'mic-outline';
-          } else {
-            iconName = 'help-outline';
-          }
-
-          return <Ionicons name={iconName} size={size} color={color} />;
+export default function DrawerNavigator() {
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerStyle: {
+          width: 280,
         },
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: '#9CA3AF',
-        tabBarStyle: {
-          backgroundColor: '#000000',
-          borderTopColor: '#1F2937',
-          borderTopWidth: 1,
-        },
-        headerStyle: {
-          backgroundColor: '#000000',
-        },
-        headerTintColor: '#FFFFFF',
-        headerTitleStyle: {
-          fontWeight: '600',
-        },
-      })}
+        drawerType: 'slide',
+      }}
     >
-      <Tab.Screen 
+      <Drawer.Screen 
         name="Chat" 
         component={ChatScreen}
-        options={{
-          title: 'AI Chat',
-        }}
       />
-      <Tab.Screen 
+      <Drawer.Screen 
         name="Recording" 
         component={RecordingScreen}
-        options={{
-          title: 'Audio Recording',
-        }}
       />
-    </Tab.Navigator>
+    </Drawer.Navigator>
   );
 }

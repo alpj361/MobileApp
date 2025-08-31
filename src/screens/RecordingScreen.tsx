@@ -7,13 +7,16 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRecordingStore } from '../state/recordingStore';
 import { transcribeAudio } from '../api/transcribe-audio';
+import CustomHeader from '../components/CustomHeader';
 
 export default function RecordingScreen() {
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -160,10 +163,12 @@ export default function RecordingScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <View className="flex-1 bg-gray-100">
+      <CustomHeader navigation={navigation} title="Recording" />
+      
       {/* Recording Controls */}
       <View className="items-center py-8">
-        <View className="bg-white rounded-full w-40 h-40 justify-center items-center mb-6">
+        <View className="bg-white rounded-full w-40 h-40 justify-center items-center mb-6 shadow-sm">
           <Pressable
             onPress={isRecording ? stopRecording : startRecording}
             className={`w-24 h-24 rounded-full justify-center items-center ${
@@ -183,7 +188,7 @@ export default function RecordingScreen() {
             <Text className="text-red-500 text-lg font-medium mb-2">
               Recording...
             </Text>
-            <Text className="text-white text-2xl font-mono">
+            <Text className="text-black text-2xl font-mono">
               {formatDuration(recordingDuration)}
             </Text>
           </View>
@@ -191,10 +196,10 @@ export default function RecordingScreen() {
 
         {!isRecording && recordings.length === 0 && (
           <View className="items-center px-8">
-            <Text className="text-white text-lg font-medium mb-2">
+            <Text className="text-black text-lg font-medium mb-2">
               Ready to Record
             </Text>
-            <Text className="text-gray-400 text-center">
+            <Text className="text-gray-600 text-center">
               Tap the microphone to start recording interviews or audio notes
             </Text>
           </View>
@@ -204,18 +209,18 @@ export default function RecordingScreen() {
       {/* Recordings List */}
       {recordings.length > 0 && (
         <ScrollView className="flex-1 px-4">
-          <Text className="text-white text-xl font-semibold mb-4">
+          <Text className="text-black text-xl font-semibold mb-4">
             Recordings ({recordings.length})
           </Text>
           
           {recordings.map((item) => (
-            <View key={item.id} className="bg-gray-900 rounded-2xl p-4 mb-3">
+            <View key={item.id} className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
               <View className="flex-row items-center justify-between mb-3">
                 <View className="flex-1">
-                  <Text className="text-white font-medium text-base">
+                  <Text className="text-black font-medium text-base">
                     {item.title}
                   </Text>
-                  <Text className="text-gray-400 text-sm">
+                  <Text className="text-gray-600 text-sm">
                     {formatDate(item.timestamp)} • {formatDuration(item.duration)}
                   </Text>
                 </View>
@@ -243,22 +248,22 @@ export default function RecordingScreen() {
                 <Pressable
                   onPress={() => transcribeRecording(item)}
                   disabled={item.isTranscribing}
-                  className="bg-gray-700 rounded-full px-4 py-2 flex-row items-center"
+                  className="bg-gray-200 rounded-full px-4 py-2 flex-row items-center"
                 >
                   {item.isTranscribing ? (
                     <ActivityIndicator size="small" color="#3B82F6" />
                   ) : (
-                    <Ionicons name="document-text-outline" size={16} color="white" />
+                    <Ionicons name="document-text-outline" size={16} color="#374151" />
                   )}
-                  <Text className="text-white ml-2 text-sm">
+                  <Text className="text-gray-700 ml-2 text-sm">
                     {item.isTranscribing ? 'Transcribing...' : 'Transcribe'}
                   </Text>
                 </Pressable>
               </View>
 
               {item.transcription && (
-                <View className="mt-3 p-3 bg-gray-800 rounded-xl">
-                  <Text className="text-gray-300 text-sm leading-5">
+                <View className="mt-3 p-3 bg-gray-50 rounded-xl">
+                  <Text className="text-gray-700 text-sm leading-5">
                     {item.transcription}
                   </Text>
                 </View>
@@ -267,6 +272,6 @@ export default function RecordingScreen() {
           ))}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </View>
   );
 }

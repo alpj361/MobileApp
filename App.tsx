@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import TabNavigator from "./src/navigation/TabNavigator";
+import DrawerNavigator from "./src/navigation/TabNavigator";
 
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
@@ -30,8 +30,8 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <NavigationContainer>
-          <TabNavigator />
-          <StatusBar style="light" />
+          <DrawerNavigator />
+          <StatusBar style="dark" />
         </NavigationContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>

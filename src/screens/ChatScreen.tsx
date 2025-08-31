@@ -3,21 +3,23 @@ import {
   View,
   Text,
   TextInput,
-  Pressable,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useChatStore } from '../state/chatStore';
 import { getOpenAIChatResponse } from '../api/chat-service';
+import CustomHeader from '../components/CustomHeader';
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation<DrawerNavigationProp<any>>();
   
   const { messages, isLoading, addMessage, setLoading } = useChatStore();
 
@@ -68,103 +70,90 @@ export default function ChatScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <View className="flex-1 bg-gray-100">
+      <CustomHeader navigation={navigation} />
+      
       <KeyboardAvoidingView 
         className="flex-1" 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Chat Messages */}
+        {/* Main Content Area */}
         <ScrollView
           ref={scrollViewRef}
-          className="flex-1 px-4"
-          contentContainerStyle={{ paddingTop: 20, paddingBottom: 20 }}
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
         >
           {messages.length === 0 ? (
-            <View className="flex-1 justify-center items-center">
-              <View className="bg-white rounded-full w-32 h-32 justify-center items-center mb-6">
-                <Ionicons name="chatbubble" size={48} color="#3B82F6" />
-              </View>
-              <Text className="text-white text-lg font-medium mb-2">
-                Welcome to AI Chat
-              </Text>
-              <Text className="text-gray-400 text-center px-8">
-                Start a conversation with AI. Ask questions, get help, or just chat!
+            <View className="flex-1 justify-center items-center px-8">
+              {/* Yellow Circle */}
+              <View className="w-20 h-20 bg-yellow-400 rounded-full mb-8" />
+              
+              {/* Welcome Text */}
+              <Text className="text-black text-2xl font-normal text-center">
+                what's new, pablo?
               </Text>
             </View>
           ) : (
-            messages.map((message) => (
-              <View
-                key={message.id}
-                className={`mb-4 ${
-                  message.role === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
+            <View className="flex-1 px-4 pt-4">
+              {messages.map((message) => (
                 <View
-                  className={`max-w-[80%] rounded-3xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-blue-500'
-                      : 'bg-white'
+                  key={message.id}
+                  className={`mb-4 ${
+                    message.role === 'user' ? 'items-end' : 'items-start'
                   }`}
                 >
-                  <Text
-                    className={`text-base ${
-                      message.role === 'user' ? 'text-white' : 'text-black'
+                  <View
+                    className={`max-w-[80%] rounded-3xl px-4 py-3 ${
+                      message.role === 'user'
+                        ? 'bg-blue-500'
+                        : 'bg-white shadow-sm'
                     }`}
                   >
-                    {message.content}
+                    <Text
+                      className={`text-base ${
+                        message.role === 'user' ? 'text-white' : 'text-black'
+                      }`}
+                    >
+                      {message.content}
+                    </Text>
+                  </View>
+                  <Text className="text-gray-500 text-xs mt-1 px-2">
+                    {formatTime(message.timestamp)}
                   </Text>
                 </View>
-                <Text className="text-gray-500 text-xs mt-1 px-2">
-                  {formatTime(message.timestamp)}
-                </Text>
-              </View>
-            ))
-          )}
-          
-          {isLoading && (
-            <View className="items-start mb-4">
-              <View className="bg-white rounded-3xl px-4 py-3 flex-row items-center">
-                <ActivityIndicator size="small" color="#3B82F6" />
-                <Text className="text-gray-600 ml-2">AI is typing...</Text>
-              </View>
+              ))}
+              
+              {isLoading && (
+                <View className="items-start mb-4">
+                  <View className="bg-white rounded-3xl px-4 py-3 flex-row items-center shadow-sm">
+                    <ActivityIndicator size="small" color="#3B82F6" />
+                    <Text className="text-gray-600 ml-2">AI is typing...</Text>
+                  </View>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
 
         {/* Input Area */}
         <View 
-          className="px-4 pb-4 bg-black"
+          className="px-4 pb-4 bg-gray-100"
           style={{ paddingBottom: Math.max(insets.bottom, 16) }}
         >
-          <View className="flex-row items-center bg-gray-900 rounded-full px-4 py-2">
-            <TextInput
-              className="flex-1 text-white text-base py-2"
-              placeholder="Type your message..."
-              placeholderTextColor="#9CA3AF"
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={1000}
-              onSubmitEditing={sendMessage}
-              returnKeyType="send"
-            />
-            <Pressable
-              onPress={sendMessage}
-              disabled={!inputText.trim() || isLoading}
-              className={`ml-2 w-8 h-8 rounded-full items-center justify-center ${
-                inputText.trim() && !isLoading ? 'bg-blue-500' : 'bg-gray-700'
-              }`}
-            >
-              <Ionicons 
-                name="send" 
-                size={16} 
-                color={inputText.trim() && !isLoading ? 'white' : '#9CA3AF'} 
-              />
-            </Pressable>
-          </View>
+          <TextInput
+            className="bg-white rounded-2xl px-4 py-3 text-base text-black border border-gray-200"
+            placeholder="Message..."
+            placeholderTextColor="#9CA3AF"
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={1000}
+            onSubmitEditing={sendMessage}
+            returnKeyType="send"
+          />
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
