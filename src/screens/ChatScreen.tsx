@@ -86,8 +86,8 @@ export default function ChatScreen() {
         >
           {messages.length === 0 ? (
             <View className="flex-1 justify-center items-center px-8">
-              {/* Yellow Circle */}
-              <View className="w-20 h-20 bg-yellow-400 rounded-full mb-8" />
+              {/* Black Circle */}
+              <View className="w-20 h-20 bg-black rounded-full mb-8" />
               
               {/* Welcome Text */}
               <Text className="text-black text-2xl font-normal text-center">

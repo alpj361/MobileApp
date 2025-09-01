@@ -9,7 +9,7 @@ interface CustomHeaderProps {
   title?: string;
 }
 
-export default function CustomHeader({ navigation, title = "gen z mode" }: CustomHeaderProps) {
+export default function CustomHeader({ navigation, title = "vizta" }: CustomHeaderProps) {
   return (
     <SafeAreaView className="bg-gray-100">
       <View className="flex-row items-center justify-between px-4 py-3">
