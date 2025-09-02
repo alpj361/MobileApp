@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
   FlatList, 
   Pressable, 
   RefreshControl,
-  ScrollView 
+  ScrollView,
+  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
+import TrendingLoading from '../components/TrendingLoading';
+import { TrendingService } from '../services/trendingService';
+import { TrendingData, TrendingKeyword } from '../config/supabase';
 
 interface TrendingItem {
   id: string;
@@ -19,6 +23,10 @@ interface TrendingItem {
   engagement: string;
   trend: 'up' | 'down' | 'stable';
   rank: number;
+  description: string;
+  isLocal: boolean;
+  relevance: 'alta' | 'media' | 'baja';
+  date: string;
 }
 
 interface TrendingCategory {
@@ -32,90 +40,121 @@ export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [trendingData, setTrendingData] = useState<TrendingData[]>([]);
+  const [categories, setCategories] = useState<TrendingCategory[]>([]);
+  const [stats, setStats] = useState<{
+    totalTrends: number;
+    localTrends: number;
+    globalTrends: number;
+    highRelevance: number;
+  } | null>(null);
 
-  const categories: TrendingCategory[] = [
-    { id: 'all', name: 'All', icon: 'apps', color: '#6B7280' },
-    { id: 'tech', name: 'Tech', icon: 'hardware-chip', color: '#3B82F6' },
-    { id: 'ai', name: 'AI', icon: 'bulb', color: '#8B5CF6' },
-    { id: 'crypto', name: 'Crypto', icon: 'logo-bitcoin', color: '#F59E0B' },
-    { id: 'social', name: 'Social', icon: 'people', color: '#EF4444' },
-    { id: 'news', name: 'News', icon: 'newspaper', color: '#10B981' },
-  ];
+  // Mapeo de categorías a iconos y colores
+  const categoryMapping: { [key: string]: { icon: string; color: string } } = {
+    'Deportes': { icon: 'football', color: '#10B981' },
+    'Música': { icon: 'musical-notes', color: '#8B5CF6' },
+    'Política': { icon: 'business', color: '#EF4444' },
+    'Economía': { icon: 'trending-up', color: '#F59E0B' },
+    'Entretenimiento': { icon: 'film', color: '#EC4899' },
+    'Social': { icon: 'people', color: '#3B82F6' },
+    'Otros': { icon: 'apps', color: '#6B7280' },
+    'Internacional': { icon: 'globe', color: '#6366F1' },
+  };
 
-  const mockTrendingData: TrendingItem[] = [
-    {
-      id: '1',
-      title: 'OpenAI GPT-5 Release',
-      category: 'ai',
-      engagement: '2.4M discussions',
-      trend: 'up',
-      rank: 1,
-    },
-    {
-      id: '2',
-      title: 'Bitcoin Price Surge',
-      category: 'crypto',
-      engagement: '1.8M mentions',
-      trend: 'up',
-      rank: 2,
-    },
-    {
-      id: '3',
-      title: 'Apple Vision Pro Updates',
-      category: 'tech',
-      engagement: '1.2M posts',
-      trend: 'stable',
-      rank: 3,
-    },
-    {
-      id: '4',
-      title: 'Meta AI Integration',
-      category: 'social',
-      engagement: '980K shares',
-      trend: 'up',
-      rank: 4,
-    },
-    {
-      id: '5',
-      title: 'Tesla Robotaxi Launch',
-      category: 'tech',
-      engagement: '850K discussions',
-      trend: 'down',
-      rank: 5,
-    },
-    {
-      id: '6',
-      title: 'Climate Summit 2025',
-      category: 'news',
-      engagement: '720K mentions',
-      trend: 'up',
-      rank: 6,
-    },
-    {
-      id: '7',
-      title: 'Quantum Computing Breakthrough',
-      category: 'tech',
-      engagement: '650K posts',
-      trend: 'up',
-      rank: 7,
-    },
-    {
-      id: '8',
-      title: 'Social Media Regulation',
-      category: 'social',
-      engagement: '580K discussions',
-      trend: 'stable',
-      rank: 8,
-    },
-  ];
+  // Cargar datos iniciales
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
-  const filteredData = selectedCategory === 'all' 
-    ? mockTrendingData 
-    : mockTrendingData.filter(item => item.category === selectedCategory);
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+      
+      // Cargar categorías disponibles
+      const availableCategories = await TrendingService.getAvailableCategories();
+      const categoryList: TrendingCategory[] = [
+        { id: 'all', name: 'Todos', icon: 'apps', color: '#6B7280' },
+        ...availableCategories.map(cat => ({
+          id: cat,
+          name: cat,
+          icon: categoryMapping[cat]?.icon || 'apps',
+          color: categoryMapping[cat]?.color || '#6B7280'
+        }))
+      ];
+      setCategories(categoryList);
+
+      // Cargar trends más recientes
+      await loadTrends();
+      
+      // Cargar estadísticas
+      const trendingStats = await TrendingService.getTrendingStats();
+      setStats(trendingStats);
+      
+    } catch (error) {
+      console.error('Error loading initial data:', error);
+      Alert.alert('Error', 'No se pudieron cargar los datos de trending');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTrends = async () => {
+    try {
+      let response;
+      if (selectedCategory === 'all') {
+        response = await TrendingService.getLatestTrends(20);
+      } else {
+        response = await TrendingService.getTrendsByCategory(selectedCategory, 20);
+      }
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      setTrendingData(response.data || []);
+    } catch (error) {
+      console.error('Error loading trends:', error);
+      Alert.alert('Error', 'No se pudieron cargar las tendencias');
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
+    await loadTrends();
+    setRefreshing(false);
+  };
+
+  const handleCategoryChange = async (categoryId: string) => {
+    setSelectedCategory(categoryId);
+    setLoading(true);
+    await loadTrends();
+    setLoading(false);
+  };
+
+  // Convertir datos de Supabase a formato de UI
+  const transformTrendingData = (): TrendingItem[] => {
+    const items: TrendingItem[] = [];
+    let rank = 1;
+
+    trendingData.forEach(trend => {
+      trend.top_keywords?.forEach(keyword => {
+        items.push({
+          id: `${trend.id}-${keyword.keyword}`,
+          title: keyword.keyword,
+          category: keyword.category,
+          engagement: `${keyword.count.toLocaleString()} menciones`,
+          trend: 'up' as const, // Por defecto, ya que son trends actuales
+          rank: rank++,
+          description: keyword.about.razon_tendencia,
+          isLocal: keyword.about.contexto_local,
+          relevance: keyword.about.relevancia,
+          date: keyword.about.fecha_evento
+        });
+      });
+    });
+
+    return items.slice(0, 20); // Limitar a 20 items
   };
 
   const getTrendIcon = (trend: TrendingItem['trend']) => {
@@ -129,10 +168,23 @@ export default function TrendingScreen() {
     }
   };
 
+  const getRelevanceColor = (relevance: string) => {
+    switch (relevance) {
+      case 'alta':
+        return '#EF4444';
+      case 'media':
+        return '#F59E0B';
+      case 'baja':
+        return '#6B7280';
+      default:
+        return '#6B7280';
+    }
+  };
+
   const renderCategoryButton = (category: TrendingCategory) => (
     <Pressable
       key={category.id}
-      onPress={() => setSelectedCategory(category.id)}
+      onPress={() => handleCategoryChange(category.id)}
       className={`px-4 py-2 rounded-full mr-3 flex-row items-center ${
         selectedCategory === category.id ? 'bg-blue-500' : 'bg-white border border-gray-200'
       }`}
@@ -152,6 +204,7 @@ export default function TrendingScreen() {
 
   const renderTrendingItem = ({ item }: { item: TrendingItem }) => {
     const trendIcon = getTrendIcon(item.trend);
+    const categoryInfo = categories.find(c => c.id === item.category);
     
     return (
       <Pressable className="bg-white rounded-2xl p-4 mb-3 border border-gray-200 active:bg-gray-50">
@@ -166,33 +219,55 @@ export default function TrendingScreen() {
               </Text>
             </View>
           </View>
-          <Ionicons 
-            name={trendIcon.name as any} 
-            size={20} 
-            color={trendIcon.color} 
-          />
+          <View className="flex-row items-center">
+            {item.isLocal && (
+              <View className="mr-2 px-2 py-1 bg-green-100 rounded-full">
+                <Text className="text-green-700 text-xs font-medium">Local</Text>
+              </View>
+            )}
+            <Ionicons 
+              name="trending-up" 
+              size={20} 
+              color={getRelevanceColor(item.relevance)} 
+            />
+          </View>
         </View>
         
+        <Text className="text-gray-600 text-sm mb-2" numberOfLines={2}>
+          {item.description}
+        </Text>
+        
         <View className="flex-row items-center justify-between">
-          <Text className="text-gray-500 text-sm">
-            {item.engagement}
-          </Text>
+          <View className="flex-row items-center">
+            <Text className="text-gray-500 text-sm">
+              {item.engagement}
+            </Text>
+            <Text className="text-gray-400 text-xs ml-2">
+              {item.date}
+            </Text>
+          </View>
           <View className="flex-row items-center">
             <View className={`px-2 py-1 rounded-full ${
-              categories.find(c => c.id === item.category)?.color === '#3B82F6' ? 'bg-blue-100' :
-              categories.find(c => c.id === item.category)?.color === '#8B5CF6' ? 'bg-purple-100' :
-              categories.find(c => c.id === item.category)?.color === '#F59E0B' ? 'bg-yellow-100' :
-              categories.find(c => c.id === item.category)?.color === '#EF4444' ? 'bg-red-100' :
-              'bg-green-100'
+              categoryInfo?.color === '#10B981' ? 'bg-green-100' :
+              categoryInfo?.color === '#8B5CF6' ? 'bg-purple-100' :
+              categoryInfo?.color === '#F59E0B' ? 'bg-yellow-100' :
+              categoryInfo?.color === '#EF4444' ? 'bg-red-100' :
+              categoryInfo?.color === '#EC4899' ? 'bg-pink-100' :
+              categoryInfo?.color === '#3B82F6' ? 'bg-blue-100' :
+              categoryInfo?.color === '#6366F1' ? 'bg-indigo-100' :
+              'bg-gray-100'
             }`}>
               <Text className={`text-xs font-medium ${
-                categories.find(c => c.id === item.category)?.color === '#3B82F6' ? 'text-blue-700' :
-                categories.find(c => c.id === item.category)?.color === '#8B5CF6' ? 'text-purple-700' :
-                categories.find(c => c.id === item.category)?.color === '#F59E0B' ? 'text-yellow-700' :
-                categories.find(c => c.id === item.category)?.color === '#EF4444' ? 'text-red-700' :
-                'text-green-700'
+                categoryInfo?.color === '#10B981' ? 'text-green-700' :
+                categoryInfo?.color === '#8B5CF6' ? 'text-purple-700' :
+                categoryInfo?.color === '#F59E0B' ? 'text-yellow-700' :
+                categoryInfo?.color === '#EF4444' ? 'text-red-700' :
+                categoryInfo?.color === '#EC4899' ? 'text-pink-700' :
+                categoryInfo?.color === '#3B82F6' ? 'text-blue-700' :
+                categoryInfo?.color === '#6366F1' ? 'text-indigo-700' :
+                'text-gray-700'
               }`}>
-                {categories.find(c => c.id === item.category)?.name || 'Other'}
+                {item.category}
               </Text>
             </View>
           </View>
@@ -200,6 +275,17 @@ export default function TrendingScreen() {
       </Pressable>
     );
   };
+
+  if (loading) {
+    return (
+      <View className="flex-1 bg-gray-100">
+        <CustomHeader navigation={navigation} title="Trending" />
+        <TrendingLoading />
+      </View>
+    );
+  }
+
+  const transformedData = transformTrendingData();
 
   return (
     <View className="flex-1 bg-gray-100">
@@ -219,19 +305,19 @@ export default function TrendingScreen() {
       {/* Stats Bar */}
       <View className="flex-row items-center justify-between px-4 pb-3">
         <Text className="text-gray-600 text-sm">
-          {filteredData.length} trending topic{filteredData.length !== 1 ? 's' : ''}
+          {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
         </Text>
         <View className="flex-row items-center">
           <Ionicons name="time" size={14} color="#9CA3AF" />
           <Text className="text-gray-500 text-xs ml-1">
-            Updated 5 min ago
+            {stats ? `${stats.localTrends} locales, ${stats.globalTrends} globales` : 'Actualizando...'}
           </Text>
         </View>
       </View>
 
       {/* Trending List */}
       <FlatList
-        data={filteredData}
+        data={transformedData}
         renderItem={renderTrendingItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ padding: 16 }}
@@ -244,9 +330,12 @@ export default function TrendingScreen() {
             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
               <Ionicons name="trending-up" size={32} color="#9CA3AF" />
             </View>
-            <Text className="text-black text-lg font-medium mb-2">No Trending Topics</Text>
+            <Text className="text-black text-lg font-medium mb-2">No hay tendencias</Text>
             <Text className="text-gray-500 text-center">
-              Pull to refresh and check for the latest trends
+              {selectedCategory === 'all' 
+                ? 'No se encontraron tendencias recientes'
+                : `No hay tendencias en la categoría ${selectedCategory}`
+              }
             </Text>
           </View>
         }
