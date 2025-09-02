@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
-  FlatList, 
-  Pressable, 
-  RefreshControl,
-  ScrollView,
-  Alert
+   FlatList, 
+   Pressable, 
+   RefreshControl,
+   ScrollView,
+   StyleSheet
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -45,6 +45,10 @@ export default function TrendingScreen() {
   const [trendingData, setTrendingData] = useState<TrendingData[]>([]);
   const [categories, setCategories] = useState<TrendingCategory[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [canScrollCats, setCanScrollCats] = useState(false);
+  const [catWidth, setCatWidth] = useState(0);
+  const [catContentWidth, setCatContentWidth] = useState(0);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [stats, setStats] = useState<{
     totalTrends: number;
     localTrends: number;
@@ -65,19 +69,39 @@ export default function TrendingScreen() {
   };
 
   // Cargar datos iniciales
-  useEffect(() => {
-    loadInitialData();
-  }, []);
-
+   useEffect(() => {
+     loadInitialData();
+   }, []);
+ 
+   useEffect(() => {
+     setCanScrollCats(catContentWidth > catWidth + 8);
+   }, [catContentWidth, catWidth]);
+ 
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      
-      // Cargar categorías disponibles
+
+      // Cargar trends más recientes primero
+      await loadTrends();
+
+      // Cargar categorías disponibles y generar fallbacks si es necesario
       const availableCategories = await TrendingService.getAvailableCategories();
+      let derived: string[] = availableCategories;
+      if (!derived || derived.length === 0) {
+        const latest = await TrendingService.getLatestTrends(15);
+        const setCats = new Set<string>();
+        (latest.data || []).forEach(t => {
+          t.category_data?.forEach(c => c.name && setCats.add(c.name));
+          t.top_keywords?.forEach(k => k.category && setCats.add(k.category));
+        });
+        derived = Array.from(setCats);
+        if (derived.length === 0) {
+          derived = ['Social', 'Noticias', 'Tech', 'AI', 'Otros'];
+        }
+      }
       const categoryList: TrendingCategory[] = [
         { id: 'all', name: 'Todos', icon: 'apps', color: '#6B7280' },
-        ...availableCategories.map(cat => ({
+        ...derived.map(cat => ({
           id: cat,
           name: cat,
           icon: categoryMapping[cat]?.icon || 'apps',
@@ -85,9 +109,6 @@ export default function TrendingScreen() {
         }))
       ];
       setCategories(categoryList);
-
-      // Cargar trends más recientes
-      await loadTrends();
       
       // Cargar estadísticas
       const trendingStats = await TrendingService.getTrendingStats();
@@ -95,7 +116,7 @@ export default function TrendingScreen() {
       
     } catch (error) {
       console.error('Error loading initial data:', error);
-      Alert.alert('Error', 'No se pudieron cargar los datos de trending');
+      setErrorMsg('No se pudieron cargar los datos de trending');
     } finally {
       setLoading(false);
     }
@@ -117,7 +138,7 @@ export default function TrendingScreen() {
       setTrendingData(response.data || []);
     } catch (error) {
       console.error('Error loading trends:', error);
-      Alert.alert('Error', 'No se pudieron cargar las tendencias');
+      setErrorMsg('No se pudieron cargar las tendencias');
     }
   };
 
@@ -194,6 +215,7 @@ export default function TrendingScreen() {
         selectedCategory === category.id ? 'bg-blue-500' : 'bg-white border border-gray-200'
       }`}
       style={{ marginBottom: 0 }}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
       <Ionicons 
         name={category.icon as any} 
@@ -228,7 +250,7 @@ export default function TrendingScreen() {
               </Text>
             </View>
           </View>
-          <View className="flex-row items-center">
+          <View className="flex-row items-center" style={{ paddingRight: 8 }}>
             {item.isLocal && (
               <View className="mr-2 px-2 py-1 bg-green-100 rounded-full">
                 <Text className="text-green-700 text-xs font-medium">Local</Text>
@@ -342,50 +364,73 @@ export default function TrendingScreen() {
     <View className="flex-1 bg-gray-100">
       <CustomHeader navigation={navigation} title="Trending" />
       
-      {/* Categories */}
-      <View className="px-4 py-2">
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 16, paddingLeft: 0 }}
-          style={{ flexGrow: 0 }}
-        >
-          <View className="flex-row items-center">
-            {categories.map(renderCategoryButton)}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Stats Bar */}
-      <View className="px-4 pb-3">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-gray-600 text-sm">
-            {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
-          </Text>
-          <View className="flex-row items-center">
-            <Ionicons name="time" size={14} color="#9CA3AF" />
-            <Text className="text-gray-500 text-xs ml-1">
-              {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
-            </Text>
-          </View>
-        </View>
-        {!supabaseAvailable() && (
-          <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
-            <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Trending List */}
+      {/* Trending List with sticky categories header */}
       <FlatList
         data={transformedData}
         renderItem={renderTrendingItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 16 }}
+        contentContainerStyle={{ paddingLeft: 16, paddingRight: 48, paddingTop: 0, paddingBottom: 16 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[0]}
+        ListHeaderComponent={
+          <View
+            style={{
+              zIndex: 10,
+              elevation: 4,
+            }}
+            className="bg-gray-100"
+          >
+            {/* Categories */}
+            <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+              <View onLayout={(e) => setCatWidth(e.nativeEvent.layout.width)}>
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  onContentSizeChange={(w) => setCatContentWidth(w)}
+                  contentContainerStyle={{ paddingRight: 80, paddingLeft: 0 }}
+                  style={{ flexGrow: 0 }}
+                >
+                  <View className="flex-row items-center">
+                    {categories.map(renderCategoryButton)}
+                  </View>
+                </ScrollView>
+                {canScrollCats && (
+                  <View style={{ position: 'absolute', right: 8, top: 0, bottom: 0, justifyContent: 'center' }} pointerEvents="none">
+                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                  </View>
+                )}
+              </View>
+            </View>
+
+            {/* Stats Bar */}
+            <View className="px-4 py-2 bg-gray-100">
+              <View className="flex-row items-center justify-between">
+                <Text className="text-gray-600 text-sm">
+                  {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
+                </Text>
+                <View className="flex-row items-center">
+                  <Ionicons name="time" size={14} color="#9CA3AF" />
+                  <Text className="text-gray-500 text-xs ml-1">
+                    {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
+                  </Text>
+                </View>
+              </View>
+              {!supabaseAvailable() && (
+                <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
+                  <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
+                </View>
+              )}
+              {errorMsg && (
+                <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
+                  <Text className="text-red-700 text-xs">{errorMsg}</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View className="items-center justify-center py-12">
             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
