@@ -89,6 +89,7 @@ export default function ChatScreen() {
           className="flex-1"
           contentContainerStyle={{ flexGrow: 1 }}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {messages.length === 0 ? (
             <View className="flex-1 justify-center items-center px-8">
@@ -151,9 +152,19 @@ export default function ChatScreen() {
             value={inputText}
             onChangeText={setInputText}
             multiline
+            blurOnSubmit
+            enablesReturnKeyAutomatically
             maxLength={1000}
             onSubmitEditing={sendMessage}
             returnKeyType="send"
+            onKeyPress={(e) => {
+              if (e.nativeEvent.key === 'Enter' && inputText.trim() && !isLoading) {
+                // Fallback for hardware keyboards: send instead of newline
+                sendMessage();
+              }
+            }}
+            autoCorrect
+            autoCapitalize="sentences"
           />
         </View>
       </KeyboardAvoidingView>
