@@ -14,7 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
 import { TrendingService } from '../services/trendingService';
-import { TrendingData, TrendingKeyword } from '../config/supabase';
+import { TrendingData } from '../config/supabase';
+import { supabaseAvailable } from '../config/supabase';
 
 interface TrendingItem {
   id: string;
@@ -303,16 +304,23 @@ export default function TrendingScreen() {
       </View>
 
       {/* Stats Bar */}
-      <View className="flex-row items-center justify-between px-4 pb-3">
-        <Text className="text-gray-600 text-sm">
-          {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
-        </Text>
-        <View className="flex-row items-center">
-          <Ionicons name="time" size={14} color="#9CA3AF" />
-          <Text className="text-gray-500 text-xs ml-1">
-            {stats ? `${stats.localTrends} locales, ${stats.globalTrends} globales` : 'Actualizando...'}
+      <View className="px-4 pb-3">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-gray-600 text-sm">
+            {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
           </Text>
+          <View className="flex-row items-center">
+            <Ionicons name="time" size={14} color="#9CA3AF" />
+            <Text className="text-gray-500 text-xs ml-1">
+              {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
+            </Text>
+          </View>
         </View>
+        {!supabaseAvailable() && (
+          <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
+            <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
+          </View>
+        )}
       </View>
 
       {/* Trending List */}

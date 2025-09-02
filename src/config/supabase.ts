@@ -1,10 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
-import { ENV } from './env';
+import { ENV, isSupabaseEnabled } from './env';
 
-// Crear cliente de Supabase usando variables de entorno
-export const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY);
+// Create Supabase client only if env is configured
+export const supabase = isSupabaseEnabled()
+  ? createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY)
+  : null as unknown as ReturnType<typeof createClient>;
 
-// Tipos para la tabla trends
+export const supabaseAvailable = () => isSupabaseEnabled();
+
+// Types for trends table
 export interface TrendingKeyword {
   keyword: string;
   count: number;
