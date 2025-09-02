@@ -18,3 +18,16 @@ export const SUPABASE_URL = process.env.SUPABASE_URL || SUPABASE_CONFIG.url;
 export const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || SUPABASE_CONFIG.anonKey;
 export const SUPABASE_PROJECT_ID = process.env.SUPABASE_PROJECT_ID || SUPABASE_CONFIG.projectId;
 export const SUPABASE_REGION = process.env.SUPABASE_REGION || SUPABASE_CONFIG.region;
+
+// Compatibility with existing code - ENV object
+export const ENV = {
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_PROJECT_ID,
+  SUPABASE_REGION
+} as const;
+
+// Function to check if Supabase is enabled (compatibility)
+export const isSupabaseEnabled = (): boolean => {
+  return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+};
