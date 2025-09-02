@@ -31,7 +31,10 @@ export default function CustomHeader({ navigation, title = "vizta" }: CustomHead
         </Text>
 
         {/* Settings Icon */}
-        <Pressable className="p-2">
+        <Pressable 
+          className="p-2"
+          onPress={() => navigation.navigate('Settings')}
+        >
           <Ionicons name="options-outline" size={24} color="#000000" />
         </Pressable>
       </View>

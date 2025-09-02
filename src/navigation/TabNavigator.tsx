@@ -6,6 +6,7 @@ import ChatScreen from '../screens/ChatScreen';
 import RecordingScreen from '../screens/RecordingScreen';
 import SavedScreen from '../screens/SavedScreen';
 import TrendingScreen from '../screens/TrendingScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -48,6 +49,14 @@ function CustomDrawerContent({ navigation }: any) {
           <Ionicons name="trending-up" size={24} color="#374151" />
           <Text className="ml-4 text-base text-gray-700">Trending</Text>
         </View>
+
+        <View
+          className="flex-row items-center px-6 py-4 active:bg-gray-100"
+          onTouchEnd={() => navigation.navigate('Settings')}
+        >
+          <Ionicons name="settings-outline" size={24} color="#374151" />
+          <Text className="ml-4 text-base text-gray-700">Configuración</Text>
+        </View>
       </View>
     </View>
   );
@@ -80,6 +89,10 @@ export default function DrawerNavigator() {
       <Drawer.Screen 
         name="Trending" 
         component={TrendingScreen}
+      />
+      <Drawer.Screen 
+        name="Settings" 
+        component={SettingsScreen}
       />
     </Drawer.Navigator>
   );

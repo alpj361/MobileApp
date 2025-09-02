@@ -357,7 +357,7 @@ export default function TrendingScreen() {
       <CustomHeader navigation={navigation} title="Trending" />
       
       {/* Categories */}
-      <View className="px-4 py-3 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+      <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
