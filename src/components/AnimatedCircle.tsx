@@ -88,7 +88,6 @@ export default function AnimatedCircle({
           height: size,
           backgroundColor: color,
           borderRadius: size / 2,
-          marginBottom: 32,
         },
         animatedStyle,
       ]}

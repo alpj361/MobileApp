@@ -78,6 +78,11 @@ export default function ChatScreen() {
         className="flex-1" 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        {/* Animated Circle - Always Visible */}
+        <View className="items-center py-6">
+          <AnimatedCircle isAnimating={isLoading} size={60} />
+        </View>
+
         {/* Main Content Area */}
         <ScrollView
           ref={scrollViewRef}
@@ -87,9 +92,6 @@ export default function ChatScreen() {
         >
           {messages.length === 0 ? (
             <View className="flex-1 justify-center items-center px-8">
-              {/* Animated Black Circle */}
-              <AnimatedCircle isAnimating={isLoading} />
-              
               {/* Welcome Text */}
               <Text className="text-black text-2xl font-normal text-center">
                 what's new, pablo?
