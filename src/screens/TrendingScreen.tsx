@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
@@ -40,7 +39,6 @@ interface TrendingCategory {
 
 export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -353,11 +351,11 @@ export default function TrendingScreen() {
   const transformedData = transformTrendingData();
 
   return (
-    <View className="flex-1 bg-gray-100" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-gray-100">
       <CustomHeader navigation={navigation} title="Trending" />
       
       {/* Categories */}
-      <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+      <View className="px-4 py-1 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -370,7 +368,7 @@ export default function TrendingScreen() {
       </View>
 
       {/* Stats Bar */}
-      <View className="px-4 py-2 bg-gray-100">
+      <View className="px-4 py-1 bg-gray-100">
         <View className="flex-row items-center justify-between">
           <Text className="text-gray-600 text-sm">
             {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}

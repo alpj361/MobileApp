@@ -2,14 +2,12 @@ import React from 'react';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import { useSettingsStore, ConnectionStatus } from '../state/settingsStore';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
-  const insets = useSafeAreaInsets();
   const { connections, toggleConnection } = useSettingsStore();
 
   const renderConnectionItem = (connection: ConnectionStatus) => {
@@ -66,7 +64,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-100" style={{ paddingTop: insets.top }}>
+    <View className="flex-1 bg-gray-100">
       <CustomHeader navigation={navigation} title="Configuración" />
       
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>

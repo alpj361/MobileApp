@@ -12,7 +12,7 @@ interface CustomHeaderProps {
 export default function CustomHeader({ navigation, title = "vizta" }: CustomHeaderProps) {
   return (
     <SafeAreaView className="bg-gray-100">
-      <View className="flex-row items-center justify-between px-4 py-3">
+      <View className="flex-row items-center justify-between px-4 py-1">
         {/* Hamburger Menu */}
         <Pressable
           onPress={() => navigation.openDrawer()}
