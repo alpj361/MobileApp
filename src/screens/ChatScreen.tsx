@@ -14,6 +14,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useChatStore } from '../state/chatStore';
 import { getOpenAIChatResponse } from '../api/chat-service';
 import CustomHeader from '../components/CustomHeader';
+import AnimatedCircle from '../components/AnimatedCircle';
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
@@ -86,8 +87,8 @@ export default function ChatScreen() {
         >
           {messages.length === 0 ? (
             <View className="flex-1 justify-center items-center px-8">
-              {/* Black Circle */}
-              <View className="w-20 h-20 bg-black rounded-full mb-8" />
+              {/* Animated Black Circle */}
+              <AnimatedCircle isAnimating={isLoading} />
               
               {/* Welcome Text */}
               <Text className="text-black text-2xl font-normal text-center">
