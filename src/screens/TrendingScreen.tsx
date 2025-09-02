@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
@@ -39,15 +40,13 @@ interface TrendingCategory {
 
 export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [trendingData, setTrendingData] = useState<TrendingData[]>([]);
   const [categories, setCategories] = useState<TrendingCategory[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [canScrollCats, setCanScrollCats] = useState(false);
-  const [catWidth, setCatWidth] = useState(0);
-  const [catContentWidth, setCatContentWidth] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [stats, setStats] = useState<{
     totalTrends: number;
@@ -72,10 +71,6 @@ export default function TrendingScreen() {
    useEffect(() => {
      loadInitialData();
    }, []);
- 
-   useEffect(() => {
-     setCanScrollCats(catContentWidth > catWidth + 8);
-   }, [catContentWidth, catWidth]);
  
   const loadInitialData = async () => {
     try {
@@ -211,10 +206,9 @@ export default function TrendingScreen() {
     <Pressable
       key={category.id}
       onPress={() => handleCategoryChange(category.id)}
-      className={`px-3 py-2 rounded-full mr-2 flex-row items-center min-w-0 ${
+      className={`px-3 py-2 rounded-full mr-3 flex-row items-center ${
         selectedCategory === category.id ? 'bg-blue-500' : 'bg-white border border-gray-200'
       }`}
-      style={{ marginBottom: 0 }}
       hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
       <Ionicons 
@@ -240,7 +234,7 @@ export default function TrendingScreen() {
         onPress={() => toggleItemExpansion(item.id)}
       >
         <View className="flex-row items-center justify-between mb-2">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-1">
             <View className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center mr-3">
               <Text className="text-gray-600 font-bold text-sm">#{item.rank}</Text>
             </View>
@@ -250,7 +244,7 @@ export default function TrendingScreen() {
               </Text>
             </View>
           </View>
-          <View className="flex-row items-center" style={{ paddingRight: 8 }}>
+          <View className="flex-row items-center ml-2">
             {item.isLocal && (
               <View className="mr-2 px-2 py-1 bg-green-100 rounded-full">
                 <Text className="text-green-700 text-xs font-medium">Local</Text>
@@ -258,14 +252,14 @@ export default function TrendingScreen() {
             )}
             <Ionicons 
               name="trending-up" 
-              size={20} 
+              size={18} 
               color={getRelevanceColor(item.relevance)} 
             />
             <Ionicons 
               name={isExpanded ? "chevron-up" : "chevron-down"} 
               size={16} 
               color="#9CA3AF" 
-              style={{ marginLeft: 8 }}
+              style={{ marginLeft: 6 }}
             />
           </View>
         </View>
@@ -278,7 +272,7 @@ export default function TrendingScreen() {
           <View className="mt-3 p-3 bg-gray-50 rounded-xl">
             <Text className="text-gray-700 font-medium text-sm mb-2">Detalles del Trend</Text>
             <View className="space-y-2">
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between items-center">
                 <Text className="text-gray-600 text-sm">Relevancia:</Text>
                 <View className={`px-2 py-1 rounded-full ${
                   item.relevance === 'alta' ? 'bg-red-100' :
@@ -292,17 +286,17 @@ export default function TrendingScreen() {
                   </Text>
                 </View>
               </View>
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between items-center">
                 <Text className="text-gray-600 text-sm">Contexto:</Text>
                 <Text className="text-gray-800 text-sm font-medium">
                   {item.isLocal ? 'Local' : 'Global'}
                 </Text>
               </View>
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between items-center">
                 <Text className="text-gray-600 text-sm">Fecha evento:</Text>
                 <Text className="text-gray-800 text-sm">{item.date}</Text>
               </View>
-              <View className="flex-row justify-between">
+              <View className="flex-row justify-between items-center">
                 <Text className="text-gray-600 text-sm">Categoría:</Text>
                 <Text className="text-gray-800 text-sm font-medium">{item.category}</Text>
               </View>
@@ -311,7 +305,7 @@ export default function TrendingScreen() {
         )}
         
         <View className="flex-row items-center justify-between mt-3">
-          <View className="flex-row items-center">
+          <View className="flex-row items-center flex-1">
             <Text className="text-gray-500 text-sm">
               {item.engagement}
             </Text>
@@ -319,30 +313,28 @@ export default function TrendingScreen() {
               {item.date}
             </Text>
           </View>
-          <View className="flex-row items-center">
-            <View className={`px-2 py-1 rounded-full ${
-              categoryInfo?.color === '#10B981' ? 'bg-green-100' :
-              categoryInfo?.color === '#8B5CF6' ? 'bg-purple-100' :
-              categoryInfo?.color === '#F59E0B' ? 'bg-yellow-100' :
-              categoryInfo?.color === '#EF4444' ? 'bg-red-100' :
-              categoryInfo?.color === '#EC4899' ? 'bg-pink-100' :
-              categoryInfo?.color === '#3B82F6' ? 'bg-blue-100' :
-              categoryInfo?.color === '#6366F1' ? 'bg-indigo-100' :
-              'bg-gray-100'
+          <View className={`px-2 py-1 rounded-full ml-2 ${
+            categoryInfo?.color === '#10B981' ? 'bg-green-100' :
+            categoryInfo?.color === '#8B5CF6' ? 'bg-purple-100' :
+            categoryInfo?.color === '#F59E0B' ? 'bg-yellow-100' :
+            categoryInfo?.color === '#EF4444' ? 'bg-red-100' :
+            categoryInfo?.color === '#EC4899' ? 'bg-pink-100' :
+            categoryInfo?.color === '#3B82F6' ? 'bg-blue-100' :
+            categoryInfo?.color === '#6366F1' ? 'bg-indigo-100' :
+            'bg-gray-100'
+          }`}>
+            <Text className={`text-xs font-medium ${
+              categoryInfo?.color === '#10B981' ? 'text-green-700' :
+              categoryInfo?.color === '#8B5CF6' ? 'text-purple-700' :
+              categoryInfo?.color === '#F59E0B' ? 'text-yellow-700' :
+              categoryInfo?.color === '#EF4444' ? 'text-red-700' :
+              categoryInfo?.color === '#EC4899' ? 'text-pink-700' :
+              categoryInfo?.color === '#3B82F6' ? 'text-blue-700' :
+              categoryInfo?.color === '#6366F1' ? 'text-indigo-700' :
+              'text-gray-700'
             }`}>
-              <Text className={`text-xs font-medium ${
-                categoryInfo?.color === '#10B981' ? 'text-green-700' :
-                categoryInfo?.color === '#8B5CF6' ? 'text-purple-700' :
-                categoryInfo?.color === '#F59E0B' ? 'text-yellow-700' :
-                categoryInfo?.color === '#EF4444' ? 'text-red-700' :
-                categoryInfo?.color === '#EC4899' ? 'text-pink-700' :
-                categoryInfo?.color === '#3B82F6' ? 'text-blue-700' :
-                categoryInfo?.color === '#6366F1' ? 'text-indigo-700' :
-                'text-gray-700'
-              }`}>
-                {item.category}
-              </Text>
-            </View>
+              {item.category}
+            </Text>
           </View>
         </View>
       </Pressable>
@@ -361,76 +353,57 @@ export default function TrendingScreen() {
   const transformedData = transformTrendingData();
 
   return (
-    <View className="flex-1 bg-gray-100">
+    <View className="flex-1 bg-gray-100" style={{ paddingTop: insets.top }}>
       <CustomHeader navigation={navigation} title="Trending" />
       
-      {/* Trending List with sticky categories header */}
+      {/* Categories */}
+      <View className="px-4 py-3 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: 32 }}
+        >
+          <View className="flex-row items-center">
+            {categories.map(renderCategoryButton)}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Stats Bar */}
+      <View className="px-4 py-2 bg-gray-100">
+        <View className="flex-row items-center justify-between">
+          <Text className="text-gray-600 text-sm">
+            {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
+          </Text>
+          <View className="flex-row items-center">
+            <Ionicons name="time" size={14} color="#9CA3AF" />
+            <Text className="text-gray-500 text-xs ml-1">
+              {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
+            </Text>
+          </View>
+        </View>
+        {!supabaseAvailable() && (
+          <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
+            <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
+          </View>
+        )}
+        {errorMsg && (
+          <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
+            <Text className="text-red-700 text-xs">{errorMsg}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Trending List */}
       <FlatList
         data={transformedData}
         renderItem={renderTrendingItem}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingLeft: 16, paddingRight: 48, paddingTop: 0, paddingBottom: 16 }}
+        contentContainerStyle={{ padding: 16 }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
-        ListHeaderComponent={
-          <View
-            style={{
-              zIndex: 10,
-              elevation: 4,
-            }}
-            className="bg-gray-100"
-          >
-            {/* Categories */}
-            <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
-              <View onLayout={(e) => setCatWidth(e.nativeEvent.layout.width)}>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  onContentSizeChange={(w) => setCatContentWidth(w)}
-                  contentContainerStyle={{ paddingRight: 80, paddingLeft: 0 }}
-                  style={{ flexGrow: 0 }}
-                >
-                  <View className="flex-row items-center">
-                    {categories.map(renderCategoryButton)}
-                  </View>
-                </ScrollView>
-                {canScrollCats && (
-                  <View style={{ position: 'absolute', right: 8, top: 0, bottom: 0, justifyContent: 'center' }} pointerEvents="none">
-                    <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-                  </View>
-                )}
-              </View>
-            </View>
-
-            {/* Stats Bar */}
-            <View className="px-4 py-2 bg-gray-100">
-              <View className="flex-row items-center justify-between">
-                <Text className="text-gray-600 text-sm">
-                  {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
-                </Text>
-                <View className="flex-row items-center">
-                  <Ionicons name="time" size={14} color="#9CA3AF" />
-                  <Text className="text-gray-500 text-xs ml-1">
-                    {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
-                  </Text>
-                </View>
-              </View>
-              {!supabaseAvailable() && (
-                <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
-                  <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
-                </View>
-              )}
-              {errorMsg && (
-                <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
-                  <Text className="text-red-700 text-xs">{errorMsg}</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        }
         ListEmptyComponent={
           <View className="items-center justify-center py-12">
             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
