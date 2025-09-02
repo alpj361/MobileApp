@@ -12,7 +12,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useChatStore } from '../state/chatStore';
+import { useSavedStore } from '../state/savedStore';
 import { getOpenAIChatResponse } from '../api/chat-service';
+import { extractLinksFromText, processLinks } from '../api/link-processor';
 import CustomHeader from '../components/CustomHeader';
 import AnimatedCircle from '../components/AnimatedCircle';
 
@@ -23,6 +25,7 @@ export default function ChatScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   
   const { messages, isLoading, addMessage, setLoading } = useChatStore();
+  const { addSavedItem } = useSavedStore();
 
   const sendMessage = async () => {
     if (!inputText.trim() || isLoading) return;
@@ -35,6 +38,18 @@ export default function ChatScreen() {
       content: userMessage,
       role: 'user',
     });
+
+    // Process links in background
+    const links = extractLinksFromText(userMessage);
+    if (links.length > 0) {
+      processLinks(links).then((linkDataArray) => {
+        linkDataArray.forEach((linkData) => {
+          addSavedItem(linkData, 'chat');
+        });
+      }).catch((error) => {
+        console.error('Failed to process links:', error);
+      });
+    }
 
     setLoading(true);
 
