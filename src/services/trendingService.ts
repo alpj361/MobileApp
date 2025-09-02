@@ -2,7 +2,7 @@ import { supabase, supabaseAvailable, TrendingResponse, TrendingData } from '../
 
 export class TrendingService {
   /** Mock data generator used when Supabase is not configured */
-  static getMockTrends(limit: number = 10): TrendingData[] {
+  static getMockTrends(limit: number = 15): TrendingData[] {
     const categories = ['tech', 'ai', 'crypto', 'social', 'news'];
     const now = Date.now();
     return Array.from({ length: limit }).map((_, i) => ({
@@ -24,7 +24,7 @@ export class TrendingService {
   /**
    * Obtiene los datos de trending más recientes
    */
-  static async getLatestTrends(limit: number = 10): Promise<TrendingResponse> {
+  static async getLatestTrends(limit: number = 15): Promise<TrendingResponse> {
     if (!supabaseAvailable()) {
       return { data: TrendingService.getMockTrends(limit), error: null };
     }
@@ -49,7 +49,7 @@ export class TrendingService {
   /**
    * Obtiene trends por categoría específica
    */
-  static async getTrendsByCategory(category: string, limit: number = 10): Promise<TrendingResponse> {
+  static async getTrendsByCategory(category: string, limit: number = 15): Promise<TrendingResponse> {
     if (!supabaseAvailable()) {
       const data = TrendingService.getMockTrends(limit).filter((t) =>
         t.category_data?.some((c) => c.name === category)

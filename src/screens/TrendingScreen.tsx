@@ -44,6 +44,7 @@ export default function TrendingScreen() {
   const [loading, setLoading] = useState(true);
   const [trendingData, setTrendingData] = useState<TrendingData[]>([]);
   const [categories, setCategories] = useState<TrendingCategory[]>([]);
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [stats, setStats] = useState<{
     totalTrends: number;
     localTrends: number;
@@ -104,9 +105,9 @@ export default function TrendingScreen() {
     try {
       let response;
       if (selectedCategory === 'all') {
-        response = await TrendingService.getLatestTrends(20);
+        response = await TrendingService.getLatestTrends(15);
       } else {
-        response = await TrendingService.getTrendsByCategory(selectedCategory, 20);
+        response = await TrendingService.getTrendsByCategory(selectedCategory, 15);
       }
 
       if (response.error) {
@@ -133,6 +134,18 @@ export default function TrendingScreen() {
     setLoading(false);
   };
 
+  const toggleItemExpansion = (itemId: string) => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
   // Convertir datos de Supabase a formato de UI
   const transformTrendingData = (): TrendingItem[] => {
     const items: TrendingItem[] = [];
@@ -155,19 +168,10 @@ export default function TrendingScreen() {
       });
     });
 
-    return items.slice(0, 20); // Limitar a 20 items
+    return items.slice(0, 15); // Limitar a 15 items
   };
 
-  const getTrendIcon = (trend: TrendingItem['trend']) => {
-    switch (trend) {
-      case 'up':
-        return { name: 'trending-up', color: '#10B981' };
-      case 'down':
-        return { name: 'trending-down', color: '#EF4444' };
-      default:
-        return { name: 'remove', color: '#6B7280' };
-    }
-  };
+
 
   const getRelevanceColor = (relevance: string) => {
     switch (relevance) {
@@ -186,29 +190,33 @@ export default function TrendingScreen() {
     <Pressable
       key={category.id}
       onPress={() => handleCategoryChange(category.id)}
-      className={`px-4 py-2 rounded-full mr-3 flex-row items-center ${
+      className={`px-3 py-2 rounded-full mr-2 flex-row items-center min-w-0 ${
         selectedCategory === category.id ? 'bg-blue-500' : 'bg-white border border-gray-200'
       }`}
+      style={{ marginBottom: 0 }}
     >
       <Ionicons 
         name={category.icon as any} 
-        size={16} 
+        size={14} 
         color={selectedCategory === category.id ? 'white' : category.color} 
       />
-      <Text className={`ml-2 text-sm ${
+      <Text className={`ml-1.5 text-sm ${
         selectedCategory === category.id ? 'text-white font-medium' : 'text-gray-700'
-      }`}>
+      }`} numberOfLines={1}>
         {category.name}
       </Text>
     </Pressable>
   );
 
   const renderTrendingItem = ({ item }: { item: TrendingItem }) => {
-    const trendIcon = getTrendIcon(item.trend);
     const categoryInfo = categories.find(c => c.id === item.category);
+    const isExpanded = expandedItems.has(item.id);
     
     return (
-      <Pressable className="bg-white rounded-2xl p-4 mb-3 border border-gray-200 active:bg-gray-50">
+      <Pressable 
+        className="bg-white rounded-2xl p-4 mb-3 border border-gray-200 active:bg-gray-50"
+        onPress={() => toggleItemExpansion(item.id)}
+      >
         <View className="flex-row items-center justify-between mb-2">
           <View className="flex-row items-center">
             <View className="w-8 h-8 bg-gray-100 rounded-full items-center justify-center mr-3">
@@ -231,14 +239,56 @@ export default function TrendingScreen() {
               size={20} 
               color={getRelevanceColor(item.relevance)} 
             />
+            <Ionicons 
+              name={isExpanded ? "chevron-up" : "chevron-down"} 
+              size={16} 
+              color="#9CA3AF" 
+              style={{ marginLeft: 8 }}
+            />
           </View>
         </View>
         
-        <Text className="text-gray-600 text-sm mb-2" numberOfLines={2}>
+        <Text className="text-gray-600 text-sm mb-2" numberOfLines={isExpanded ? undefined : 2}>
           {item.description}
         </Text>
         
-        <View className="flex-row items-center justify-between">
+        {isExpanded && (
+          <View className="mt-3 p-3 bg-gray-50 rounded-xl">
+            <Text className="text-gray-700 font-medium text-sm mb-2">Detalles del Trend</Text>
+            <View className="space-y-2">
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 text-sm">Relevancia:</Text>
+                <View className={`px-2 py-1 rounded-full ${
+                  item.relevance === 'alta' ? 'bg-red-100' :
+                  item.relevance === 'media' ? 'bg-yellow-100' : 'bg-gray-100'
+                }`}>
+                  <Text className={`text-xs font-medium ${
+                    item.relevance === 'alta' ? 'text-red-700' :
+                    item.relevance === 'media' ? 'text-yellow-700' : 'text-gray-700'
+                  }`}>
+                    {item.relevance.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 text-sm">Contexto:</Text>
+                <Text className="text-gray-800 text-sm font-medium">
+                  {item.isLocal ? 'Local' : 'Global'}
+                </Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 text-sm">Fecha evento:</Text>
+                <Text className="text-gray-800 text-sm">{item.date}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-gray-600 text-sm">Categoría:</Text>
+                <Text className="text-gray-800 text-sm font-medium">{item.category}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+        
+        <View className="flex-row items-center justify-between mt-3">
           <View className="flex-row items-center">
             <Text className="text-gray-500 text-sm">
               {item.engagement}
@@ -293,13 +343,16 @@ export default function TrendingScreen() {
       <CustomHeader navigation={navigation} title="Trending" />
       
       {/* Categories */}
-      <View className="px-4 py-3">
+      <View className="px-4 py-2">
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 16 }}
+          contentContainerStyle={{ paddingRight: 16, paddingLeft: 0 }}
+          style={{ flexGrow: 0 }}
         >
-          {categories.map(renderCategoryButton)}
+          <View className="flex-row items-center">
+            {categories.map(renderCategoryButton)}
+          </View>
         </ScrollView>
       </View>
 
