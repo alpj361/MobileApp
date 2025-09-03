@@ -73,17 +73,23 @@ export default function LinkPreview({ linkData, compact = false, onPress }: Link
     );
   }
 
+  const favicon = linkData.favicon || `https://icons.duckduckgo.com/ip3/${linkData.domain}.ico`;
   return (
     <Pressable
       onPress={handlePress}
       className="bg-white rounded-2xl overflow-hidden border border-gray-200 active:bg-gray-50"
     >
-      {linkData.image && (
+      {linkData.image ? (
         <Image
           source={{ uri: linkData.image }}
           className="w-full h-48"
           resizeMode="cover"
         />
+      ) : (
+        <View className="w-full h-14 bg-gray-50 flex-row items-center px-4">
+          <Image source={{ uri: favicon }} resizeMode="contain" className="w-6 h-6 mr-2" />
+          <Text className="text-gray-600 text-sm" numberOfLines={1}>{linkData.domain}</Text>
+        </View>
       )}
       
       <View className="p-4">
@@ -93,7 +99,7 @@ export default function LinkPreview({ linkData, compact = false, onPress }: Link
             size={16} 
             color={getTypeColor()} 
           />
-          <Text className="text-gray-500 text-xs ml-2 uppercase tracking-wide">
+          <Text className="text-gray-500 text-xs ml-2 uppercase tracking-wide" numberOfLines={1}>
             {linkData.domain}
           </Text>
         </View>

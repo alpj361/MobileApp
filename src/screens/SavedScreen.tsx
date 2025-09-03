@@ -44,8 +44,16 @@ export default function SavedScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulate refresh delay
-    setTimeout(() => setRefreshing(false), 1000);
+    try {
+      // Reprocess items that need better metadata
+      const badPhrases = new Set(['No description available', 'Link processing failed', 'Vista previa no disponible']);
+      const needs = items.filter(i => !i.image || !i.description || badPhrases.has(i.description));
+      for (const it of needs) {
+        await useSavedStore.getState().reprocessSavedItem(it.id);
+      }
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handlePasteFromClipboard = async () => {

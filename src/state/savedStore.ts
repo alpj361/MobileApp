@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinkData } from '../api/link-processor';
+import { LinkData, processLink } from '../api/link-processor';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -15,6 +15,8 @@ interface SavedState {
   addSavedItem: (linkData: LinkData, source?: SavedItem['source']) => void;
   removeSavedItem: (id: string) => void;
   toggleFavorite: (id: string) => void;
+  updateSavedItem: (id: string, patch: Partial<SavedItem>) => void;
+  reprocessSavedItem: (id: string) => Promise<void>;
   getSavedItems: () => SavedItem[];
   getSavedItemsByType: (type: LinkData['type']) => SavedItem[];
   clearSavedItems: () => void;
@@ -59,6 +61,35 @@ export const useSavedStore = create<SavedState>()(
             item.id === id ? { ...item, isFavorite: !item.isFavorite } : item
           ),
         }));
+      },
+
+      updateSavedItem: (id, patch) => {
+        set((state) => ({
+          items: state.items.map(item => item.id === id ? { ...item, ...patch } : item),
+        }));
+      },
+
+      reprocessSavedItem: async (id) => {
+        const item = get().items.find(i => i.id === id);
+        if (!item) return;
+        try {
+          const fresh = await processLink(item.url);
+          set((state) => ({
+            items: state.items.map(i => 
+              i.id === id 
+                ? { ...i, 
+                    title: fresh.title, 
+                    description: fresh.description, 
+                    image: fresh.image, 
+                    favicon: fresh.favicon, 
+                    type: fresh.type, 
+                    domain: fresh.domain, 
+                    timestamp: Date.now() } 
+                : i),
+          }));
+        } catch (e) {
+          // Keep existing item on error
+        }
       },
       
       getSavedItems: () => {
