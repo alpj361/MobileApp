@@ -7,19 +7,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
+import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../state/chatStore';
 import { useSavedStore } from '../state/savedStore';
 import { getOpenAIChatResponse } from '../api/chat-service';
-import { extractLinksFromText, processLinks } from '../api/link-processor';
+import { extractLinksFromText, processLinks, detectSocialPlatform } from '../api/link-processor';
 import CustomHeader from '../components/CustomHeader';
 import AnimatedCircle from '../components/AnimatedCircle';
+import LinkProcessingIndicator from '../components/LinkProcessingIndicator';
 
 export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
+  const [isProcessingLinks, setIsProcessingLinks] = useState(false);
+  const [processingPlatform, setProcessingPlatform] = useState<string>('generic');
   const scrollViewRef = useRef<ScrollView>(null);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -42,12 +47,22 @@ export default function ChatScreen() {
     // Process links in background
     const links = extractLinksFromText(userMessage);
     if (links.length > 0) {
+      setIsProcessingLinks(true);
+      
+      // Detectar plataforma del primer link para el indicador
+      if (links.length > 0) {
+        const platform = detectSocialPlatform(links[0]);
+        setProcessingPlatform(platform || 'generic');
+      }
+      
       processLinks(links).then((linkDataArray) => {
         linkDataArray.forEach((linkData) => {
           addSavedItem(linkData, 'chat');
         });
+        setIsProcessingLinks(false);
       }).catch((error) => {
         console.error('Failed to process links:', error);
+        setIsProcessingLinks(false);
       });
     }
 
@@ -98,89 +113,92 @@ export default function ChatScreen() {
           <AnimatedCircle isAnimating={isLoading} size={60} />
         </View>
 
-        {/* Main Content Area */}
+        {/* Link Processing Indicator */}
+        <LinkProcessingIndicator 
+          isProcessing={isProcessingLinks}
+          platform={processingPlatform}
+          message="Procesando link..."
+        />
+
+        {/* Messages */}
         <ScrollView
           ref={scrollViewRef}
-          className="flex-1"
-          contentContainerStyle={{ flexGrow: 1 }}
+          className="flex-1 px-4"
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
-          {messages.length === 0 ? (
-            <View className="flex-1 justify-center items-center px-8">
-              {/* Welcome Text */}
-              <Text className="text-black text-2xl font-normal text-center">
-                what's new, pablo?
-              </Text>
-            </View>
-          ) : (
-            <View className="flex-1 px-4 pt-4">
-              {messages.map((message) => (
-                <View
-                  key={message.id}
-                  className={`mb-4 ${
-                    message.role === 'user' ? 'items-end' : 'items-start'
+          {messages.map((message, index) => (
+            <View
+              key={message.id}
+              className={`mb-4 ${
+                message.role === 'user' ? 'items-end' : 'items-start'
+              }`}
+            >
+              <View
+                className={`max-w-[80%] rounded-2xl px-4 py-3 ${
+                  message.role === 'user'
+                    ? 'bg-blue-500'
+                    : 'bg-white border border-gray-200'
+                }`}
+              >
+                <Text
+                  className={`text-base ${
+                    message.role === 'user' ? 'text-white' : 'text-gray-900'
                   }`}
                 >
-                  <View
-                    className={`max-w-[80%] rounded-3xl px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-blue-500'
-                        : 'bg-white shadow-sm'
-                    }`}
-                  >
-                    <Text
-                      className={`text-base ${
-                        message.role === 'user' ? 'text-white' : 'text-black'
-                      }`}
-                    >
-                      {message.content}
-                    </Text>
-                  </View>
-                  <Text className="text-gray-500 text-xs mt-1 px-2">
-                    {formatTime(message.timestamp)}
-                  </Text>
+                  {message.content}
+                </Text>
+              </View>
+              <Text className="text-gray-500 text-xs mt-2">
+                {formatTime(message.timestamp)}
+              </Text>
+            </View>
+          ))}
+          
+          {isLoading && (
+            <View className="items-start mb-4">
+              <View className="bg-white border border-gray-200 rounded-2xl px-4 py-3">
+                <View className="flex-row items-center space-x-2">
+                  <ActivityIndicator size="small" color="#6B7280" />
+                  <Text className="text-gray-500 text-base">AI está pensando...</Text>
                 </View>
-              ))}
-              
-              {isLoading && (
-                <View className="items-start mb-4">
-                  <View className="bg-white rounded-3xl px-4 py-3 flex-row items-center shadow-sm">
-                    <ActivityIndicator size="small" color="#3B82F6" />
-                    <Text className="text-gray-600 ml-2">AI is typing...</Text>
-                  </View>
-                </View>
-              )}
+              </View>
             </View>
           )}
         </ScrollView>
 
         {/* Input Area */}
         <View 
-          className="px-4 pb-4 bg-gray-100"
-          style={{ paddingBottom: Math.max(insets.bottom, 16) }}
+          className="px-4 pb-4 pt-2"
+          style={{ paddingBottom: insets.bottom + 16 }}
         >
-          <TextInput
-            className="bg-white rounded-2xl px-4 py-3 text-base text-black border border-gray-200"
-            placeholder="Message..."
-            placeholderTextColor="#9CA3AF"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            blurOnSubmit
-            enablesReturnKeyAutomatically
-            maxLength={1000}
-            onSubmitEditing={sendMessage}
-            returnKeyType="send"
-            onKeyPress={(e) => {
-              if (e.nativeEvent.key === 'Enter' && inputText.trim() && !isLoading) {
-                // Fallback for hardware keyboards: send instead of newline
-                sendMessage();
-              }
-            }}
-            autoCorrect
-            autoCapitalize="sentences"
-          />
+          <View className="flex-row items-end space-x-3">
+            <View className="flex-1 bg-white border border-gray-200 rounded-2xl px-4 py-3">
+              <TextInput
+                value={inputText}
+                onChangeText={setInputText}
+                placeholder="Escribe tu mensaje..."
+                multiline
+                className="text-base text-gray-900"
+                style={{ maxHeight: 100 }}
+              />
+            </View>
+            
+            <Pressable
+              onPress={sendMessage}
+              disabled={!inputText.trim() || isLoading}
+              className={`w-12 h-12 rounded-2xl items-center justify-center ${
+                !inputText.trim() || isLoading
+                  ? 'bg-gray-300'
+                  : 'bg-blue-500'
+              }`}
+            >
+              <Ionicons
+                name="send"
+                size={20}
+                color={!inputText.trim() || isLoading ? '#9CA3AF' : 'white'}
+              />
+            </Pressable>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </View>

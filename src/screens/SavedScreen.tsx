@@ -16,6 +16,7 @@ import { useSavedStore } from '../state/savedStore';
 import { extractLinksFromText, processLinks } from '../api/link-processor';
 import CustomHeader from '../components/CustomHeader';
 import SavedItemCard from '../components/SavedItemCard';
+import { SavedItem } from '../types/savedItem';
 
 export default function SavedScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -110,6 +111,14 @@ export default function SavedScreen() {
     </Pressable>
   );
 
+  const renderSavedItem = ({ item }: { item: SavedItem }) => (
+    <SavedItemCard
+      item={item}
+      onToggleFavorite={() => toggleFavorite(item.id)}
+      onDelete={() => removeSavedItem(item.id)}
+    />
+  );
+
   const renderEmptyState = () => (
     <View className="flex-1 items-center justify-center px-8">
       <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
@@ -199,13 +208,7 @@ export default function SavedScreen() {
       ) : (
         <FlatList
           data={filteredItems}
-          renderItem={({ item }) => (
-            <SavedItemCard
-              item={item}
-              onDelete={removeSavedItem}
-              onToggleFavorite={toggleFavorite}
-            />
-          )}
+          renderItem={renderSavedItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16 }}
           refreshControl={

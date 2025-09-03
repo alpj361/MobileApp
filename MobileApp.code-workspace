@@ -8,6 +8,9 @@
 		},
 		{
 			"path": "../Pulse Journal/ThePulse"
+		},
+		{
+			"path": "../Pulse Journal/ExtractorT"
 		}
 	],
 	"settings": {}
