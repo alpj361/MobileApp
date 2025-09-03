@@ -65,20 +65,29 @@ export async function connectWithGoogle(): Promise<ConnectionResult> {
     const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
     
     // Crear code verifier para PKCE
+    const codeVerifier = await Crypto.getRandomBytesAsync(32);
+    const codeVerifierString = Array.from(codeVerifier, byte => 
+      String.fromCharCode(byte)
+    ).join('');
+    
     const codeChallenge = await Crypto.digestStringAsync(
       Crypto.CryptoDigestAlgorithm.SHA256,
-      await Crypto.getRandomBytesAsync(32).then(bytes => 
-        Array.from(bytes, byte => String.fromCharCode(byte)).join('')
-      ),
-      { encoding: Crypto.CryptoEncoding.BASE64URL }
+      codeVerifierString,
+      { encoding: Crypto.CryptoEncoding.BASE64 }
     );
+    
+    // Convertir a BASE64URL (reemplazar caracteres para URL safety)
+    const codeChallengeBase64URL = codeChallenge
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
       `&response_type=code` +
       `&scope=${encodeURIComponent('openid email profile')}` +
-      `&code_challenge=${codeChallenge}` +
+      `&code_challenge=${codeChallengeBase64URL}` +
       `&code_challenge_method=S256`;
 
     // Abrir el navegador de autenticación
@@ -99,7 +108,7 @@ export async function connectWithGoogle(): Promise<ConnectionResult> {
           code: result.params.code,
           grant_type: 'authorization_code',
           redirect_uri: redirectUri,
-          code_verifier: codeChallenge,
+          code_verifier: codeVerifierString,
         }).toString(),
       });
 
