@@ -47,7 +47,7 @@ export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabType>('stories');
+  const [activeTab, setActiveTab] = useState<TabType>('trending');
   
   // Trending state
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -478,9 +478,9 @@ export default function TrendingScreen() {
       {/* Tabs */}
       <View className="bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
         <View className="flex-row">
-          {renderTabButton('stories', 'Stories', 'albums')}
           {renderTabButton('trending', 'Trending', 'trending-up')}
           {renderTabButton('news', 'Noticias', 'newspaper')}
+          {renderTabButton('stories', 'Stories', 'albums')}
         </View>
       </View>
 
