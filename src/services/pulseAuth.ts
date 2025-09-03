@@ -59,28 +59,39 @@ export async function verifyPulseUser(email: string): Promise<PulseUser | null> 
  * Conectar usando Google OAuth
  * Usa el mismo client ID que Pulse Journal para consistencia
  */
+// Helpers: PKCE safe generation
+const BASE64URL_REPLACE: Record<string, string> = { "+": "-", "/": "_", "=": "" };
+const base64ToBase64Url = (b64: string) => b64.replace(/[+/=]/g, (m) => BASE64URL_REPLACE[m]);
+
+async function generateCodeVerifier(length: number = 64): Promise<string> {
+  // RFC 7636 allowed: ALPHA / DIGIT / "-" / "." / "_" / "~"
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  const bytes = await Crypto.getRandomBytesAsync(length);
+  let verifier = "";
+  for (let i = 0; i < bytes.length; i++) {
+    verifier += charset[bytes[i] % charset.length];
+  }
+  return verifier;
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  // Use 'base64' string for compatibility across expo-crypto versions
+  const digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: "base64" as any }
+  );
+  return base64ToBase64Url(digest);
+}
+
 export async function connectWithGoogle(): Promise<ConnectionResult> {
   try {
     // Configurar la petición de OAuth
-    const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
+    const redirectUri = (AuthSession as any).makeRedirectUri({ useProxy: true });
     
-    // Crear code verifier para PKCE
-    const codeVerifier = await Crypto.getRandomBytesAsync(32);
-    const codeVerifierString = Array.from(codeVerifier, byte => 
-      String.fromCharCode(byte)
-    ).join('');
-    
-    const codeChallenge = await Crypto.digestStringAsync(
-      Crypto.CryptoDigestAlgorithm.SHA256,
-      codeVerifierString,
-      { encoding: Crypto.CryptoEncoding.BASE64 }
-    );
-    
-    // Convertir a BASE64URL (reemplazar caracteres para URL safety)
-    const codeChallengeBase64URL = codeChallenge
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
+    // Crear code verifier y challenge PKCE (RFC 7636)
+    const codeVerifierString = await generateCodeVerifier(64);
+    const codeChallengeBase64URL = await generateCodeChallenge(codeVerifierString);
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}` +
@@ -91,7 +102,7 @@ export async function connectWithGoogle(): Promise<ConnectionResult> {
       `&code_challenge_method=S256`;
 
     // Abrir el navegador de autenticación
-    const result = await AuthSession.startAsync({
+    const result = await (AuthSession as any).startAsync({
       authUrl,
       returnUrl: redirectUri,
     });
