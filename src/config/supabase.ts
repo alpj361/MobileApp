@@ -1,18 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ENV, isSupabaseEnabled } from './env';
 
 // Create Supabase client only if env is configured
 export const supabase = isSupabaseEnabled()
-  ? createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY, {
-      auth: {
-        ...(Platform.OS !== 'web' ? { storage: AsyncStorage } : {}),
-        autoRefreshToken: true,
-        persistSession: true,
-        detectSessionInUrl: false,
-      },
-    })
+  ? createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY)
   : null as unknown as ReturnType<typeof createClient>;
 
 export const supabaseAvailable = () => isSupabaseEnabled();
