@@ -45,7 +45,7 @@ export class NewsService {
           url,
           fecha,
           categoria,
-          keywords,
+          raw,
           created_at
         `)
         .order('fecha', { ascending: false })
@@ -77,7 +77,7 @@ export class NewsService {
         date: item.fecha,
         excerpt: NewsService.cleanText(item.resumen),
         category: item.categoria || 'General',
-        keywords: item.keywords || [],
+        keywords: [], // No keywords column in database, using empty array
         url: item.url
       }));
 
@@ -116,7 +116,7 @@ export class NewsService {
           url,
           fecha,
           categoria,
-          keywords,
+          raw,
           created_at
         `)
         .eq('categoria', category)
@@ -138,7 +138,7 @@ export class NewsService {
         date: item.fecha,
         excerpt: NewsService.cleanText(item.resumen),
         category: item.categoria || 'General',
-        keywords: item.keywords || [],
+        keywords: [], // No keywords column in database, using empty array
         url: item.url
       }));
 
