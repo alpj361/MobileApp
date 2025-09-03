@@ -6,6 +6,34 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		2E7C889D2E6843D20024AD7D /* EXTRACTOR_RAPIDO_README.md in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C884D2E6843D20024AD7D /* EXTRACTOR_RAPIDO_README.md */; };
+		2E7C889E2E6843D20024AD7D /* global.css in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C884F2E6843D20024AD7D /* global.css */; };
+		2E7C889F2E6843D20024AD7D /* MobileApp.code-workspace in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88542E6843D20024AD7D /* MobileApp.code-workspace */; };
+		2E7C88A02E6843D20024AD7D /* tsconfig.json in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88902E6843D20024AD7D /* tsconfig.json */; };
+		2E7C88A12E6843D20024AD7D /* imageGenerationsLog in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88512E6843D20024AD7D /* imageGenerationsLog */; };
+		2E7C88A22E6843D20024AD7D /* changelog.txt in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C884C2E6843D20024AD7D /* changelog.txt */; };
+		2E7C88A32E6843D20024AD7D /* PULSE_CONNECTION_README.md in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C885B2E6843D20024AD7D /* PULSE_CONNECTION_README.md */; };
+		2E7C88A42E6843D20024AD7D /* tailwind.config.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C888E2E6843D20024AD7D /* tailwind.config.js */; };
+		2E7C88A52E6843D20024AD7D /* bun.lock in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C884B2E6843D20024AD7D /* bun.lock */; };
+		2E7C88A62E6843D20024AD7D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88912E6843D20024AD7D /* Assets.xcassets */; };
+		2E7C88A72E6843D20024AD7D /* TRENDING_README.md in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C888F2E6843D20024AD7D /* TRENDING_README.md */; };
+		2E7C88A82E6843D20024AD7D /* ReadMeKen.md in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C885C2E6843D20024AD7D /* ReadMeKen.md */; };
+		2E7C88A92E6843D20024AD7D /* metro.config.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88532E6843D20024AD7D /* metro.config.js */; };
+		2E7C88AA2E6843D20024AD7D /* .gitignore in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88762E6843D20024AD7D /* .gitignore */; };
+		2E7C88AB2E6843D20024AD7D /* babel.config.js in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C884A2E6843D20024AD7D /* babel.config.js */; };
+		2E7C88AC2E6843D20024AD7D /* expo-asset@11.1.5.patch in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88582E6843D20024AD7D /* expo-asset@11.1.5.patch */; };
+		2E7C88AD2E6843D20024AD7D /* package.json in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88562E6843D20024AD7D /* package.json */; };
+		2E7C88AE2E6843D20024AD7D /* react-native@0.79.2.patch in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88592E6843D20024AD7D /* react-native@0.79.2.patch */; };
+		2E7C88AF2E6843D20024AD7D /* package-lock.json in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88572E6843D20024AD7D /* package-lock.json */; };
+		2E7C88B02E6843D20024AD7D /* app.json in Resources */ = {isa = PBXBuildFile; fileRef = 2E7C88482E6843D20024AD7D /* app.json */; };
+		2E7C88B12E6843D20024AD7D /* ViztaUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7C88982E6843D20024AD7D /* ViztaUITests.swift */; };
+		2E7C88B22E6843D20024AD7D /* ViztaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7C88962E6843D20024AD7D /* ViztaTests.swift */; };
+		2E7C88B32E6843D20024AD7D /* ViztaUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7C88992E6843D20024AD7D /* ViztaUITestsLaunchTests.swift */; };
+		2E7C88B42E6843D20024AD7D /* ViztaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7C88932E6843D20024AD7D /* ViztaApp.swift */; };
+		2E7C88B52E6843D20024AD7D /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E7C88922E6843D20024AD7D /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		2E7C88202E68418D0024AD7D /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +55,73 @@
 		2E7C88122E68418B0024AD7D /* Vizta.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vizta.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2E7C881F2E68418D0024AD7D /* ViztaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViztaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2E7C88292E68418D0024AD7D /* ViztaUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ViztaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		2E7C88482E6843D20024AD7D /* app.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = app.json; sourceTree = "<group>"; };
+		2E7C88492E6843D20024AD7D /* App.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = App.tsx; sourceTree = "<group>"; };
+		2E7C884A2E6843D20024AD7D /* babel.config.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = babel.config.js; sourceTree = "<group>"; };
+		2E7C884B2E6843D20024AD7D /* bun.lock */ = {isa = PBXFileReference; lastKnownFileType = text; path = bun.lock; sourceTree = "<group>"; };
+		2E7C884C2E6843D20024AD7D /* changelog.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = changelog.txt; sourceTree = "<group>"; };
+		2E7C884D2E6843D20024AD7D /* EXTRACTOR_RAPIDO_README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = EXTRACTOR_RAPIDO_README.md; sourceTree = "<group>"; };
+		2E7C884E2E6843D20024AD7D /* generate-asset-script.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "generate-asset-script.ts"; sourceTree = "<group>"; };
+		2E7C884F2E6843D20024AD7D /* global.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = global.css; sourceTree = "<group>"; };
+		2E7C88502E6843D20024AD7D /* index.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = index.ts; sourceTree = "<group>"; };
+		2E7C88512E6843D20024AD7D /* imageGenerationsLog */ = {isa = PBXFileReference; lastKnownFileType = text; path = imageGenerationsLog; sourceTree = "<group>"; };
+		2E7C88532E6843D20024AD7D /* metro.config.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = metro.config.js; sourceTree = "<group>"; };
+		2E7C88542E6843D20024AD7D /* MobileApp.code-workspace */ = {isa = PBXFileReference; lastKnownFileType = text; path = "MobileApp.code-workspace"; sourceTree = "<group>"; };
+		2E7C88552E6843D20024AD7D /* nativewind-env.d.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "nativewind-env.d.ts"; sourceTree = "<group>"; };
+		2E7C88562E6843D20024AD7D /* package.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = package.json; sourceTree = "<group>"; };
+		2E7C88572E6843D20024AD7D /* package-lock.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "package-lock.json"; sourceTree = "<group>"; };
+		2E7C88582E6843D20024AD7D /* expo-asset@11.1.5.patch */ = {isa = PBXFileReference; lastKnownFileType = text; path = "expo-asset@11.1.5.patch"; sourceTree = "<group>"; };
+		2E7C88592E6843D20024AD7D /* react-native@0.79.2.patch */ = {isa = PBXFileReference; lastKnownFileType = text; path = "react-native@0.79.2.patch"; sourceTree = "<group>"; };
+		2E7C885B2E6843D20024AD7D /* PULSE_CONNECTION_README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PULSE_CONNECTION_README.md; sourceTree = "<group>"; };
+		2E7C885C2E6843D20024AD7D /* ReadMeKen.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ReadMeKen.md; sourceTree = "<group>"; };
+		2E7C885D2E6843D20024AD7D /* anthropic.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = anthropic.ts; sourceTree = "<group>"; };
+		2E7C885E2E6843D20024AD7D /* chat-service.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "chat-service.ts"; sourceTree = "<group>"; };
+		2E7C885F2E6843D20024AD7D /* grok.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = grok.ts; sourceTree = "<group>"; };
+		2E7C88602E6843D20024AD7D /* image-generation.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "image-generation.ts"; sourceTree = "<group>"; };
+		2E7C88612E6843D20024AD7D /* link-processor.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "link-processor.ts"; sourceTree = "<group>"; };
+		2E7C88622E6843D20024AD7D /* openai.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = openai.ts; sourceTree = "<group>"; };
+		2E7C88632E6843D20024AD7D /* transcribe-audio.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = "transcribe-audio.ts"; sourceTree = "<group>"; };
+		2E7C88652E6843D20024AD7D /* AnimatedCircle.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = AnimatedCircle.tsx; sourceTree = "<group>"; };
+		2E7C88662E6843D20024AD7D /* CustomHeader.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = CustomHeader.tsx; sourceTree = "<group>"; };
+		2E7C88672E6843D20024AD7D /* LinkPreview.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = LinkPreview.tsx; sourceTree = "<group>"; };
+		2E7C88682E6843D20024AD7D /* LinkProcessingIndicator.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = LinkProcessingIndicator.tsx; sourceTree = "<group>"; };
+		2E7C88692E6843D20024AD7D /* NewsCard.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = NewsCard.tsx; sourceTree = "<group>"; };
+		2E7C886A2E6843D20024AD7D /* PulseConnectionCard.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = PulseConnectionCard.tsx; sourceTree = "<group>"; };
+		2E7C886B2E6843D20024AD7D /* PulseUserIndicator.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = PulseUserIndicator.tsx; sourceTree = "<group>"; };
+		2E7C886C2E6843D20024AD7D /* SavedItemCard.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = SavedItemCard.tsx; sourceTree = "<group>"; };
+		2E7C886D2E6843D20024AD7D /* TrendingLoading.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = TrendingLoading.tsx; sourceTree = "<group>"; };
+		2E7C886F2E6843D20024AD7D /* env.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = env.ts; sourceTree = "<group>"; };
+		2E7C88702E6843D20024AD7D /* supabase.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = supabase.ts; sourceTree = "<group>"; };
+		2E7C88722E6843D20024AD7D /* useGoogleAuth.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = useGoogleAuth.ts; sourceTree = "<group>"; };
+		2E7C88742E6843D20024AD7D /* TabNavigator.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = TabNavigator.tsx; sourceTree = "<group>"; };
+		2E7C88762E6843D20024AD7D /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		2E7C88772E6843D20024AD7D /* ChatScreen.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = ChatScreen.tsx; sourceTree = "<group>"; };
+		2E7C88782E6843D20024AD7D /* RecordingScreen.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = RecordingScreen.tsx; sourceTree = "<group>"; };
+		2E7C88792E6843D20024AD7D /* SavedScreen.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = SavedScreen.tsx; sourceTree = "<group>"; };
+		2E7C887A2E6843D20024AD7D /* SettingsScreen.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = SettingsScreen.tsx; sourceTree = "<group>"; };
+		2E7C887B2E6843D20024AD7D /* TrendingScreen.tsx */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = TrendingScreen.tsx; sourceTree = "<group>"; };
+		2E7C887D2E6843D20024AD7D /* newsService.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = newsService.ts; sourceTree = "<group>"; };
+		2E7C887E2E6843D20024AD7D /* pulseAuth.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = pulseAuth.ts; sourceTree = "<group>"; };
+		2E7C887F2E6843D20024AD7D /* trendingService.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = trendingService.ts; sourceTree = "<group>"; };
+		2E7C88812E6843D20024AD7D /* chatStore.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = chatStore.ts; sourceTree = "<group>"; };
+		2E7C88822E6843D20024AD7D /* pulseConnectionStore.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = pulseConnectionStore.ts; sourceTree = "<group>"; };
+		2E7C88832E6843D20024AD7D /* recordingStore.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = recordingStore.ts; sourceTree = "<group>"; };
+		2E7C88842E6843D20024AD7D /* rootStore.example.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = rootStore.example.ts; sourceTree = "<group>"; };
+		2E7C88852E6843D20024AD7D /* savedStore.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = savedStore.ts; sourceTree = "<group>"; };
+		2E7C88862E6843D20024AD7D /* settingsStore.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = settingsStore.ts; sourceTree = "<group>"; };
+		2E7C88882E6843D20024AD7D /* ai.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = ai.ts; sourceTree = "<group>"; };
+		2E7C888A2E6843D20024AD7D /* cn.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = cn.ts; sourceTree = "<group>"; };
+		2E7C888C2E6843D20024AD7D /* env.srt.ts */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.typescript; path = env.srt.ts; sourceTree = "<group>"; };
+		2E7C888E2E6843D20024AD7D /* tailwind.config.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = tailwind.config.js; sourceTree = "<group>"; };
+		2E7C888F2E6843D20024AD7D /* TRENDING_README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TRENDING_README.md; sourceTree = "<group>"; };
+		2E7C88902E6843D20024AD7D /* tsconfig.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = tsconfig.json; sourceTree = "<group>"; };
+		2E7C88912E6843D20024AD7D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		2E7C88922E6843D20024AD7D /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		2E7C88932E6843D20024AD7D /* ViztaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViztaApp.swift; sourceTree = "<group>"; };
+		2E7C88952E6843D20024AD7D /* Vizta.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Vizta.xcodeproj; sourceTree = "<group>"; };
+		2E7C88962E6843D20024AD7D /* ViztaTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViztaTests.swift; sourceTree = "<group>"; };
+		2E7C88982E6843D20024AD7D /* ViztaUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViztaUITests.swift; sourceTree = "<group>"; };
+		2E7C88992E6843D20024AD7D /* ViztaUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViztaUITestsLaunchTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -75,6 +170,32 @@
 		2E7C88092E68418B0024AD7D = {
 			isa = PBXGroup;
 			children = (
+				2E7C88482E6843D20024AD7D /* app.json */,
+				2E7C88492E6843D20024AD7D /* App.tsx */,
+				2E7C884A2E6843D20024AD7D /* babel.config.js */,
+				2E7C884B2E6843D20024AD7D /* bun.lock */,
+				2E7C884C2E6843D20024AD7D /* changelog.txt */,
+				2E7C884D2E6843D20024AD7D /* EXTRACTOR_RAPIDO_README.md */,
+				2E7C884E2E6843D20024AD7D /* generate-asset-script.ts */,
+				2E7C884F2E6843D20024AD7D /* global.css */,
+				2E7C88502E6843D20024AD7D /* index.ts */,
+				2E7C88522E6843D20024AD7D /* logs */,
+				2E7C88532E6843D20024AD7D /* metro.config.js */,
+				2E7C88542E6843D20024AD7D /* MobileApp.code-workspace */,
+				2E7C88552E6843D20024AD7D /* nativewind-env.d.ts */,
+				2E7C88562E6843D20024AD7D /* package.json */,
+				2E7C88572E6843D20024AD7D /* package-lock.json */,
+				2E7C885A2E6843D20024AD7D /* patches */,
+				2E7C885B2E6843D20024AD7D /* PULSE_CONNECTION_README.md */,
+				2E7C885C2E6843D20024AD7D /* ReadMeKen.md */,
+				2E7C888D2E6843D20024AD7D /* src */,
+				2E7C888E2E6843D20024AD7D /* tailwind.config.js */,
+				2E7C888F2E6843D20024AD7D /* TRENDING_README.md */,
+				2E7C88902E6843D20024AD7D /* tsconfig.json */,
+				2E7C88942E6843D20024AD7D /* Vizta */,
+				2E7C88952E6843D20024AD7D /* Vizta.xcodeproj */,
+				2E7C88972E6843D20024AD7D /* ViztaTests */,
+				2E7C889A2E6843D20024AD7D /* ViztaUITests */,
 				2E7C88142E68418B0024AD7D /* Vizta */,
 				2E7C88222E68418D0024AD7D /* ViztaTests */,
 				2E7C882C2E68418D0024AD7D /* ViztaUITests */,
@@ -89,6 +210,180 @@
 				2E7C881F2E68418D0024AD7D /* ViztaTests.xctest */,
 				2E7C88292E68418D0024AD7D /* ViztaUITests.xctest */,
 			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2E7C88522E6843D20024AD7D /* logs */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88512E6843D20024AD7D /* imageGenerationsLog */,
+			);
+			path = logs;
+			sourceTree = "<group>";
+		};
+		2E7C885A2E6843D20024AD7D /* patches */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88582E6843D20024AD7D /* expo-asset@11.1.5.patch */,
+				2E7C88592E6843D20024AD7D /* react-native@0.79.2.patch */,
+			);
+			path = patches;
+			sourceTree = "<group>";
+		};
+		2E7C88642E6843D20024AD7D /* api */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C885D2E6843D20024AD7D /* anthropic.ts */,
+				2E7C885E2E6843D20024AD7D /* chat-service.ts */,
+				2E7C885F2E6843D20024AD7D /* grok.ts */,
+				2E7C88602E6843D20024AD7D /* image-generation.ts */,
+				2E7C88612E6843D20024AD7D /* link-processor.ts */,
+				2E7C88622E6843D20024AD7D /* openai.ts */,
+				2E7C88632E6843D20024AD7D /* transcribe-audio.ts */,
+			);
+			path = api;
+			sourceTree = "<group>";
+		};
+		2E7C886E2E6843D20024AD7D /* components */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88652E6843D20024AD7D /* AnimatedCircle.tsx */,
+				2E7C88662E6843D20024AD7D /* CustomHeader.tsx */,
+				2E7C88672E6843D20024AD7D /* LinkPreview.tsx */,
+				2E7C88682E6843D20024AD7D /* LinkProcessingIndicator.tsx */,
+				2E7C88692E6843D20024AD7D /* NewsCard.tsx */,
+				2E7C886A2E6843D20024AD7D /* PulseConnectionCard.tsx */,
+				2E7C886B2E6843D20024AD7D /* PulseUserIndicator.tsx */,
+				2E7C886C2E6843D20024AD7D /* SavedItemCard.tsx */,
+				2E7C886D2E6843D20024AD7D /* TrendingLoading.tsx */,
+			);
+			path = components;
+			sourceTree = "<group>";
+		};
+		2E7C88712E6843D20024AD7D /* config */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C886F2E6843D20024AD7D /* env.ts */,
+				2E7C88702E6843D20024AD7D /* supabase.ts */,
+			);
+			path = config;
+			sourceTree = "<group>";
+		};
+		2E7C88732E6843D20024AD7D /* hooks */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88722E6843D20024AD7D /* useGoogleAuth.ts */,
+			);
+			path = hooks;
+			sourceTree = "<group>";
+		};
+		2E7C88752E6843D20024AD7D /* navigation */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88742E6843D20024AD7D /* TabNavigator.tsx */,
+			);
+			path = navigation;
+			sourceTree = "<group>";
+		};
+		2E7C887C2E6843D20024AD7D /* screens */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88762E6843D20024AD7D /* .gitignore */,
+				2E7C88772E6843D20024AD7D /* ChatScreen.tsx */,
+				2E7C88782E6843D20024AD7D /* RecordingScreen.tsx */,
+				2E7C88792E6843D20024AD7D /* SavedScreen.tsx */,
+				2E7C887A2E6843D20024AD7D /* SettingsScreen.tsx */,
+				2E7C887B2E6843D20024AD7D /* TrendingScreen.tsx */,
+			);
+			path = screens;
+			sourceTree = "<group>";
+		};
+		2E7C88802E6843D20024AD7D /* services */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C887D2E6843D20024AD7D /* newsService.ts */,
+				2E7C887E2E6843D20024AD7D /* pulseAuth.ts */,
+				2E7C887F2E6843D20024AD7D /* trendingService.ts */,
+			);
+			path = services;
+			sourceTree = "<group>";
+		};
+		2E7C88872E6843D20024AD7D /* state */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88812E6843D20024AD7D /* chatStore.ts */,
+				2E7C88822E6843D20024AD7D /* pulseConnectionStore.ts */,
+				2E7C88832E6843D20024AD7D /* recordingStore.ts */,
+				2E7C88842E6843D20024AD7D /* rootStore.example.ts */,
+				2E7C88852E6843D20024AD7D /* savedStore.ts */,
+				2E7C88862E6843D20024AD7D /* settingsStore.ts */,
+			);
+			path = state;
+			sourceTree = "<group>";
+		};
+		2E7C88892E6843D20024AD7D /* types */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88882E6843D20024AD7D /* ai.ts */,
+			);
+			path = types;
+			sourceTree = "<group>";
+		};
+		2E7C888B2E6843D20024AD7D /* utils */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C888A2E6843D20024AD7D /* cn.ts */,
+			);
+			path = utils;
+			sourceTree = "<group>";
+		};
+		2E7C888D2E6843D20024AD7D /* src */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88642E6843D20024AD7D /* api */,
+				2E7C886E2E6843D20024AD7D /* components */,
+				2E7C88712E6843D20024AD7D /* config */,
+				2E7C88732E6843D20024AD7D /* hooks */,
+				2E7C88752E6843D20024AD7D /* navigation */,
+				2E7C887C2E6843D20024AD7D /* screens */,
+				2E7C88802E6843D20024AD7D /* services */,
+				2E7C88872E6843D20024AD7D /* state */,
+				2E7C88892E6843D20024AD7D /* types */,
+				2E7C888B2E6843D20024AD7D /* utils */,
+				2E7C888C2E6843D20024AD7D /* env.srt.ts */,
+			);
+			path = src;
+			sourceTree = "<group>";
+		};
+		2E7C88942E6843D20024AD7D /* Vizta */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88912E6843D20024AD7D /* Assets.xcassets */,
+				2E7C88922E6843D20024AD7D /* ContentView.swift */,
+				2E7C88932E6843D20024AD7D /* ViztaApp.swift */,
+			);
+			path = Vizta;
+			sourceTree = "<group>";
+		};
+		2E7C88972E6843D20024AD7D /* ViztaTests */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88962E6843D20024AD7D /* ViztaTests.swift */,
+			);
+			path = ViztaTests;
+			sourceTree = "<group>";
+		};
+		2E7C889A2E6843D20024AD7D /* ViztaUITests */ = {
+			isa = PBXGroup;
+			children = (
+				2E7C88982E6843D20024AD7D /* ViztaUITests.swift */,
+				2E7C88992E6843D20024AD7D /* ViztaUITestsLaunchTests.swift */,
+			);
+			path = ViztaUITests;
+			sourceTree = "<group>";
+		};
+		2E7C889B2E6843D20024AD7D /* Products */ = {
+			isa = PBXGroup;
 			name = Products;
 			sourceTree = "<group>";
 		};
@@ -198,6 +493,12 @@
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2E7C88132E68418B0024AD7D /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 2E7C889B2E6843D20024AD7D /* Products */;
+					ProjectRef = 2E7C88952E6843D20024AD7D /* Vizta.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				2E7C88112E68418B0024AD7D /* Vizta */,
@@ -212,6 +513,26 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2E7C889D2E6843D20024AD7D /* EXTRACTOR_RAPIDO_README.md in Resources */,
+				2E7C889E2E6843D20024AD7D /* global.css in Resources */,
+				2E7C889F2E6843D20024AD7D /* MobileApp.code-workspace in Resources */,
+				2E7C88A02E6843D20024AD7D /* tsconfig.json in Resources */,
+				2E7C88A12E6843D20024AD7D /* imageGenerationsLog in Resources */,
+				2E7C88A22E6843D20024AD7D /* changelog.txt in Resources */,
+				2E7C88A32E6843D20024AD7D /* PULSE_CONNECTION_README.md in Resources */,
+				2E7C88A42E6843D20024AD7D /* tailwind.config.js in Resources */,
+				2E7C88A52E6843D20024AD7D /* bun.lock in Resources */,
+				2E7C88A62E6843D20024AD7D /* Assets.xcassets in Resources */,
+				2E7C88A72E6843D20024AD7D /* TRENDING_README.md in Resources */,
+				2E7C88A82E6843D20024AD7D /* ReadMeKen.md in Resources */,
+				2E7C88A92E6843D20024AD7D /* metro.config.js in Resources */,
+				2E7C88AA2E6843D20024AD7D /* .gitignore in Resources */,
+				2E7C88AB2E6843D20024AD7D /* babel.config.js in Resources */,
+				2E7C88AC2E6843D20024AD7D /* expo-asset@11.1.5.patch in Resources */,
+				2E7C88AD2E6843D20024AD7D /* package.json in Resources */,
+				2E7C88AE2E6843D20024AD7D /* react-native@0.79.2.patch in Resources */,
+				2E7C88AF2E6843D20024AD7D /* package-lock.json in Resources */,
+				2E7C88B02E6843D20024AD7D /* app.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -236,6 +557,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2E7C88B12E6843D20024AD7D /* ViztaUITests.swift in Sources */,
+				2E7C88B22E6843D20024AD7D /* ViztaTests.swift in Sources */,
+				2E7C88B32E6843D20024AD7D /* ViztaUITestsLaunchTests.swift in Sources */,
+				2E7C88B42E6843D20024AD7D /* ViztaApp.swift in Sources */,
+				2E7C88B52E6843D20024AD7D /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
