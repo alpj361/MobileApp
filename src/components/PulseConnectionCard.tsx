@@ -9,6 +9,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { isValidEmail } from '../services/pulseAuth';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import AnimatedCircle from './AnimatedCircle';
 
 export default function PulseConnectionCard() {
@@ -19,11 +20,14 @@ export default function PulseConnectionCard() {
     connectedUser,
     connectionMethod,
     connectedAt,
-    connectWithGoogle,
+    setConnectionResult,
+    setConnecting,
     connectWithEmail,
     disconnect,
     clearError,
   } = usePulseConnectionStore();
+
+  const { connectWithGoogle: googleAuth, isReady } = useGoogleAuth();
 
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState('');
@@ -55,10 +59,24 @@ export default function PulseConnectionCard() {
     handleCardPress();
     clearError();
     
+    if (!isReady) {
+      setConnectionResult({
+        success: false,
+        error: 'La solicitud de autenticación no está lista. Intenta de nuevo.'
+      }, 'google');
+      return;
+    }
+    
+    setConnecting(true);
+    
     try {
-      await connectWithGoogle();
+      const result = await googleAuth();
+      setConnectionResult(result, 'google');
     } catch (error) {
-      console.error('Error connecting with Google:', error);
+      setConnectionResult({
+        success: false,
+        error: 'Error inesperado durante la conexión con Google'
+      }, 'google');
     }
   };
 

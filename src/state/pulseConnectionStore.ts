@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { PulseUser, ConnectionResult, connectWithGoogle, connectWithEmail } from '../services/pulseAuth';
+import { PulseUser, ConnectionResult, connectWithEmail } from '../services/pulseAuth';
 
 export interface ConnectionState {
   // Estado de conexión
@@ -15,7 +15,8 @@ export interface ConnectionState {
   connectedAt: string | null;
   
   // Acciones
-  connectWithGoogle: () => Promise<ConnectionResult>;
+  setConnectionResult: (result: ConnectionResult, method: 'google' | 'email') => void;
+  setConnecting: (connecting: boolean) => void;
   connectWithEmail: (email: string, password: string) => Promise<ConnectionResult>;
   disconnect: () => void;
   clearError: () => void;
@@ -23,7 +24,7 @@ export interface ConnectionState {
 
 export const usePulseConnectionStore = create<ConnectionState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Estado inicial
       isConnected: false,
       isConnecting: false,
@@ -32,42 +33,28 @@ export const usePulseConnectionStore = create<ConnectionState>()(
       connectionMethod: null,
       connectedAt: null,
 
-      // Conectar con Google
-      connectWithGoogle: async () => {
-        set({ isConnecting: true, connectionError: null });
-        
-        try {
-          const result = await connectWithGoogle();
-          
-          if (result.success && result.user) {
-            set({
-              isConnected: true,
-              isConnecting: false,
-              connectedUser: result.user,
-              connectionMethod: 'google',
-              connectedAt: new Date().toISOString(),
-              connectionError: null,
-            });
-          } else {
-            set({
-              isConnecting: false,
-              connectionError: result.error || 'Error de conexión con Google',
-            });
-          }
-          
-          return result;
-        } catch (error) {
-          const errorMessage = 'Error inesperado durante la conexión con Google';
+      // Set connection result from external auth
+      setConnectionResult: (result: ConnectionResult, method: 'google' | 'email') => {
+        if (result.success && result.user) {
+          set({
+            isConnected: true,
+            isConnecting: false,
+            connectedUser: result.user,
+            connectionMethod: method,
+            connectedAt: new Date().toISOString(),
+            connectionError: null,
+          });
+        } else {
           set({
             isConnecting: false,
-            connectionError: errorMessage,
+            connectionError: result.error || `Error de conexión con ${method}`,
           });
-          
-          return {
-            success: false,
-            error: errorMessage,
-          };
         }
+      },
+
+      // Set connecting state
+      setConnecting: (connecting: boolean) => {
+        set({ isConnecting: connecting, connectionError: connecting ? null : undefined });
       },
 
       // Conectar con email
