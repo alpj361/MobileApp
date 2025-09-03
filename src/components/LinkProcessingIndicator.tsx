@@ -93,7 +93,7 @@ export default function LinkProcessingIndicator({
             style={{ backgroundColor: getPlatformColor() + '20' }}
           >
             <Text className="text-3xl">{getPlatformIcon()}</Text>
-          </Animated.View>
+          </View>
         </Animated.View>
         
         {/* Mensaje */}
