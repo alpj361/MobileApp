@@ -1,121 +1,89 @@
-import { useEffect } from 'react';
-import * as AuthSession from 'expo-auth-session';
+import { useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
+import { makeRedirectUri } from 'expo-auth-session';
+import { supabase } from '../config/supabase';
 import { verifyPulseUser, ConnectionResult } from '../services/pulseAuth';
 
 // Complete auth session when returning to app
 WebBrowser.maybeCompleteAuthSession();
 
-// Google OAuth configuration
-const GOOGLE_CLIENT_ID = '791862052938-000vods8guv7damvnt2gonrmo6vjtopd.apps.googleusercontent.com';
-
-const discovery = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-  userInfoEndpoint: 'https://www.googleapis.com/oauth2/v2/userinfo',
-};
-
 export function useGoogleAuth() {
-  // Create auth request
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: GOOGLE_CLIENT_ID,
-      scopes: ['openid', 'profile', 'email'],
-      responseType: AuthSession.ResponseType.Code,
-      redirectUri: 'https://server.standatpd.com/auth/google/callback',
-      usePKCE: true,
-    },
-    discovery
-  );
-
-  // Handle authentication response
-  useEffect(() => {
-    if (response?.type === 'success') {
-      handleAuthSuccess(response.params.code);
-    }
-  }, [response]);
-
-  const handleAuthSuccess = async (code: string) => {
-    try {
-      // Exchange code for tokens
-      const tokenResponse = await AuthSession.exchangeCodeAsync(
-        {
-          clientId: GOOGLE_CLIENT_ID,
-          code,
-                  redirectUri: 'https://server.standatpd.com/auth/google/callback',
-        },
-        discovery
-      );
-
-      if (tokenResponse.accessToken) {
-        // Get user info from Google
-        const userInfoResponse = await fetch(discovery.userInfoEndpoint, {
-          headers: {
-            Authorization: `Bearer ${tokenResponse.accessToken}`,
-          },
-        });
-
-        const userInfo = await userInfoResponse.json();
-
-        if (userInfo.email) {
-          // Verify user exists in Pulse Journal
-          const pulseUser = await verifyPulseUser(userInfo.email);
-          
-          return {
-            success: true,
-            user: pulseUser,
-            error: pulseUser ? null : 'No se encontró una cuenta de Pulse Journal asociada a este email.',
-          } as ConnectionResult;
-        }
-      }
-
-      return {
-        success: false,
-        error: 'No se pudo obtener la información del usuario de Google.',
-      } as ConnectionResult;
-    } catch (error) {
-      console.error('Error in handleAuthSuccess:', error);
-      return {
-        success: false,
-        error: 'Error durante el intercambio de tokens con Google.',
-      } as ConnectionResult;
-    }
-  };
+  const [isReady] = useState(true);
 
   const connectWithGoogle = async (): Promise<ConnectionResult> => {
     try {
-      if (!request) {
-        return {
-          success: false,
-          error: 'La solicitud de autenticación no está lista. Intenta de nuevo.',
-        };
-      }
+      // Generate redirect URI for the current environment
+      const redirectTo = makeRedirectUri({
+        scheme: 'com.vibecode.app',
+        path: '/auth/callback',
+      });
 
-      const result = await promptAsync();
-      
-      if (result.type === 'cancel') {
-        return {
-          success: false,
-          error: 'La autenticación con Google fue cancelada.',
-        };
-      }
+      console.log('Using redirect URI:', redirectTo);
 
-      if (result.type === 'error') {
+      // Use Supabase OAuth instead of custom implementation
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
+        },
+      });
+
+      if (error) {
+        console.error('Supabase OAuth error:', error);
         return {
           success: false,
           error: 'Error durante la autenticación con Google.',
         };
       }
 
-      if (result.type === 'success' && result.params.code) {
-        return await handleAuthSuccess(result.params.code);
-      }
+      // Wait for the auth state change to get the session
+      return new Promise((resolve) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(
+          async (event, session) => {
+            if (event === 'SIGNED_IN' && session?.user?.email) {
+              // Unsubscribe to avoid memory leaks
+              subscription.unsubscribe();
 
-      return {
-        success: false,
-        error: 'No se recibió un código de autorización válido.',
-      };
+              // Verify user exists in Pulse Journal
+              const pulseUser = await verifyPulseUser(session.user.email);
+              
+              if (pulseUser) {
+                resolve({
+                  success: true,
+                  user: pulseUser,
+                });
+              } else {
+                // Sign out from Supabase since user doesn't exist in Pulse Journal
+                await supabase.auth.signOut();
+                resolve({
+                  success: false,
+                  error: 'No se encontró una cuenta de Pulse Journal asociada a este email.',
+                });
+              }
+            } else if (event === 'SIGNED_OUT') {
+              subscription.unsubscribe();
+              resolve({
+                success: false,
+                error: 'La autenticación con Google fue cancelada.',
+              });
+            }
+          }
+        );
+
+        // Set a timeout to avoid hanging indefinitely
+        setTimeout(() => {
+          subscription.unsubscribe();
+          resolve({
+            success: false,
+            error: 'Tiempo de espera agotado durante la autenticación.',
+          });
+        }, 30000); // 30 seconds timeout
+      });
+
     } catch (error) {
       console.error('Error in connectWithGoogle:', error);
       return {
@@ -126,9 +94,7 @@ export function useGoogleAuth() {
   };
 
   return {
-    request,
-    response,
     connectWithGoogle,
-    isReady: !!request,
+    isReady,
   };
 }
