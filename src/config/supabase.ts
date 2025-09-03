@@ -56,3 +56,15 @@ export interface TrendingResponse {
   data: TrendingData[] | null;
   error: any;
 }
+
+// Types for news table
+export interface NewsItem {
+  id: string;
+  title: string;
+  source: string;
+  date: string;
+  excerpt: string;
+  category: string;
+  keywords: string[];
+  url?: string;
+}

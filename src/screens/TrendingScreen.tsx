@@ -2,20 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
-   FlatList, 
-   Pressable, 
-   RefreshControl,
-   ScrollView,
-   StyleSheet
+  FlatList, 
+  Pressable, 
+  RefreshControl,
+  ScrollView,
+  StyleSheet
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
+import NewsCard from '../components/NewsCard';
 import { TrendingService } from '../services/trendingService';
-import { TrendingData } from '../config/supabase';
+import { NewsService } from '../services/newsService';
+import { TrendingData, NewsItem } from '../config/supabase';
 import { supabaseAvailable } from '../config/supabase';
+
+type TabType = 'trending' | 'news';
 
 interface TrendingItem {
   id: string;
@@ -39,21 +43,40 @@ interface TrendingCategory {
 
 export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState<TabType>('trending');
+  
+  // Trending state
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [refreshingTrending, setRefreshingTrending] = useState(false);
+  const [loadingTrending, setLoadingTrending] = useState(true);
   const [trendingData, setTrendingData] = useState<TrendingData[]>([]);
   const [categories, setCategories] = useState<TrendingCategory[]>([]);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [stats, setStats] = useState<{
+  const [trendingError, setTrendingError] = useState<string | null>(null);
+  const [trendingStats, setTrendingStats] = useState<{
     totalTrends: number;
     localTrends: number;
     globalTrends: number;
     highRelevance: number;
   } | null>(null);
 
-  // Mapeo de categorías a iconos y colores
+  // News state
+  const [refreshingNews, setRefreshingNews] = useState(false);
+  const [loadingNews, setLoadingNews] = useState(true);
+  const [newsData, setNewsData] = useState<NewsItem[]>([]);
+  const [newsCategories, setNewsCategories] = useState<string[]>([]);
+  const [selectedNewsCategory, setSelectedNewsCategory] = useState('all');
+  const [newsError, setNewsError] = useState<string | null>(null);
+  const [newsStats, setNewsStats] = useState<{
+    totalNews: number;
+    categoriesCount: number;
+    recentNews: number;
+    sourcesCount: number;
+  } | null>(null);
+
+  // Mapeo de categorías a iconos y colores para trending
   const categoryMapping: { [key: string]: { icon: string; color: string } } = {
     'Deportes': { icon: 'football', color: '#10B981' },
     'Música': { icon: 'musical-notes', color: '#8B5CF6' },
@@ -66,18 +89,20 @@ export default function TrendingScreen() {
   };
 
   // Cargar datos iniciales
-   useEffect(() => {
-     loadInitialData();
-   }, []);
- 
-  const loadInitialData = async () => {
+  useEffect(() => {
+    if (activeTab === 'trending') {
+      loadInitialTrendingData();
+    } else {
+      loadInitialNewsData();
+    }
+  }, [activeTab]);
+
+  // TRENDING FUNCTIONS
+  const loadInitialTrendingData = async () => {
     try {
-      setLoading(true);
-
-      // Cargar trends más recientes primero
+      setLoadingTrending(true);
       await loadTrends();
-
-      // Cargar categorías disponibles y generar fallbacks si es necesario
+      
       const availableCategories = await TrendingService.getAvailableCategories();
       let derived: string[] = availableCategories;
       if (!derived || derived.length === 0) {
@@ -92,6 +117,7 @@ export default function TrendingScreen() {
           derived = ['Social', 'Noticias', 'Tech', 'AI', 'Otros'];
         }
       }
+      
       const categoryList: TrendingCategory[] = [
         { id: 'all', name: 'Todos', icon: 'apps', color: '#6B7280' },
         ...derived.map(cat => ({
@@ -103,15 +129,14 @@ export default function TrendingScreen() {
       ];
       setCategories(categoryList);
       
-      // Cargar estadísticas
-      const trendingStats = await TrendingService.getTrendingStats();
-      setStats(trendingStats);
+      const trendingStatsData = await TrendingService.getTrendingStats();
+      setTrendingStats(trendingStatsData);
       
     } catch (error) {
-      console.error('Error loading initial data:', error);
-      setErrorMsg('No se pudieron cargar los datos de trending');
+      console.error('Error loading trending data:', error);
+      setTrendingError('No se pudieron cargar los datos de trending');
     } finally {
-      setLoading(false);
+      setLoadingTrending(false);
     }
   };
 
@@ -131,23 +156,77 @@ export default function TrendingScreen() {
       setTrendingData(response.data || []);
     } catch (error) {
       console.error('Error loading trends:', error);
-      setErrorMsg('No se pudieron cargar las tendencias');
+      setTrendingError('No se pudieron cargar las tendencias');
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
+  const handleTrendingRefresh = async () => {
+    setRefreshingTrending(true);
     await loadTrends();
-    setRefreshing(false);
+    setRefreshingTrending(false);
   };
 
-  const handleCategoryChange = async (categoryId: string) => {
+  const handleTrendingCategoryChange = async (categoryId: string) => {
     setSelectedCategory(categoryId);
-    setLoading(true);
+    setLoadingTrending(true);
     await loadTrends();
-    setLoading(false);
+    setLoadingTrending(false);
   };
 
+  // NEWS FUNCTIONS
+  const loadInitialNewsData = async () => {
+    try {
+      setLoadingNews(true);
+      await loadNews();
+      
+      const availableNewsCategories = await NewsService.getAvailableCategories();
+      setNewsCategories(['all', ...availableNewsCategories]);
+      
+      const newsStatsData = await NewsService.getNewsStats();
+      setNewsStats(newsStatsData);
+      
+    } catch (error) {
+      console.error('Error loading news data:', error);
+      setNewsError('No se pudieron cargar las noticias');
+    } finally {
+      setLoadingNews(false);
+    }
+  };
+
+  const loadNews = async () => {
+    try {
+      let response;
+      if (selectedNewsCategory === 'all') {
+        response = await NewsService.getLatestNews(20);
+      } else {
+        response = await NewsService.getNewsByCategory(selectedNewsCategory, 20);
+      }
+
+      if (response.error) {
+        throw new Error(response.error);
+      }
+
+      setNewsData(response.data || []);
+    } catch (error) {
+      console.error('Error loading news:', error);
+      setNewsError('No se pudieron cargar las noticias');
+    }
+  };
+
+  const handleNewsRefresh = async () => {
+    setRefreshingNews(true);
+    await loadNews();
+    setRefreshingNews(false);
+  };
+
+  const handleNewsCategoryChange = async (categoryId: string) => {
+    setSelectedNewsCategory(categoryId);
+    setLoadingNews(true);
+    await loadNews();
+    setLoadingNews(false);
+  };
+
+  // TRENDING HELPER FUNCTIONS
   const toggleItemExpansion = (itemId: string) => {
     setExpandedItems(prev => {
       const newSet = new Set(prev);
@@ -160,7 +239,6 @@ export default function TrendingScreen() {
     });
   };
 
-  // Convertir datos de Supabase a formato de UI
   const transformTrendingData = (): TrendingItem[] => {
     const items: TrendingItem[] = [];
     let rank = 1;
@@ -172,7 +250,7 @@ export default function TrendingScreen() {
           title: keyword.keyword,
           category: keyword.category,
           engagement: `${keyword.count.toLocaleString()} menciones`,
-          trend: 'up' as const, // Por defecto, ya que son trends actuales
+          trend: 'up' as const,
           rank: rank++,
           description: keyword.about.razon_tendencia,
           isLocal: keyword.about.contexto_local,
@@ -182,10 +260,8 @@ export default function TrendingScreen() {
       });
     });
 
-    return items.slice(0, 15); // Limitar a 15 items
+    return items.slice(0, 15);
   };
-
-
 
   const getRelevanceColor = (relevance: string) => {
     switch (relevance) {
@@ -200,10 +276,32 @@ export default function TrendingScreen() {
     }
   };
 
-  const renderCategoryButton = (category: TrendingCategory) => (
+  // RENDER FUNCTIONS
+  const renderTabButton = (tab: TabType, title: string, icon: string) => (
+    <Pressable
+      key={tab}
+      onPress={() => setActiveTab(tab)}
+      className={`flex-1 flex-row items-center justify-center py-3 px-4 ${
+        activeTab === tab ? 'border-b-2 border-blue-500' : ''
+      }`}
+    >
+      <Ionicons 
+        name={icon as any} 
+        size={18} 
+        color={activeTab === tab ? '#3B82F6' : '#9CA3AF'} 
+      />
+      <Text className={`ml-2 font-medium ${
+        activeTab === tab ? 'text-blue-600' : 'text-gray-500'
+      }`}>
+        {title}
+      </Text>
+    </Pressable>
+  );
+
+  const renderTrendingCategoryButton = (category: TrendingCategory) => (
     <Pressable
       key={category.id}
-      onPress={() => handleCategoryChange(category.id)}
+      onPress={() => handleTrendingCategoryChange(category.id)}
       className={`px-3 py-2 rounded-full mr-3 flex-row items-center ${
         selectedCategory === category.id ? 'bg-blue-500' : 'bg-white border border-gray-200'
       }`}
@@ -218,6 +316,23 @@ export default function TrendingScreen() {
         selectedCategory === category.id ? 'text-white font-medium' : 'text-gray-700'
       }`} numberOfLines={1}>
         {category.name}
+      </Text>
+    </Pressable>
+  );
+
+  const renderNewsCategoryButton = (category: string) => (
+    <Pressable
+      key={category}
+      onPress={() => handleNewsCategoryChange(category)}
+      className={`px-3 py-2 rounded-full mr-3 ${
+        selectedNewsCategory === category ? 'bg-blue-500' : 'bg-white border border-gray-200'
+      }`}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+    >
+      <Text className={`text-sm ${
+        selectedNewsCategory === category ? 'text-white font-medium' : 'text-gray-700'
+      }`} numberOfLines={1}>
+        {category === 'all' ? 'Todas' : category}
       </Text>
     </Pressable>
   );
@@ -339,44 +454,63 @@ export default function TrendingScreen() {
     );
   };
 
-  if (loading) {
+  const isLoading = activeTab === 'trending' ? loadingTrending : loadingNews;
+
+  if (isLoading) {
     return (
       <View className="flex-1 bg-gray-100">
-        <CustomHeader navigation={navigation} title="Trending" />
+        <CustomHeader navigation={navigation} title="Trending & News" />
         <TrendingLoading />
       </View>
     );
   }
 
-  const transformedData = transformTrendingData();
+  const transformedTrendingData = transformTrendingData();
 
   return (
     <View className="flex-1 bg-gray-100">
-      <CustomHeader navigation={navigation} title="Trending" />
+      <CustomHeader navigation={navigation} title="Trending & News" />
       
-      {/* Categories */}
-      <View className="px-4 py-1 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+      {/* Tabs */}
+      <View className="bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+        <View className="flex-row">
+          {renderTabButton('trending', 'Trending', 'trending-up')}
+          {renderTabButton('news', 'Noticias', 'newspaper')}
+        </View>
+      </View>
+
+      {/* Categories for active tab */}
+      <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{ paddingRight: 32 }}
         >
           <View className="flex-row items-center">
-            {categories.map(renderCategoryButton)}
+            {activeTab === 'trending' ? 
+              categories.map(renderTrendingCategoryButton) :
+              newsCategories.map(renderNewsCategoryButton)
+            }
           </View>
         </ScrollView>
       </View>
 
       {/* Stats Bar */}
-      <View className="px-4 py-1 bg-gray-100">
+      <View className="px-4 py-2 bg-gray-100">
         <View className="flex-row items-center justify-between">
           <Text className="text-gray-600 text-sm">
-            {transformedData.length} trending topic{transformedData.length !== 1 ? 's' : ''}
+            {activeTab === 'trending' ? 
+              `${transformedTrendingData.length} trending topic${transformedTrendingData.length !== 1 ? 's' : ''}` :
+              `${newsData.length} noticia${newsData.length !== 1 ? 's' : ''}`
+            }
           </Text>
           <View className="flex-row items-center">
             <Ionicons name="time" size={14} color="#9CA3AF" />
             <Text className="text-gray-500 text-xs ml-1">
-              {stats ? `${stats?.localTrends ?? 0} locales, ${stats?.globalTrends ?? 0} globales` : 'Actualizando...'}
+              {activeTab === 'trending' ? 
+                (trendingStats ? `${trendingStats?.localTrends ?? 0} locales, ${trendingStats?.globalTrends ?? 0} globales` : 'Actualizando...') :
+                (newsStats ? `${newsStats?.recentNews ?? 0} recientes, ${newsStats?.sourcesCount ?? 0} fuentes` : 'Actualizando...')
+              }
             </Text>
           </View>
         </View>
@@ -385,33 +519,46 @@ export default function TrendingScreen() {
             <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
           </View>
         )}
-        {errorMsg && (
+        {(activeTab === 'trending' ? trendingError : newsError) && (
           <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
-            <Text className="text-red-700 text-xs">{errorMsg}</Text>
+            <Text className="text-red-700 text-xs">
+              {activeTab === 'trending' ? trendingError : newsError}
+            </Text>
           </View>
         )}
       </View>
 
-      {/* Trending List */}
+      {/* Content List */}
       <FlatList
-        data={transformedData}
-        renderItem={renderTrendingItem}
-        keyExtractor={(item) => item.id}
+        data={activeTab === 'trending' ? transformedTrendingData : newsData}
+        renderItem={activeTab === 'trending' ? renderTrendingItem : ({ item }) => <NewsCard item={item} />}
+        keyExtractor={(item) => activeTab === 'trending' ? (item as TrendingItem).id : (item as NewsItem).id}
         contentContainerStyle={{ padding: 16 }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl 
+            refreshing={activeTab === 'trending' ? refreshingTrending : refreshingNews} 
+            onRefresh={activeTab === 'trending' ? handleTrendingRefresh : handleNewsRefresh} 
+          />
         }
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View className="items-center justify-center py-12">
             <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
-              <Ionicons name="trending-up" size={32} color="#9CA3AF" />
+              <Ionicons name={activeTab === 'trending' ? "trending-up" : "newspaper"} size={32} color="#9CA3AF" />
             </View>
-            <Text className="text-black text-lg font-medium mb-2">No hay tendencias</Text>
+            <Text className="text-black text-lg font-medium mb-2">
+              {activeTab === 'trending' ? 'No hay tendencias' : 'No hay noticias'}
+            </Text>
             <Text className="text-gray-500 text-center">
-              {selectedCategory === 'all' 
-                ? 'No se encontraron tendencias recientes'
-                : `No hay tendencias en la categoría ${selectedCategory}`
+              {activeTab === 'trending' ? 
+                (selectedCategory === 'all' 
+                  ? 'No se encontraron tendencias recientes'
+                  : `No hay tendencias en la categoría ${selectedCategory}`
+                ) :
+                (selectedNewsCategory === 'all'
+                  ? 'No se encontraron noticias recientes'
+                  : `No hay noticias en la categoría ${selectedNewsCategory}`
+                )
               }
             </Text>
           </View>
