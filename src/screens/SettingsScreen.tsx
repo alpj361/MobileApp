@@ -4,11 +4,15 @@ import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
+import PulseConnectionCard from '../components/PulseConnectionCard';
 import { useSettingsStore, ConnectionStatus } from '../state/settingsStore';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const { connections, toggleConnection } = useSettingsStore();
+
+  // Filtrar conexiones para excluir Pulqum (ahora manejado por PulseConnectionCard)
+  const otherConnections = connections.filter(conn => conn.id !== 'pulqum');
 
   const renderConnectionItem = (connection: ConnectionStatus) => {
     const handleToggle = () => {
@@ -78,7 +82,11 @@ export default function SettingsScreen() {
           </View>
           
           <View className="mb-6">
-            {connections.map(renderConnectionItem)}
+            {/* Conexión principal con Pulse Journal */}
+            <PulseConnectionCard />
+            
+            {/* Otras conexiones si las hay */}
+            {otherConnections.map(renderConnectionItem)}
           </View>
         </View>
 

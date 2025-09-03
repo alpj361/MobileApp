@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../Pulse Journal/ExtractorW"
+		},
+		{
+			"path": "../Pulse Journal/ThePulse"
+		}
+	],
+	"settings": {}
+}
