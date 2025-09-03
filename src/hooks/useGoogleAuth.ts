@@ -23,9 +23,7 @@ export function useGoogleAuth() {
       clientId: GOOGLE_CLIENT_ID,
       scopes: ['openid', 'profile', 'email'],
       responseType: AuthSession.ResponseType.Code,
-      redirectUri: AuthSession.makeRedirectUri({
-        scheme: 'exp',
-      }),
+      redirectUri: 'https://server.standatpd.com/auth/google/callback',
       usePKCE: true,
     },
     discovery
@@ -45,9 +43,7 @@ export function useGoogleAuth() {
         {
           clientId: GOOGLE_CLIENT_ID,
           code,
-          redirectUri: AuthSession.makeRedirectUri({
-            scheme: 'exp',
-          }),
+                  redirectUri: 'https://server.standatpd.com/auth/google/callback',
         },
         discovery
       );

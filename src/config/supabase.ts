@@ -68,3 +68,34 @@ export interface NewsItem {
   keywords: string[];
   url?: string;
 }
+
+// Types for stories table
+export interface Story {
+  id: string;
+  title: string;
+  summary: string;
+  background_color: string;
+  text_color: string;
+  gradient_colors?: string[];
+  category: string;
+  source_type: 'trend' | 'news' | 'hybrid';
+  source_ids: string[];
+  priority: number;
+  is_active: boolean;
+  view_count: number;
+  share_count: number;
+  created_at: string;
+  expires_at?: string;
+  metadata: {
+    emojis?: string[];
+    tags?: string[];
+    layout_type?: 'simple' | 'gradient' | 'bold' | 'minimal';
+    font_size?: 'small' | 'medium' | 'large';
+    [key: string]: any;
+  };
+}
+
+export interface StoryResponse {
+  data: Story[] | null;
+  error: any;
+}

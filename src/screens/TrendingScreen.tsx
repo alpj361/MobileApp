@@ -14,12 +14,14 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
 import NewsCard from '../components/NewsCard';
+import StoriesCarousel from '../components/StoriesCarousel';
 import { TrendingService } from '../services/trendingService';
 import { NewsService } from '../services/newsService';
-import { TrendingData, NewsItem } from '../config/supabase';
+import { StoriesService } from '../services/storiesService';
+import { TrendingData, NewsItem, Story } from '../config/supabase';
 import { supabaseAvailable } from '../config/supabase';
 
-type TabType = 'trending' | 'news';
+type TabType = 'stories' | 'trending' | 'news';
 
 interface TrendingItem {
   id: string;
@@ -45,7 +47,7 @@ export default function TrendingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   
   // Tab state
-  const [activeTab, setActiveTab] = useState<TabType>('trending');
+  const [activeTab, setActiveTab] = useState<TabType>('stories');
   
   // Trending state
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -92,9 +94,10 @@ export default function TrendingScreen() {
   useEffect(() => {
     if (activeTab === 'trending') {
       loadInitialTrendingData();
-    } else {
+    } else if (activeTab === 'news') {
       loadInitialNewsData();
     }
+    // Stories se cargan automáticamente en su componente
   }, [activeTab]);
 
   // TRENDING FUNCTIONS
@@ -454,7 +457,8 @@ export default function TrendingScreen() {
     );
   };
 
-  const isLoading = activeTab === 'trending' ? loadingTrending : loadingNews;
+  const isLoading = activeTab === 'trending' ? loadingTrending : 
+                   activeTab === 'news' ? loadingNews : false;
 
   if (isLoading) {
     return (
@@ -474,96 +478,139 @@ export default function TrendingScreen() {
       {/* Tabs */}
       <View className="bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
         <View className="flex-row">
+          {renderTabButton('stories', 'Stories', 'albums')}
           {renderTabButton('trending', 'Trending', 'trending-up')}
           {renderTabButton('news', 'Noticias', 'newspaper')}
         </View>
       </View>
 
-      {/* Categories for active tab */}
-      <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+      {/* Categories for active tab (only for trending and news) */}
+      {activeTab !== 'stories' && (
+        <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 32 }}
+          >
+            <View className="flex-row items-center">
+              {activeTab === 'trending' ? 
+                categories.map(renderTrendingCategoryButton) :
+                newsCategories.map(renderNewsCategoryButton)
+              }
+            </View>
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Stats Bar (only for trending and news) */}
+      {activeTab !== 'stories' && (
+        <View className="px-4 py-2 bg-gray-100">
+          <View className="flex-row items-center justify-between">
+            <Text className="text-gray-600 text-sm">
+              {activeTab === 'trending' ? 
+                `${transformedTrendingData.length} trending topic${transformedTrendingData.length !== 1 ? 's' : ''}` :
+                `${newsData.length} noticia${newsData.length !== 1 ? 's' : ''}`
+              }
+            </Text>
+            <View className="flex-row items-center">
+              <Ionicons name="time" size={14} color="#9CA3AF" />
+              <Text className="text-gray-500 text-xs ml-1">
+                {activeTab === 'trending' ? 
+                  (trendingStats ? `${trendingStats?.localTrends ?? 0} locales, ${trendingStats?.globalTrends ?? 0} globales` : 'Actualizando...') :
+                  (newsStats ? `${newsStats?.recentNews ?? 0} recientes, ${newsStats?.sourcesCount ?? 0} fuentes` : 'Actualizando...')
+                }
+              </Text>
+            </View>
+          </View>
+          {!supabaseAvailable() && (
+            <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
+              <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
+            </View>
+          )}
+          {(activeTab === 'trending' ? trendingError : newsError) && (
+            <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
+              <Text className="text-red-700 text-xs">
+                {activeTab === 'trending' ? trendingError : newsError}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Content */}
+      {activeTab === 'stories' ? (
         <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 32 }}
+          className="flex-1"
+          refreshControl={
+            <RefreshControl 
+              refreshing={false} 
+              onRefresh={() => {}} 
+            />
+          }
+          showsVerticalScrollIndicator={false}
         >
-          <View className="flex-row items-center">
-            {activeTab === 'trending' ? 
-              categories.map(renderTrendingCategoryButton) :
-              newsCategories.map(renderNewsCategoryButton)
-            }
+          <StoriesCarousel />
+          
+          {/* Stories Info */}
+          <View className="px-4 py-6 bg-white mx-4 my-4 rounded-2xl">
+            <Text className="text-lg font-bold text-gray-800 mb-2">📱 Instagram Stories</Text>
+            <Text className="text-gray-600 text-sm leading-relaxed">
+              Resúmenes automáticos de las tendencias y noticias más importantes del día, 
+              presentados en un formato visual atractivo e interactivo.
+            </Text>
+            <View className="flex-row items-center mt-4 space-x-4">
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-red-500 rounded-full mr-2" />
+                <Text className="text-xs text-gray-500">Tendencias</Text>
+              </View>
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-blue-500 rounded-full mr-2" />
+                <Text className="text-xs text-gray-500">Noticias</Text>
+              </View>
+              <View className="flex-row items-center">
+                <View className="w-3 h-3 bg-purple-500 rounded-full mr-2" />
+                <Text className="text-xs text-gray-500">Análisis</Text>
+              </View>
+            </View>
           </View>
         </ScrollView>
-      </View>
-
-      {/* Stats Bar */}
-      <View className="px-4 py-2 bg-gray-100">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-gray-600 text-sm">
-            {activeTab === 'trending' ? 
-              `${transformedTrendingData.length} trending topic${transformedTrendingData.length !== 1 ? 's' : ''}` :
-              `${newsData.length} noticia${newsData.length !== 1 ? 's' : ''}`
-            }
-          </Text>
-          <View className="flex-row items-center">
-            <Ionicons name="time" size={14} color="#9CA3AF" />
-            <Text className="text-gray-500 text-xs ml-1">
-              {activeTab === 'trending' ? 
-                (trendingStats ? `${trendingStats?.localTrends ?? 0} locales, ${trendingStats?.globalTrends ?? 0} globales` : 'Actualizando...') :
-                (newsStats ? `${newsStats?.recentNews ?? 0} recientes, ${newsStats?.sourcesCount ?? 0} fuentes` : 'Actualizando...')
-              }
-            </Text>
-          </View>
-        </View>
-        {!supabaseAvailable() && (
-          <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
-            <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
-          </View>
-        )}
-        {(activeTab === 'trending' ? trendingError : newsError) && (
-          <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
-            <Text className="text-red-700 text-xs">
-              {activeTab === 'trending' ? trendingError : newsError}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      {/* Content List */}
-      <FlatList
-        data={activeTab === 'trending' ? transformedTrendingData : newsData}
-        renderItem={activeTab === 'trending' ? renderTrendingItem : ({ item }) => <NewsCard item={item} />}
-        keyExtractor={(item) => activeTab === 'trending' ? (item as TrendingItem).id : (item as NewsItem).id}
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={
-          <RefreshControl 
-            refreshing={activeTab === 'trending' ? refreshingTrending : refreshingNews} 
-            onRefresh={activeTab === 'trending' ? handleTrendingRefresh : handleNewsRefresh} 
-          />
-        }
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View className="items-center justify-center py-12">
-            <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
-              <Ionicons name={activeTab === 'trending' ? "trending-up" : "newspaper"} size={32} color="#9CA3AF" />
+      ) : (
+        <FlatList
+          data={activeTab === 'trending' ? transformedTrendingData : newsData}
+          renderItem={activeTab === 'trending' ? renderTrendingItem : ({ item }) => <NewsCard item={item} />}
+          keyExtractor={(item) => activeTab === 'trending' ? (item as TrendingItem).id : (item as NewsItem).id}
+          contentContainerStyle={{ padding: 16 }}
+          refreshControl={
+            <RefreshControl 
+              refreshing={activeTab === 'trending' ? refreshingTrending : refreshingNews} 
+              onRefresh={activeTab === 'trending' ? handleTrendingRefresh : handleNewsRefresh} 
+            />
+          }
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View className="items-center justify-center py-12">
+              <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
+                <Ionicons name={activeTab === 'trending' ? "trending-up" : "newspaper"} size={32} color="#9CA3AF" />
+              </View>
+              <Text className="text-black text-lg font-medium mb-2">
+                {activeTab === 'trending' ? 'No hay tendencias' : 'No hay noticias'}
+              </Text>
+              <Text className="text-gray-500 text-center">
+                {activeTab === 'trending' ? 
+                  (selectedCategory === 'all' 
+                    ? 'No se encontraron tendencias recientes'
+                    : `No hay tendencias en la categoría ${selectedCategory}`
+                  ) :
+                  (selectedNewsCategory === 'all'
+                    ? 'No se encontraron noticias recientes'
+                    : `No hay noticias en la categoría ${selectedNewsCategory}`
+                  )
+                }
+              </Text>
             </View>
-            <Text className="text-black text-lg font-medium mb-2">
-              {activeTab === 'trending' ? 'No hay tendencias' : 'No hay noticias'}
-            </Text>
-            <Text className="text-gray-500 text-center">
-              {activeTab === 'trending' ? 
-                (selectedCategory === 'all' 
-                  ? 'No se encontraron tendencias recientes'
-                  : `No hay tendencias en la categoría ${selectedCategory}`
-                ) :
-                (selectedNewsCategory === 'all'
-                  ? 'No se encontraron noticias recientes'
-                  : `No hay noticias en la categoría ${selectedNewsCategory}`
-                )
-              }
-            </Text>
-          </View>
-        }
-      />
+          }
+        />
+      )}
     </View>
   );
 }
