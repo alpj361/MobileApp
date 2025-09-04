@@ -239,10 +239,10 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
   });
 
   return (
-    <View className="flex-1">
+    <View style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <Pressable onPress={handlePress} className="flex-1">
+      <Pressable onPress={handlePress} style={{ flex: 1 }}>
         <LinearGradient
           colors={(() => {
             // Ensure we always have valid colors for LinearGradient
@@ -257,7 +257,7 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
           })()}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          className="flex-1"
+          style={{ flex: 1 }}
         >
           {/* Progress Bars */}
           <View 
@@ -287,14 +287,12 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
           {/* Touch Areas for Navigation */}
           <View className="absolute inset-0 flex-row">
             <Pressable 
-              className="flex-1" 
               onPress={previousStory}
-              style={{ opacity: 0 }}
+              style={{ flex: 1, opacity: 0.01 }}
             />
             <Pressable 
-              className="flex-1" 
               onPress={nextStory}
-              style={{ opacity: 0 }}
+              style={{ flex: 1, opacity: 0.01 }}
             />
           </View>
 
@@ -409,6 +407,14 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
           )}
         </LinearGradient>
       </Pressable>
+
+      {__DEV__ && (
+        <View style={{ position: 'absolute', bottom: 16, left: 16, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 }}>
+          <Text style={{ color: 'white', fontSize: 12 }}>
+            loading={String(loading)} • count={stories.length} • index={currentIndex}
+          </Text>
+        </View>
+      )}
     </View>
   );
 };
