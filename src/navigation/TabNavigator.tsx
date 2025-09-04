@@ -1,62 +1,52 @@
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
-import { View, Text } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ChatScreen from '../screens/ChatScreen';
 import RecordingScreen from '../screens/RecordingScreen';
 import SavedScreen from '../screens/SavedScreen';
 import TrendingScreen from '../screens/TrendingScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import { textStyles } from '../utils/typography';
 
 const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent({ navigation }: any) {
+  const menuItems = [
+    { name: 'Chat', icon: 'chatbubble-outline', label: 'Chat' },
+    { name: 'Recording', icon: 'mic-outline', label: 'Grabación' },
+    { name: 'Saved', icon: 'bookmark-outline', label: 'Guardados' },
+    { name: 'Trending', icon: 'trending-up', label: 'Tendencias' },
+    { name: 'Settings', icon: 'settings-outline', label: 'Configuración' },
+  ];
+
   return (
-    <View className="flex-1 bg-white pt-12">
-      <View className="px-6 py-4 border-b border-gray-200">
-        <Text className="text-xl font-semibold text-black">Menu</Text>
+    <View className="flex-1 bg-white">
+      {/* Header */}
+      <View className="pt-16 pb-6 px-6 bg-gray-50 border-b border-gray-100">
+        <Text className={textStyles.sectionTitle}>Menú</Text>
       </View>
       
-      <View className="flex-1 pt-4">
-        <View
-          className="flex-row items-center px-6 py-4 active:bg-gray-100"
-          onTouchEnd={() => navigation.navigate('Chat')}
-        >
-          <Ionicons name="chatbubble-outline" size={24} color="#374151" />
-          <Text className="ml-4 text-base text-gray-700">Chat</Text>
-        </View>
-        
-        <View
-          className="flex-row items-center px-6 py-4 active:bg-gray-100"
-          onTouchEnd={() => navigation.navigate('Recording')}
-        >
-          <Ionicons name="mic-outline" size={24} color="#374151" />
-          <Text className="ml-4 text-base text-gray-700">Recording</Text>
-        </View>
-
-        <View
-          className="flex-row items-center px-6 py-4 active:bg-gray-100"
-          onTouchEnd={() => navigation.navigate('Saved')}
-        >
-          <Ionicons name="bookmark-outline" size={24} color="#374151" />
-          <Text className="ml-4 text-base text-gray-700">Saved</Text>
-        </View>
-
-        <View
-          className="flex-row items-center px-6 py-4 active:bg-gray-100"
-          onTouchEnd={() => navigation.navigate('Trending')}
-        >
-          <Ionicons name="trending-up" size={24} color="#374151" />
-          <Text className="ml-4 text-base text-gray-700">Trending</Text>
-        </View>
-
-        <View
-          className="flex-row items-center px-6 py-4 active:bg-gray-100"
-          onTouchEnd={() => navigation.navigate('Settings')}
-        >
-          <Ionicons name="settings-outline" size={24} color="#374151" />
-          <Text className="ml-4 text-base text-gray-700">Configuración</Text>
-        </View>
+      {/* Menu Items */}
+      <View className="flex-1 pt-2">
+        {menuItems.map((item) => (
+          <Pressable
+            key={item.name}
+            className="flex-row items-center px-6 py-4 mx-2 rounded-xl active:bg-gray-50"
+            onPress={() => navigation.navigate(item.name)}
+            hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+          >
+            <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+              <Ionicons name={item.icon as any} size={20} color="#374151" />
+            </View>
+            <Text className={`${textStyles.bodyText} ml-4`}>{item.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      
+      {/* Footer */}
+      <View className="px-6 py-4 border-t border-gray-100">
+        <Text className={textStyles.helper}>vizta v1.0</Text>
       </View>
     </View>
   );

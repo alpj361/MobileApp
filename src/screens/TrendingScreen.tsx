@@ -5,8 +5,7 @@ import {
   FlatList, 
   Pressable, 
   RefreshControl,
-  ScrollView,
-  StyleSheet
+  ScrollView
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -19,6 +18,7 @@ import { TrendingService } from '../services/trendingService';
 import { NewsService } from '../services/newsService';
 import { TrendingData, NewsItem } from '../config/supabase';
 import { supabaseAvailable } from '../config/supabase';
+import { textStyles } from '../utils/typography';
 
 type TabType = 'stories' | 'trending' | 'news';
 
@@ -283,16 +283,16 @@ export default function TrendingScreen() {
     <Pressable
       key={tab}
       onPress={() => setActiveTab(tab)}
-      className={`flex-1 flex-row items-center justify-center py-3 px-4 ${
-        activeTab === tab ? 'border-b-2 border-blue-500' : ''
+      className={`flex-1 flex-row items-center justify-center py-4 px-3 mx-1 rounded-xl ${
+        activeTab === tab ? 'bg-blue-50 border border-blue-200' : 'active:bg-gray-50'
       }`}
     >
       <Ionicons 
         name={icon as any} 
-        size={18} 
+        size={20} 
         color={activeTab === tab ? '#3B82F6' : '#9CA3AF'} 
       />
-      <Text className={`ml-2 font-medium ${
+      <Text className={`ml-2 ${textStyles.tabLabel} ${
         activeTab === tab ? 'text-blue-600' : 'text-gray-500'
       }`}>
         {title}
@@ -471,12 +471,12 @@ export default function TrendingScreen() {
   const transformedTrendingData = transformTrendingData();
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <CustomHeader navigation={navigation} title="Trending & News" />
+    <View className="flex-1 bg-gray-50">
+      <CustomHeader navigation={navigation} title="Tendencias" />
       
       {/* Tabs */}
-      <View className="bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
-        <View className="flex-row">
+      <View className="bg-white border-b border-gray-100">
+        <View className="flex-row px-2">
           {renderTabButton('trending', 'Trending', 'trending-up')}
           {renderTabButton('news', 'Noticias', 'newspaper')}
           {renderTabButton('stories', 'Stories', 'albums')}
@@ -485,13 +485,13 @@ export default function TrendingScreen() {
 
       {/* Categories for active tab (only for trending and news) */}
       {activeTab !== 'stories' && (
-        <View className="px-4 py-2 bg-white border-b" style={{ borderBottomWidth: StyleSheet.hairlineWidth }}>
+        <View className="px-4 py-3 bg-white border-b border-gray-100">
           <ScrollView 
             horizontal 
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ paddingRight: 32 }}
           >
-            <View className="flex-row items-center">
+            <View className="flex-row items-center gap-2">
               {activeTab === 'trending' ? 
                 categories.map(renderTrendingCategoryButton) :
                 newsCategories.map(renderNewsCategoryButton)
@@ -503,17 +503,17 @@ export default function TrendingScreen() {
 
       {/* Stats Bar (only for trending and news) */}
       {activeTab !== 'stories' && (
-        <View className="px-4 py-2 bg-gray-100">
+        <View className="px-5 py-3 bg-gray-50">
           <View className="flex-row items-center justify-between">
-            <Text className="text-gray-600 text-sm">
+            <Text className={textStyles.description}>
               {activeTab === 'trending' ? 
-                `${transformedTrendingData.length} trending topic${transformedTrendingData.length !== 1 ? 's' : ''}` :
+                `${transformedTrendingData.length} tendencia${transformedTrendingData.length !== 1 ? 's' : ''}` :
                 `${newsData.length} noticia${newsData.length !== 1 ? 's' : ''}`
               }
             </Text>
             <View className="flex-row items-center">
               <Ionicons name="time" size={14} color="#9CA3AF" />
-              <Text className="text-gray-500 text-xs ml-1">
+              <Text className={`${textStyles.helper} ml-2`}>
                 {activeTab === 'trending' ? 
                   (trendingStats ? `${trendingStats?.localTrends ?? 0} locales, ${trendingStats?.globalTrends ?? 0} globales` : 'Actualizando...') :
                   (newsStats ? `${newsStats?.recentNews ?? 0} recientes, ${newsStats?.sourcesCount ?? 0} fuentes` : 'Actualizando...')
@@ -522,13 +522,13 @@ export default function TrendingScreen() {
             </View>
           </View>
           {!supabaseAvailable() && (
-            <View className="mt-2 self-start px-2 py-1 bg-yellow-100 rounded-full">
-              <Text className="text-yellow-700 text-xs">Demo data (no Supabase key)</Text>
+            <View className="mt-3 self-start px-3 py-1.5 bg-yellow-100 rounded-full">
+              <Text className={`${textStyles.badge} text-yellow-700`}>Demo data (no Supabase key)</Text>
             </View>
           )}
           {(activeTab === 'trending' ? trendingError : newsError) && (
-            <View className="mt-2 px-3 py-2 bg-red-100 rounded-xl">
-              <Text className="text-red-700 text-xs">
+            <View className="mt-3 px-4 py-3 bg-red-50 rounded-xl border border-red-200">
+              <Text className={`${textStyles.helper} text-red-700`}>
                 {activeTab === 'trending' ? trendingError : newsError}
               </Text>
             </View>

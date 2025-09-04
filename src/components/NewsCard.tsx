@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { NewsItem } from '../config/supabase';
+import { textStyles } from '../utils/typography';
 
 interface NewsCardProps {
   item: NewsItem;
@@ -130,15 +131,15 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onPress }) => {
 
   return (
     <Pressable 
-      className="bg-white rounded-2xl p-4 mb-3 border border-gray-200 active:bg-gray-50"
+      className="bg-white rounded-3xl p-5 mb-4 border border-gray-100 active:bg-gray-50 shadow-sm"
       onPress={onPress || handleOpenLink}
     >
       {/* Header con categoría y fuente */}
-      <View className="flex-row items-center justify-between mb-3">
-        <View className={`flex-row items-center px-2 py-1 rounded-full ${categoryColors.bg} ${categoryColors.border} border`}>
+      <View className="flex-row items-center justify-between mb-4">
+        <View className={`flex-row items-center px-3 py-1.5 rounded-full ${categoryColors.bg} ${categoryColors.border} border`}>
           <Ionicons 
             name={categoryIcon as any} 
-            size={12} 
+            size={14} 
             color={categoryColors.text.includes('red') ? '#B91C1C' :
                    categoryColors.text.includes('green') ? '#047857' :
                    categoryColors.text.includes('blue') ? '#1D4ED8' :
@@ -146,67 +147,67 @@ const NewsCard: React.FC<NewsCardProps> = ({ item, onPress }) => {
                    categoryColors.text.includes('yellow') ? '#A16207' :
                    '#374151'} 
           />
-          <Text className={`ml-1 text-xs font-medium ${categoryColors.text}`}>
+          <Text className={`ml-2 ${textStyles.badge} ${categoryColors.text}`}>
             {item.category}
           </Text>
         </View>
         
         <View className="flex-row items-center">
-          <Ionicons name="business" size={12} color="#9CA3AF" />
-          <Text className="text-gray-500 text-xs ml-1" numberOfLines={1}>
+          <Ionicons name="business" size={14} color="#9CA3AF" />
+          <Text className={`${textStyles.helper} ml-2`} numberOfLines={1}>
             {item.source}
           </Text>
         </View>
       </View>
 
       {/* Título */}
-      <Text className="text-black font-semibold text-base leading-5 mb-2" numberOfLines={3}>
+      <Text className={`${textStyles.cardTitle} mb-3`} numberOfLines={3}>
         {item.title}
       </Text>
 
       {/* Descripción */}
-      <Text className="text-gray-600 text-sm leading-5 mb-3" numberOfLines={3}>
+      <Text className={`${textStyles.description} mb-4`} numberOfLines={3}>
         {item.excerpt}
       </Text>
 
       {/* Footer con fecha y acción */}
       <View className="flex-row items-center justify-between">
         <View className="flex-row items-center">
-          <Ionicons name="time" size={12} color="#9CA3AF" />
-          <Text className="text-gray-500 text-xs ml-1">
+          <Ionicons name="time" size={14} color="#9CA3AF" />
+          <Text className={`${textStyles.timestamp} ml-2`}>
             {formatDate(item.date)}
           </Text>
         </View>
 
         {item.url && (
           <Pressable 
-            className="flex-row items-center px-2 py-1 bg-blue-50 rounded-full border border-blue-200"
+            className="flex-row items-center px-3 py-2 bg-blue-50 rounded-full border border-blue-200 active:bg-blue-100"
             onPress={handleOpenLink}
           >
-            <Text className="text-blue-600 text-xs font-medium mr-1">
+            <Text className={`${textStyles.badge} text-blue-600 mr-2`}>
               Leer más
             </Text>
-            <Ionicons name="open-outline" size={12} color="#2563EB" />
+            <Ionicons name="open-outline" size={14} color="#2563EB" />
           </Pressable>
         )}
       </View>
 
       {/* Keywords (si existen) */}
       {item.keywords && item.keywords.length > 0 && (
-        <View className="flex-row flex-wrap mt-2 pt-2 border-t border-gray-100">
+        <View className="flex-row flex-wrap mt-4 pt-4 border-t border-gray-100 gap-2">
           {item.keywords.slice(0, 3).map((keyword, index) => (
             <View 
               key={index} 
-              className="bg-gray-100 px-2 py-1 rounded-full mr-1 mb-1"
+              className="bg-gray-100 px-3 py-1.5 rounded-full"
             >
-              <Text className="text-gray-600 text-xs">
+              <Text className={textStyles.badge + " text-gray-600"}>
                 {keyword}
               </Text>
             </View>
           ))}
           {item.keywords.length > 3 && (
-            <View className="bg-gray-100 px-2 py-1 rounded-full">
-              <Text className="text-gray-600 text-xs">
+            <View className="bg-gray-100 px-3 py-1.5 rounded-full">
+              <Text className={textStyles.badge + " text-gray-600"}>
                 +{item.keywords.length - 3}
               </Text>
             </View>

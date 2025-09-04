@@ -6,6 +6,8 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import PulseConnectionCard from '../components/PulseConnectionCard';
 import { useSettingsStore, ConnectionStatus } from '../state/settingsStore';
+import { textStyles } from '../utils/typography';
+import { getCurrentSpacing } from '../utils/responsive';
 
 export default function SettingsScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -20,29 +22,29 @@ export default function SettingsScreen() {
     };
 
     return (
-      <View key={connection.id} className="bg-white rounded-2xl p-4 mb-3 border border-gray-200">
+      <View key={connection.id} className="bg-white rounded-3xl p-5 mb-4 border border-gray-100 shadow-sm">
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center flex-1">
-            <View className={`w-12 h-12 rounded-full items-center justify-center mr-4 ${
+            <View className={`w-14 h-14 rounded-full items-center justify-center mr-4 ${
               connection.isConnected ? 'bg-blue-100' : 'bg-gray-100'
             }`}>
               <Ionicons 
                 name={connection.isConnected ? 'checkmark-circle' : connection.icon as any} 
-                size={24} 
+                size={26} 
                 color={connection.isConnected ? '#3B82F6' : '#6B7280'} 
               />
             </View>
             <View className="flex-1">
-              <Text className="text-black font-semibold text-base mb-1">
+              <Text className={textStyles.cardTitle + " mb-1"}>
                 {connection.name}
               </Text>
               {connection.description && (
-                <Text className="text-gray-600 text-sm" numberOfLines={2}>
+                <Text className={textStyles.description + " mb-1"} numberOfLines={2}>
                   {connection.description}
                 </Text>
               )}
               {connection.isConnected && connection.lastConnected && (
-                <Text className="text-green-600 text-xs mt-1">
+                <Text className={textStyles.badge + " text-green-600"}>
                   Conectado • {new Date(connection.lastConnected).toLocaleDateString()}
                 </Text>
               )}
@@ -50,13 +52,13 @@ export default function SettingsScreen() {
           </View>
           <Pressable
             onPress={handleToggle}
-            className={`px-4 py-2 rounded-full ${
+            className={`px-4 py-2.5 rounded-full ${
               connection.isConnected 
-                ? 'bg-red-100 border border-red-200' 
+                ? 'bg-red-50 border border-red-200' 
                 : 'bg-blue-500'
             }`}
           >
-            <Text className={`text-sm font-medium ${
+            <Text className={`${textStyles.badge} ${
               connection.isConnected ? 'text-red-700' : 'text-white'
             }`}>
               {connection.isConnected ? 'Desconectar' : 'Conectar'}
@@ -67,21 +69,27 @@ export default function SettingsScreen() {
     );
   };
 
+  const spacing = getCurrentSpacing();
+  
   return (
-    <View className="flex-1 bg-gray-100">
+    <View className="flex-1 bg-gray-50">
       <CustomHeader navigation={navigation} title="Configuración" />
       
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        className="flex-1" 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: spacing.section }}
+      >
         {/* Conexiones Section */}
-        <View className="px-4 pt-4">
-          <View className="mb-4">
-            <Text className="text-black text-lg font-semibold mb-1">Conexiones</Text>
-            <Text className="text-gray-600 text-sm">
+        <View className="px-5 pt-6">
+          <View className="mb-6">
+            <Text className={textStyles.sectionTitle + " mb-2"}>Conexiones</Text>
+            <Text className={textStyles.description}>
               Gestiona las conexiones con servicios externos
             </Text>
           </View>
           
-          <View className="mb-6">
+          <View className="mb-8">
             {/* Conexión principal con Pulse Journal */}
             <PulseConnectionCard />
             
@@ -91,35 +99,41 @@ export default function SettingsScreen() {
         </View>
 
         {/* General Section */}
-        <View className="px-4">
-          <View className="mb-4">
-            <Text className="text-black text-lg font-semibold mb-1">General</Text>
-            <Text className="text-gray-600 text-sm">
+        <View className="px-5">
+          <View className="mb-6">
+            <Text className={textStyles.sectionTitle + " mb-2"}>General</Text>
+            <Text className={textStyles.description}>
               Configuración general de la aplicación
             </Text>
           </View>
           
-          <View className="bg-white rounded-2xl border border-gray-200 mb-6">
-            <Pressable className="flex-row items-center justify-between p-4 border-b border-gray-100">
+          <View className="bg-white rounded-3xl border border-gray-100 mb-8 shadow-sm">
+            <Pressable className="flex-row items-center justify-between p-5 border-b border-gray-100 active:bg-gray-50">
               <View className="flex-row items-center">
-                <Ionicons name="notifications-outline" size={24} color="#6B7280" />
-                <Text className="ml-3 text-base text-gray-700">Notificaciones</Text>
+                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+                  <Ionicons name="notifications-outline" size={20} color="#6B7280" />
+                </View>
+                <Text className={textStyles.bodyText + " ml-4"}>Notificaciones</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </Pressable>
             
-            <Pressable className="flex-row items-center justify-between p-4 border-b border-gray-100">
+            <Pressable className="flex-row items-center justify-between p-5 border-b border-gray-100 active:bg-gray-50">
               <View className="flex-row items-center">
-                <Ionicons name="shield-outline" size={24} color="#6B7280" />
-                <Text className="ml-3 text-base text-gray-700">Privacidad</Text>
+                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+                  <Ionicons name="shield-outline" size={20} color="#6B7280" />
+                </View>
+                <Text className={textStyles.bodyText + " ml-4"}>Privacidad</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </Pressable>
             
-            <Pressable className="flex-row items-center justify-between p-4">
+            <Pressable className="flex-row items-center justify-between p-5 active:bg-gray-50">
               <View className="flex-row items-center">
-                <Ionicons name="information-circle-outline" size={24} color="#6B7280" />
-                <Text className="ml-3 text-base text-gray-700">Acerca de</Text>
+                <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center">
+                  <Ionicons name="information-circle-outline" size={20} color="#6B7280" />
+                </View>
+                <Text className={textStyles.bodyText + " ml-4"}>Acerca de</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
             </Pressable>
@@ -127,10 +141,10 @@ export default function SettingsScreen() {
         </View>
 
         {/* App Info */}
-        <View className="px-4 pb-8">
-          <View className="items-center">
-            <Text className="text-gray-500 text-sm">vizta v1.0.0</Text>
-            <Text className="text-gray-400 text-xs mt-1">
+        <View className="px-5 pb-8">
+          <View className="items-center py-6">
+            <Text className={textStyles.helper}>vizta v1.0.0</Text>
+            <Text className={textStyles.helper + " text-gray-400 mt-1"}>
               © 2025 Vibecode. Todos los derechos reservados.
             </Text>
           </View>

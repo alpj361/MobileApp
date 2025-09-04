@@ -14,6 +14,8 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRecordingStore } from '../state/recordingStore';
 import { transcribeAudio } from '../api/transcribe-audio';
 import CustomHeader from '../components/CustomHeader';
+import { textStyles } from '../utils/typography';
+import { getCurrentSpacing } from '../utils/responsive';
 
 export default function RecordingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
@@ -162,22 +164,29 @@ export default function RecordingScreen() {
     });
   };
 
+  const spacing = getCurrentSpacing();
+  
   return (
-    <View className="flex-1 bg-gray-100">
-      <CustomHeader navigation={navigation} title="Recording" />
+    <View className="flex-1 bg-gray-50">
+      <CustomHeader navigation={navigation} title="Grabación" />
       
       {/* Recording Controls */}
-      <View className="items-center py-8">
-        <View className="bg-white rounded-full w-40 h-40 justify-center items-center mb-6 shadow-sm">
+      <View className="items-center py-12">
+        <View className="bg-white rounded-full w-44 h-44 justify-center items-center mb-8 shadow-lg">
           <Pressable
             onPress={isRecording ? stopRecording : startRecording}
-            className={`w-24 h-24 rounded-full justify-center items-center ${
+            className={`w-28 h-28 rounded-full justify-center items-center ${
               isRecording ? 'bg-red-500' : 'bg-blue-500'
             }`}
+            style={({ pressed }) => [
+              {
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              }
+            ]}
           >
             <Ionicons 
               name={isRecording ? 'stop' : 'mic'} 
-              size={32} 
+              size={36} 
               color="white" 
             />
           </Pressable>
@@ -185,10 +194,10 @@ export default function RecordingScreen() {
 
         {isRecording && (
           <View className="items-center">
-            <Text className="text-red-500 text-lg font-medium mb-2">
-              Recording...
+            <Text className={`${textStyles.sectionTitle} text-red-500 mb-3`}>
+              Grabando...
             </Text>
-            <Text className="text-black text-2xl font-mono">
+            <Text className={`text-3xl font-mono font-bold text-gray-900`}>
               {formatDuration(recordingDuration)}
             </Text>
           </View>
@@ -196,11 +205,11 @@ export default function RecordingScreen() {
 
         {!isRecording && recordings.length === 0 && (
           <View className="items-center px-8">
-            <Text className="text-black text-lg font-medium mb-2">
-              Ready to Record
+            <Text className={`${textStyles.sectionTitle} mb-3`}>
+              Listo para grabar
             </Text>
-            <Text className="text-gray-600 text-center">
-              Tap the microphone to start recording interviews or audio notes
+            <Text className={`${textStyles.description} text-center`}>
+              Toca el micrófono para comenzar a grabar entrevistas o notas de audio
             </Text>
           </View>
         )}
@@ -208,39 +217,53 @@ export default function RecordingScreen() {
 
       {/* Recordings List */}
       {recordings.length > 0 && (
-        <ScrollView className="flex-1 px-4">
-          <Text className="text-black text-xl font-semibold mb-4">
-            Recordings ({recordings.length})
+        <ScrollView 
+          className="flex-1" 
+          contentContainerStyle={{ paddingHorizontal: spacing.horizontal, paddingBottom: spacing.section }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text className={`${textStyles.sectionTitle} mb-6`}>
+            Grabaciones ({recordings.length})
           </Text>
           
           {recordings.map((item) => (
-            <View key={item.id} className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
-              <View className="flex-row items-center justify-between mb-3">
+            <View key={item.id} className="bg-white rounded-3xl p-5 mb-4 shadow-sm border border-gray-100">
+              <View className="flex-row items-center justify-between mb-4">
                 <View className="flex-1">
-                  <Text className="text-black font-medium text-base">
+                  <Text className={`${textStyles.cardTitle} mb-1`}>
                     {item.title}
                   </Text>
-                  <Text className="text-gray-600 text-sm">
+                  <Text className={textStyles.helper}>
                     {formatDate(item.timestamp)} • {formatDuration(item.duration)}
                   </Text>
                 </View>
                 
                 <Pressable
                   onPress={() => deleteRecording(item.id)}
-                  className="p-2"
+                  className="p-2 rounded-full active:bg-red-50"
+                  style={({ pressed }) => [
+                    {
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                    }
+                  ]}
                 >
-                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  <Ionicons name="trash-outline" size={22} color="#EF4444" />
                 </Pressable>
               </View>
 
-              <View className="flex-row items-center space-x-3">
+              <View className="flex-row items-center gap-3">
                 <Pressable
                   onPress={() => playRecording(item)}
-                  className="bg-blue-500 rounded-full w-10 h-10 justify-center items-center"
+                  className="bg-blue-500 rounded-full w-12 h-12 justify-center items-center"
+                  style={({ pressed }) => [
+                    {
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                    }
+                  ]}
                 >
                   <Ionicons 
                     name={playingId === item.id ? 'pause' : 'play'} 
-                    size={16} 
+                    size={18} 
                     color="white" 
                   />
                 </Pressable>
@@ -248,22 +271,27 @@ export default function RecordingScreen() {
                 <Pressable
                   onPress={() => transcribeRecording(item)}
                   disabled={item.isTranscribing}
-                  className="bg-gray-200 rounded-full px-4 py-2 flex-row items-center"
+                  className="bg-gray-100 rounded-full px-4 py-3 flex-row items-center flex-1"
+                  style={({ pressed }) => [
+                    {
+                      transform: [{ scale: pressed && !item.isTranscribing ? 0.98 : 1 }],
+                    }
+                  ]}
                 >
                   {item.isTranscribing ? (
                     <ActivityIndicator size="small" color="#3B82F6" />
                   ) : (
-                    <Ionicons name="document-text-outline" size={16} color="#374151" />
+                    <Ionicons name="document-text-outline" size={18} color="#374151" />
                   )}
-                  <Text className="text-gray-700 ml-2 text-sm">
-                    {item.isTranscribing ? 'Transcribing...' : 'Transcribe'}
+                  <Text className={`${textStyles.badge} text-gray-700 ml-3`}>
+                    {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir'}
                   </Text>
                 </Pressable>
               </View>
 
               {item.transcription && (
-                <View className="mt-3 p-3 bg-gray-50 rounded-xl">
-                  <Text className="text-gray-700 text-sm leading-5">
+                <View className="mt-4 p-4 bg-gray-50 rounded-2xl">
+                  <Text className={`${textStyles.bodyText} text-gray-700`}>
                     {item.transcription}
                   </Text>
                 </View>
