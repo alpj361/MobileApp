@@ -14,11 +14,10 @@ import { Ionicons } from '@expo/vector-icons';
 import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
 import NewsCard from '../components/NewsCard';
-import StoriesCarousel from '../components/StoriesCarousel';
+import FullScreenStoriesDisplay from '../components/FullScreenStoriesDisplay';
 import { TrendingService } from '../services/trendingService';
 import { NewsService } from '../services/newsService';
-import { StoriesService } from '../services/storiesService';
-import { TrendingData, NewsItem, Story } from '../config/supabase';
+import { TrendingData, NewsItem } from '../config/supabase';
 import { supabaseAvailable } from '../config/supabase';
 
 type TabType = 'stories' | 'trending' | 'news';
@@ -539,77 +538,70 @@ export default function TrendingScreen() {
 
       {/* Content */}
       {activeTab === 'stories' ? (
-        <ScrollView 
-          className="flex-1"
-          refreshControl={
-            <RefreshControl 
-              refreshing={false} 
-              onRefresh={() => {}} 
-            />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          <StoriesCarousel />
-          
-          {/* Stories Info */}
-          <View className="px-4 py-6 bg-white mx-4 my-4 rounded-2xl">
-            <Text className="text-lg font-bold text-gray-800 mb-2">📱 Instagram Stories</Text>
-            <Text className="text-gray-600 text-sm leading-relaxed">
-              Resúmenes automáticos de las tendencias y noticias más importantes del día, 
-              presentados en un formato visual atractivo e interactivo.
-            </Text>
-            <View className="flex-row items-center mt-4 space-x-4">
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 bg-red-500 rounded-full mr-2" />
-                <Text className="text-xs text-gray-500">Tendencias</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 bg-blue-500 rounded-full mr-2" />
-                <Text className="text-xs text-gray-500">Noticias</Text>
-              </View>
-              <View className="flex-row items-center">
-                <View className="w-3 h-3 bg-purple-500 rounded-full mr-2" />
-                <Text className="text-xs text-gray-500">Análisis</Text>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
+        <FullScreenStoriesDisplay 
+          onStoryChange={(story, index) => {
+            // Optional: Track story changes for analytics
+            console.log(`Viewing story ${index + 1}: ${story.title}`);
+          }}
+        />
       ) : (
-        <FlatList
-          data={activeTab === 'trending' ? transformedTrendingData : newsData}
-          renderItem={activeTab === 'trending' ? renderTrendingItem : ({ item }) => <NewsCard item={item} />}
-          keyExtractor={(item) => activeTab === 'trending' ? (item as TrendingItem).id : (item as NewsItem).id}
-          contentContainerStyle={{ padding: 16 }}
-          refreshControl={
-            <RefreshControl 
-              refreshing={activeTab === 'trending' ? refreshingTrending : refreshingNews} 
-              onRefresh={activeTab === 'trending' ? handleTrendingRefresh : handleNewsRefresh} 
-            />
-          }
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View className="items-center justify-center py-12">
-              <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
-                <Ionicons name={activeTab === 'trending' ? "trending-up" : "newspaper"} size={32} color="#9CA3AF" />
-              </View>
-              <Text className="text-black text-lg font-medium mb-2">
-                {activeTab === 'trending' ? 'No hay tendencias' : 'No hay noticias'}
-              </Text>
-              <Text className="text-gray-500 text-center">
-                {activeTab === 'trending' ? 
-                  (selectedCategory === 'all' 
+        activeTab === 'trending' ? (
+          <FlatList
+            data={transformedTrendingData}
+            renderItem={renderTrendingItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ padding: 16 }}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshingTrending} 
+                onRefresh={handleTrendingRefresh} 
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="items-center justify-center py-12">
+                <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
+                  <Ionicons name="trending-up" size={32} color="#9CA3AF" />
+                </View>
+                <Text className="text-black text-lg font-medium mb-2">No hay tendencias</Text>
+                <Text className="text-gray-500 text-center">
+                  {selectedCategory === 'all' 
                     ? 'No se encontraron tendencias recientes'
                     : `No hay tendencias en la categoría ${selectedCategory}`
-                  ) :
-                  (selectedNewsCategory === 'all'
+                  }
+                </Text>
+              </View>
+            }
+          />
+        ) : (
+          <FlatList
+            data={newsData}
+            renderItem={({ item }) => <NewsCard item={item} />}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ padding: 16 }}
+            refreshControl={
+              <RefreshControl 
+                refreshing={refreshingNews} 
+                onRefresh={handleNewsRefresh} 
+              />
+            }
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View className="items-center justify-center py-12">
+                <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
+                  <Ionicons name="newspaper" size={32} color="#9CA3AF" />
+                </View>
+                <Text className="text-black text-lg font-medium mb-2">No hay noticias</Text>
+                <Text className="text-gray-500 text-center">
+                  {selectedNewsCategory === 'all'
                     ? 'No se encontraron noticias recientes'
                     : `No hay noticias en la categoría ${selectedNewsCategory}`
-                  )
-                }
-              </Text>
-            </View>
-          }
-        />
+                  }
+                </Text>
+              </View>
+            }
+          />
+        )
       )}
     </View>
   );

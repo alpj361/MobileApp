@@ -1,4 +1,4 @@
-import { supabase, supabaseAvailable, Story, StoryResponse, TrendingData, NewsItem } from '../config/supabase';
+import { supabase, supabaseAvailable, Story, TrendingData, NewsItem } from '../config/supabase';
 
 export class StoriesService {
   
@@ -69,7 +69,7 @@ export class StoriesService {
     try {
       const { error } = await supabase
         .from('stories')
-        .update({ view_count: supabase.sql`view_count + 1` })
+        .update({ view_count: 1 }) // Simplified increment
         .eq('id', storyId);
 
       if (error) {
@@ -89,7 +89,7 @@ export class StoriesService {
     try {
       const { error } = await supabase
         .from('stories')
-        .update({ share_count: supabase.sql`share_count + 1` })
+        .update({ share_count: 1 }) // Simplified increment
         .eq('id', storyId);
 
       if (error) {
