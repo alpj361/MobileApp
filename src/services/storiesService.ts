@@ -6,12 +6,18 @@ export class StoriesService {
    * Obtiene todas las stories activas ordenadas por prioridad
    */
   static async getActiveStories(): Promise<Story[]> {
+    console.log('🔄 StoriesService: getActiveStories called');
+    console.log('🔧 StoriesService: Supabase available:', supabaseAvailable());
+    
     if (!supabaseAvailable()) {
-      console.warn('Supabase not available, returning mock stories');
-      return this.getMockStories();
+      console.warn('⚠️ StoriesService: Supabase not available, returning mock stories');
+      const mockStories = this.getMockStories();
+      console.log('📊 StoriesService: Returning mock stories:', mockStories.length);
+      return mockStories;
     }
 
     try {
+      console.log('🔍 StoriesService: Querying Supabase for active stories...');
       const { data, error } = await supabase
         .from('stories')
         .select('*')
@@ -20,13 +26,24 @@ export class StoriesService {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching stories:', error);
+        console.error('❌ StoriesService: Supabase query error:', error);
+        console.log('🔄 StoriesService: Falling back to mock stories due to error');
         return this.getMockStories();
       }
 
-      return data || [];
+      console.log('📊 StoriesService: Supabase query successful, received:', data?.length || 0, 'stories');
+      
+      // If no stories in database, return mock stories
+      if (!data || data.length === 0) {
+        console.log('📝 StoriesService: No stories in database, returning mock stories');
+        return this.getMockStories();
+      }
+
+      console.log('✅ StoriesService: Returning database stories');
+      return data;
     } catch (error) {
-      console.error('Error in getActiveStories:', error);
+      console.error('❌ StoriesService: Exception in getActiveStories:', error);
+      console.log('🔄 StoriesService: Falling back to mock stories due to exception');
       return this.getMockStories();
     }
   }
@@ -294,70 +311,96 @@ export class StoriesService {
    * Mock data para desarrollo
    */
   private static getMockStories(): Story[] {
-    return [
+    console.log('🎭 StoriesService: Creating mock stories...');
+    const mockStories = [
       {
         id: '1',
-        title: '🔥 Trending Now',
-        summary: 'Guatemala, Política, Tecnología están en tendencia. 1,245 temas analizados.',
-        background_color: '#ef4444',
-        text_color: '#ffffff',
-        gradient_colors: ['#ef4444', '#f97316'],
-        category: 'trending',
-        source_type: 'trend',
-        source_ids: ['trend-1', 'trend-2'],
+        title: 'Noticias del Día',
+        summary: 'Te compartimos un resumen informativo sobre las noticias más importantes del día en Guatemala.',
+        background_color: '#fbbf24',
+        text_color: '#92400e',
+        gradient_colors: ['#fbbf24', '#f59e0b'],
+        category: 'daily',
+        source_type: 'news' as const,
+        source_ids: ['news-daily-1'],
         priority: 5,
         is_active: true,
         view_count: 234,
         share_count: 12,
         created_at: new Date().toISOString(),
         metadata: {
-          emojis: ['🔥', '📈'],
-          layout_type: 'gradient',
-          font_size: 'large'
+          emojis: ['📰', '🇬🇹'],
+          layout_type: 'gradient' as const,
+          font_size: 'large' as const,
+          location: 'Guatemala'
         }
       },
       {
         id: '2',
-        title: '📰 Breaking News',
-        summary: 'Nuevos desarrollos en tecnología y política internacional. Mantente informado con las últimas actualizaciones.',
-        background_color: '#3b82f6',
+        title: '🔥 Trending Now',
+        summary: 'Guatemala, Política, Tecnología están en tendencia. 1,245 temas analizados.',
+        background_color: '#ef4444',
         text_color: '#ffffff',
-        gradient_colors: ['#3b82f6', '#1d4ed8'],
-        category: 'news',
-        source_type: 'news',
-        source_ids: ['news-1', 'news-2'],
+        gradient_colors: ['#ef4444', '#f97316'],
+        category: 'trending',
+        source_type: 'trend' as const,
+        source_ids: ['trend-1', 'trend-2'],
         priority: 4,
         is_active: true,
         view_count: 189,
         share_count: 8,
         created_at: new Date().toISOString(),
         metadata: {
-          emojis: ['📰', '🌍'],
-          layout_type: 'gradient',
-          font_size: 'medium'
+          emojis: ['🔥', '📈'],
+          layout_type: 'gradient' as const,
+          font_size: 'large' as const
         }
       },
       {
         id: '3',
-        title: '💡 Daily Insights',
-        summary: 'Análisis del día: Tendencias políticas se cruzan con avances tecnológicos.',
-        background_color: '#8b5cf6',
+        title: '📰 Breaking News',
+        summary: 'Nuevos desarrollos en tecnología y política internacional. Mantente informado con las últimas actualizaciones.',
+        background_color: '#3b82f6',
         text_color: '#ffffff',
-        gradient_colors: ['#8b5cf6', '#7c3aed'],
-        category: 'insights',
-        source_type: 'hybrid',
-        source_ids: ['trend-1', 'news-3'],
+        gradient_colors: ['#3b82f6', '#1d4ed8'],
+        category: 'news',
+        source_type: 'news' as const,
+        source_ids: ['news-1', 'news-2'],
         priority: 3,
         is_active: true,
         view_count: 156,
         share_count: 15,
         created_at: new Date().toISOString(),
         metadata: {
+          emojis: ['📰', '🌍'],
+          layout_type: 'gradient' as const,
+          font_size: 'medium' as const
+        }
+      },
+      {
+        id: '4',
+        title: '💡 Daily Insights',
+        summary: 'Análisis del día: Tendencias políticas se cruzan con avances tecnológicos.',
+        background_color: '#8b5cf6',
+        text_color: '#ffffff',
+        gradient_colors: ['#8b5cf6', '#7c3aed'],
+        category: 'insights',
+        source_type: 'hybrid' as const,
+        source_ids: ['trend-1', 'news-3'],
+        priority: 2,
+        is_active: true,
+        view_count: 98,
+        share_count: 7,
+        created_at: new Date().toISOString(),
+        metadata: {
           emojis: ['💡', '🔮'],
-          layout_type: 'gradient',
-          font_size: 'medium'
+          layout_type: 'gradient' as const,
+          font_size: 'medium' as const
         }
       }
     ];
+    
+    console.log('✅ StoriesService: Created', mockStories.length, 'mock stories');
+    return mockStories;
   }
 }

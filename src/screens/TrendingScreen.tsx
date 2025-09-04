@@ -538,12 +538,23 @@ export default function TrendingScreen() {
 
       {/* Content */}
       {activeTab === 'stories' ? (
-        <FullScreenStoriesDisplay 
-          onStoryChange={(story, index) => {
-            // Optional: Track story changes for analytics
-            console.log(`Viewing story ${index + 1}: ${story.title}`);
-          }}
-        />
+        <View className="flex-1">
+          <FullScreenStoriesDisplay 
+            onStoryChange={(story, index) => {
+              // Optional: Track story changes for analytics
+              console.log(`📊 TrendingScreen: Viewing story ${index + 1}: ${story.title}`);
+            }}
+          />
+          {/* Development Debug Info */}
+          {__DEV__ && (
+            <View className="absolute top-16 right-4 z-20">
+              <View className="bg-black bg-opacity-50 rounded-lg p-2">
+                <Text className="text-white text-xs">Stories Tab Active</Text>
+                <Text className="text-white text-xs">Debug Mode</Text>
+              </View>
+            </View>
+          )}
+        </View>
       ) : (
         activeTab === 'trending' ? (
           <FlatList

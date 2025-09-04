@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
-  Dimensions,
   Pressable,
   StatusBar,
   Animated,
@@ -12,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Story } from '../config/supabase';
 import { StoriesService } from '../services/storiesService';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
 const STORY_DURATION = 6000; // 6 seconds per story
 
 interface FullScreenStoriesDisplayProps {
@@ -45,16 +44,25 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
 
   const loadStories = async () => {
     try {
+      console.log('🔄 FullScreenStoriesDisplay: Starting to load stories...');
       setLoading(true);
       const data = await StoriesService.getActiveStories();
+      console.log('📊 FullScreenStoriesDisplay: Received stories data:', {
+        count: data.length,
+        stories: data.map(s => ({ id: s.id, title: s.title, category: s.category }))
+      });
       setStories(data);
       if (data.length > 0) {
+        console.log('✅ FullScreenStoriesDisplay: Setting first story as active');
         onStoryChange?.(data[0], 0);
         StoriesService.incrementViewCount(data[0].id);
+      } else {
+        console.warn('⚠️ FullScreenStoriesDisplay: No stories received');
       }
     } catch (error) {
-      console.error('Error loading stories:', error);
+      console.error('❌ FullScreenStoriesDisplay: Error loading stories:', error);
     } finally {
+      console.log('🏁 FullScreenStoriesDisplay: Loading complete, setting loading to false');
       setLoading(false);
     }
   };
@@ -184,23 +192,29 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
   };
 
   if (loading) {
+    console.log('🔄 FullScreenStoriesDisplay: Rendering loading state');
     return (
       <View className="flex-1 justify-center items-center bg-gray-100">
         <View className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
         <Text className="text-gray-600 mt-4 text-lg">Cargando stories...</Text>
+        <Text className="text-gray-500 mt-2 text-sm">Conectando con el servicio...</Text>
       </View>
     );
   }
 
   if (stories.length === 0) {
+    console.log('⚠️ FullScreenStoriesDisplay: Rendering empty state - no stories available');
     return (
       <View className="flex-1 justify-center items-center bg-gray-100 px-8">
         <Text className="text-6xl mb-6">📱</Text>
         <Text className="text-2xl font-bold text-gray-800 text-center mb-4">
           No hay stories disponibles
         </Text>
-        <Text className="text-gray-600 text-center text-lg leading-relaxed">
+        <Text className="text-gray-600 text-center text-lg leading-relaxed mb-4">
           Las stories aparecerán aquí cuando haya contenido nuevo disponible.
+        </Text>
+        <Text className="text-gray-500 text-center text-sm mb-6">
+          Debug: Stories array length = {stories.length}
         </Text>
         <Pressable 
           onPress={loadStories}
@@ -215,15 +229,32 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
   const currentStory = stories[currentIndex];
   const location = getLocationContext(currentStory);
 
+  console.log('🎬 FullScreenStoriesDisplay: Rendering story display', {
+    storiesCount: stories.length,
+    currentIndex,
+    currentStoryId: currentStory?.id,
+    currentStoryTitle: currentStory?.title,
+    location,
+    isPaused
+  });
+
   return (
     <View className="flex-1">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
       <Pressable onPress={handlePress} className="flex-1">
         <LinearGradient
-          colors={currentStory.gradient_colors && currentStory.gradient_colors.length >= 2 
-            ? currentStory.gradient_colors as [string, string, ...string[]]
-            : [currentStory.background_color, currentStory.background_color] as [string, string]}
+          colors={(() => {
+            // Ensure we always have valid colors for LinearGradient
+            if (currentStory.gradient_colors && currentStory.gradient_colors.length >= 2) {
+              console.log('🎨 Using gradient colors:', currentStory.gradient_colors);
+              return currentStory.gradient_colors as [string, string, ...string[]];
+            } else {
+              const fallbackColors = [currentStory.background_color || '#3b82f6', currentStory.background_color || '#3b82f6'] as [string, string];
+              console.log('🎨 Using fallback colors:', fallbackColors);
+              return fallbackColors;
+            }
+          })()}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           className="flex-1"
@@ -362,6 +393,20 @@ export const FullScreenStoriesDisplay: React.FC<FullScreenStoriesDisplayProps> =
               {currentIndex + 1} / {stories.length}
             </Text>
           </View>
+
+          {/* Development Refresh Button */}
+          {__DEV__ && (
+            <Pressable
+              onPress={loadStories}
+              className="absolute left-4 px-3 py-2 rounded-full"
+              style={{ 
+                top: insets.top + 50,
+                backgroundColor: 'rgba(0,0,0,0.3)' 
+              }}
+            >
+              <Text className="text-white text-sm font-medium">🔄 Refresh</Text>
+            </Pressable>
+          )}
         </LinearGradient>
       </Pressable>
     </View>
