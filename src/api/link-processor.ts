@@ -123,7 +123,7 @@ const getOEmbedData = async (url: string, platform: keyof typeof SOCIAL_PLATFORM
 /**
  * Parser especializado para Instagram
  */
-const parseInstagramHTML = (html: string, url: string): Partial<LinkData> => {
+const parseInstagramHTML = (html: string, _url: string): Partial<LinkData> => {
   const metadata: Partial<LinkData> = {};
   
   // Extraer título/descripción
@@ -159,7 +159,7 @@ const parseInstagramHTML = (html: string, url: string): Partial<LinkData> => {
 /**
  * Parser especializado para TikTok
  */
-const parseTikTokHTML = (html: string, url: string): Partial<LinkData> => {
+const parseTikTokHTML = (html: string, _url: string): Partial<LinkData> => {
   const metadata: Partial<LinkData> = {};
   
   // Extraer título
@@ -192,7 +192,7 @@ const parseTikTokHTML = (html: string, url: string): Partial<LinkData> => {
 /**
  * Parser especializado para Twitter
  */
-const parseTwitterHTML = (html: string, url: string): Partial<LinkData> => {
+const parseTwitterHTML = (html: string, _url: string): Partial<LinkData> => {
   const metadata: Partial<LinkData> = {};
   
   // Extraer título
@@ -226,37 +226,101 @@ const parseTwitterHTML = (html: string, url: string): Partial<LinkData> => {
 };
 
 /**
- * Parser genérico para otras páginas
+ * Parser genérico mejorado para otras páginas
  */
 const parseGenericHTML = (html: string, url: string): Partial<LinkData> => {
   const metadata: Partial<LinkData> = {};
   
-  // Extraer título
+  // Extraer título con múltiples fuentes
   const titleMatch = html.match(/<meta property="og:title" content="([^"]*)"/) ||
                     html.match(/<meta name="twitter:title" content="([^"]*)"/) ||
+                    html.match(/<meta property="article:title" content="([^"]*)"/) ||
+                    html.match(/<h1[^>]*>([^<]*)<\/h1>/) ||
                     html.match(/<title>([^<]*)<\/title>/);
   if (titleMatch) {
-    metadata.title = decodeHtmlEntities(titleMatch[1].trim());
+    let title = decodeHtmlEntities(titleMatch[1].trim());
+    // Limpiar títulos comunes de sitios web
+    title = title.replace(/\s*\|\s*.*$/, '').replace(/\s*-\s*.*$/, '').trim();
+    if (title.length > 0) {
+      metadata.title = title;
+    }
   }
   
-  // Extraer descripción
+  // Extraer descripción con múltiples fuentes y fallbacks
   const descMatch = html.match(/<meta property="og:description" content="([^"]*)"/) ||
                    html.match(/<meta name="twitter:description" content="([^"]*)"/) ||
-                   html.match(/<meta name="description" content="([^"]*)"/);
+                   html.match(/<meta name="description" content="([^"]*)"/) ||
+                   html.match(/<meta property="article:description" content="([^"]*)"/) ||
+                   html.match(/<p[^>]*class="[^"]*description[^"]*"[^>]*>([^<]*)<\/p>/) ||
+                   html.match(/<p[^>]*>([^<]{50,200})<\/p>/); // Primer párrafo con longitud razonable
   if (descMatch) {
-    metadata.description = decodeHtmlEntities(descMatch[1].trim());
+    let description = decodeHtmlEntities(descMatch[1].trim());
+    // Limpiar HTML residual y caracteres especiales
+    description = description.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    if (description.length > 20) { // Mínimo 20 caracteres para ser útil
+      metadata.description = description;
+    }
   }
   
-  // Extraer imagen
+  // Extraer imagen con múltiples fuentes y validación
   const imageMatch = html.match(/<meta property="og:image" content="([^"]*)"/) ||
-                    html.match(/<meta name="twitter:image" content="([^"]*)"/);
+                    html.match(/<meta name="twitter:image" content="([^"]*)"/) ||
+                    html.match(/<meta property="og:image:url" content="([^"]*)"/) ||
+                    html.match(/<meta name="twitter:image:src" content="([^"]*)"/) ||
+                    html.match(/<link rel="image_src" href="([^"]*)"/) ||
+                    html.match(/<img[^>]*src="([^"]*)"[^>]*(?:class="[^"]*(?:hero|featured|main|banner)[^"]*"|id="[^"]*(?:hero|featured|main|banner)[^"]*")/);
+  
   if (imageMatch) {
     let imageUrl = imageMatch[1].trim();
+    
+    // Convertir URLs relativas a absolutas
     if (imageUrl.startsWith('/')) {
       const baseUrl = new URL(url);
       imageUrl = `${baseUrl.protocol}//${baseUrl.host}${imageUrl}`;
+    } else if (imageUrl.startsWith('./')) {
+      const baseUrl = new URL(url);
+      imageUrl = `${baseUrl.protocol}//${baseUrl.host}${baseUrl.pathname}/${imageUrl.substring(2)}`;
+    } else if (!imageUrl.startsWith('http')) {
+      const baseUrl = new URL(url);
+      imageUrl = `${baseUrl.protocol}//${baseUrl.host}/${imageUrl}`;
     }
-    metadata.image = imageUrl;
+    
+    // Validar que la URL de imagen parece válida
+    if (imageUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)(\?.*)?$/i) || 
+        imageUrl.includes('image') || 
+        imageUrl.includes('photo') ||
+        imageUrl.includes('picture')) {
+      metadata.image = imageUrl;
+    }
+  }
+  
+  // Extraer autor si está disponible
+  const authorMatch = html.match(/<meta name="author" content="([^"]*)"/) ||
+                     html.match(/<meta property="article:author" content="([^"]*)"/) ||
+                     html.match(/<meta name="twitter:creator" content="([^"]*)"/) ||
+                     html.match(/<span[^>]*class="[^"]*author[^"]*"[^>]*>([^<]*)<\/span>/) ||
+                     html.match(/<div[^>]*class="[^"]*author[^"]*"[^>]*>([^<]*)<\/div>/);
+  if (authorMatch) {
+    const author = decodeHtmlEntities(authorMatch[1].trim()).replace(/^@/, '');
+    if (author.length > 0 && author.length < 100) {
+      metadata.author = author;
+    }
+  }
+  
+  // Extraer fecha de publicación si está disponible
+  const dateMatch = html.match(/<meta property="article:published_time" content="([^"]*)"/) ||
+                   html.match(/<meta name="date" content="([^"]*)"/) ||
+                   html.match(/<time[^>]*datetime="([^"]*)"/) ||
+                   html.match(/<meta property="og:updated_time" content="([^"]*)"/);
+  if (dateMatch) {
+    try {
+      const date = new Date(dateMatch[1]);
+      if (!isNaN(date.getTime())) {
+        metadata.timestamp = date.getTime();
+      }
+    } catch (e) {
+      // Ignorar errores de fecha
+    }
   }
   
   return metadata;

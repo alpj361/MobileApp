@@ -14,14 +14,17 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useSavedStore } from '../state/savedStore';
 import { extractLinksFromText, processLinks } from '../api/link-processor';
+import { processEnhancedLinks, isEnhancedProcessingAvailable } from '../api/enhanced-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import SavedItemCard from '../components/SavedItemCard';
-import { SavedItem } from '../types/savedItem';
+import { SavedItem } from '../state/savedStore';
+import { textStyles } from '../utils/typography';
 
 export default function SavedScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'link' | 'tweet' | 'video' | 'article'>('all');
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'link' | 'tweet' | 'video' | 'article' | 'quality'>('all');
+  const [selectedQuality, setSelectedQuality] = useState<'all' | 'excellent' | 'good' | 'fair' | 'poor'>('all');
   const [refreshing, setRefreshing] = useState(false);
   
   const { 
@@ -30,7 +33,8 @@ export default function SavedScreen() {
     removeSavedItem, 
     toggleFavorite, 
     addSavedItem,
-    setLoading 
+    setLoading,
+    getQualityStats 
   } = useSavedStore();
 
   const filteredItems = items.filter(item => {
@@ -38,7 +42,13 @@ export default function SavedScreen() {
                          item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.domain.toLowerCase().includes(searchQuery.toLowerCase());
     
-    const matchesFilter = selectedFilter === 'all' || item.type === selectedFilter;
+    let matchesFilter = true;
+    if (selectedFilter === 'quality') {
+      matchesFilter = selectedQuality === 'all' || item.quality === selectedQuality || 
+                     (selectedQuality === 'poor' && !item.quality);
+    } else {
+      matchesFilter = selectedFilter === 'all' || item.type === selectedFilter;
+    }
     
     return matchesSearch && matchesFilter;
   });
@@ -74,10 +84,17 @@ export default function SavedScreen() {
         return;
       }
 
-      const linkDataArray = await processLinks(links);
-      linkDataArray.forEach((linkData) => {
-        addSavedItem(linkData, 'clipboard');
-      });
+      // Use enhanced processing if available
+      let linkDataArray;
+      if (isEnhancedProcessingAvailable()) {
+        linkDataArray = await processEnhancedLinks(links);
+      } else {
+        linkDataArray = await processLinks(links);
+      }
+      
+      for (const linkData of linkDataArray) {
+        await addSavedItem(linkData, 'clipboard');
+      }
 
       Alert.alert(
         'Links Saved', 
@@ -121,39 +138,53 @@ export default function SavedScreen() {
 
   const renderEmptyState = () => (
     <View className="flex-1 items-center justify-center px-8">
-      <View className="w-20 h-20 bg-gray-200 rounded-full items-center justify-center mb-4">
-        <Ionicons name="bookmark-outline" size={32} color="#9CA3AF" />
+      <View className="w-24 h-24 bg-gray-200 rounded-full items-center justify-center mb-6">
+        <Ionicons name="bookmark-outline" size={36} color="#9CA3AF" />
       </View>
-      <Text className="text-black text-lg font-medium mb-2">No Saved Links</Text>
-      <Text className="text-gray-500 text-center mb-6">
-        Share links in chat or paste them from your clipboard to save them here
+      <Text className={`${textStyles.sectionTitle} mb-3`}>No hay enlaces guardados</Text>
+      <Text className={`${textStyles.description} text-center mb-8`}>
+        Comparte enlaces en el chat o pégalos desde tu portapapeles para guardarlos aquí
       </Text>
       <Pressable
         onPress={handlePasteFromClipboard}
         disabled={isLoading}
-        className="bg-blue-500 px-6 py-3 rounded-full flex-row items-center"
+        className="bg-blue-500 px-6 py-4 rounded-full flex-row items-center shadow-sm active:bg-blue-600"
+        style={({ pressed }) => [
+          {
+            transform: [{ scale: pressed ? 0.95 : 1 }],
+          }
+        ]}
       >
-        <Ionicons name="clipboard" size={16} color="white" />
-        <Text className="text-white font-medium ml-2">
-          {isLoading ? 'Processing...' : 'Paste from Clipboard'}
+        <Ionicons name="clipboard" size={18} color="white" />
+        <Text className={`${textStyles.buttonText} ml-3`}>
+          {isLoading ? 'Procesando...' : 'Pegar del Portapapeles'}
         </Text>
       </Pressable>
+      
+      {/* Enhanced processing indicator */}
+      {isEnhancedProcessingAvailable() && (
+        <View className="mt-6 px-4 py-2 bg-green-50 rounded-full border border-green-200">
+          <Text className={`${textStyles.badge} text-green-700`}>
+            ✨ Procesamiento mejorado activado
+          </Text>
+        </View>
+      )}
     </View>
   );
 
   return (
-    <View className="flex-1 bg-gray-100">
-      <CustomHeader navigation={navigation} title="Saved" />
+    <View className="flex-1 bg-gray-50">
+      <CustomHeader navigation={navigation} title="Guardados" />
       
       {items.length > 0 && (
         <>
           {/* Search Bar */}
-          <View className="px-4 py-3">
-            <View className="flex-row items-center bg-white rounded-2xl px-4 py-3 border border-gray-200">
+          <View className="px-5 py-4">
+            <View className="flex-row items-center bg-white rounded-3xl px-5 py-4 border border-gray-100 shadow-sm">
               <Ionicons name="search" size={20} color="#9CA3AF" />
               <TextInput
-                className="flex-1 ml-3 text-base text-black"
-                placeholder="Search saved links..."
+                className={`flex-1 ml-3 ${textStyles.bodyText}`}
+                placeholder="Buscar enlaces guardados..."
                 placeholderTextColor="#9CA3AF"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -172,32 +203,110 @@ export default function SavedScreen() {
               horizontal
               showsHorizontalScrollIndicator={false}
               data={[
-                { key: 'all', label: 'All', icon: 'apps' },
+                { key: 'all', label: 'Todos', icon: 'apps' },
                 { key: 'link', label: 'Links', icon: 'link' },
                 { key: 'tweet', label: 'Tweets', icon: 'logo-twitter' },
                 { key: 'video', label: 'Videos', icon: 'play-circle' },
-                { key: 'article', label: 'Articles', icon: 'document-text' },
+                { key: 'article', label: 'Artículos', icon: 'document-text' },
+                { key: 'quality', label: 'Calidad', icon: 'star' },
               ]}
               renderItem={({ item }) => renderFilterButton(item.key as any, item.label, item.icon)}
               keyExtractor={(item) => item.key}
             />
           </View>
 
-          {/* Action Bar */}
-          <View className="flex-row items-center justify-between px-4 pb-3">
-            <Text className="text-gray-600 text-sm">
-              {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''}
-            </Text>
-            <Pressable
-              onPress={handlePasteFromClipboard}
-              disabled={isLoading}
-              className="flex-row items-center bg-white px-3 py-2 rounded-full border border-gray-200"
-            >
-              <Ionicons name="add" size={16} color="#3B82F6" />
-              <Text className="text-blue-500 text-sm ml-1">
-                {isLoading ? 'Adding...' : 'Paste'}
+          {/* Quality Filter (when quality filter is selected) */}
+          {selectedFilter === 'quality' && (
+            <View className="px-4 pb-3">
+              <FlatList
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                data={[
+                  { key: 'all', label: 'Todas', color: '#6B7280' },
+                  { key: 'excellent', label: 'Excelente', color: '#10B981' },
+                  { key: 'good', label: 'Buena', color: '#3B82F6' },
+                  { key: 'fair', label: 'Regular', color: '#F59E0B' },
+                  { key: 'poor', label: 'Básica', color: '#EF4444' },
+                ]}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => setSelectedQuality(item.key as any)}
+                    className={`px-3 py-2 rounded-full mr-2 flex-row items-center ${
+                      selectedQuality === item.key ? 'border-2' : 'bg-white border border-gray-200'
+                    }`}
+                    style={selectedQuality === item.key ? { borderColor: item.color, backgroundColor: item.color + '20' } : {}}
+                  >
+                    <View 
+                      className="w-3 h-3 rounded-full mr-2" 
+                      style={{ backgroundColor: item.color }} 
+                    />
+                    <Text 
+                      className={`text-sm ${selectedQuality === item.key ? 'font-medium' : 'text-gray-700'}`}
+                      style={selectedQuality === item.key ? { color: item.color } : {}}
+                    >
+                      {item.label}
+                    </Text>
+                  </Pressable>
+                )}
+                keyExtractor={(item) => item.key}
+              />
+            </View>
+          )}
+
+          {/* Action Bar with Stats */}
+          <View className="px-4 pb-3">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className={textStyles.description}>
+                {filteredItems.length} elemento{filteredItems.length !== 1 ? 's' : ''}
               </Text>
-            </Pressable>
+              <Pressable
+                onPress={handlePasteFromClipboard}
+                disabled={isLoading}
+                className="flex-row items-center bg-white px-3 py-2 rounded-full border border-gray-200 active:bg-gray-50"
+              >
+                <Ionicons name="add" size={16} color="#3B82F6" />
+                <Text className={`${textStyles.badge} text-blue-500 ml-1`}>
+                  {isLoading ? 'Agregando...' : 'Pegar'}
+                </Text>
+              </Pressable>
+            </View>
+            
+            {/* Quality Stats */}
+            {items.length > 0 && (
+              <View className="flex-row items-center gap-4">
+                {(() => {
+                  const stats = getQualityStats();
+                  return (
+                    <>
+                      {stats.excellent > 0 && (
+                        <View className="flex-row items-center">
+                          <View className="w-2 h-2 rounded-full bg-green-500 mr-1" />
+                          <Text className={`${textStyles.helper} text-gray-500`}>
+                            {stats.excellent} excelente{stats.excellent !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      )}
+                      {stats.good > 0 && (
+                        <View className="flex-row items-center">
+                          <View className="w-2 h-2 rounded-full bg-blue-500 mr-1" />
+                          <Text className={`${textStyles.helper} text-gray-500`}>
+                            {stats.good} buena{stats.good !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      )}
+                      {stats.poor > 0 && (
+                        <View className="flex-row items-center">
+                          <View className="w-2 h-2 rounded-full bg-red-500 mr-1" />
+                          <Text className={`${textStyles.helper} text-gray-500`}>
+                            {stats.poor} básica{stats.poor !== 1 ? 's' : ''}
+                          </Text>
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
+              </View>
+            )}
           </View>
         </>
       )}
@@ -210,7 +319,7 @@ export default function SavedScreen() {
           data={filteredItems}
           renderItem={renderSavedItem}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 16 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }
