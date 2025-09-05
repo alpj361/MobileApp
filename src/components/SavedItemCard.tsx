@@ -202,6 +202,14 @@ export default function SavedItemCard({
             source={{ uri: item.image }}
             className="w-full h-48"
             resizeMode="cover"
+            onError={() => {
+              // Handle image loading error silently
+              console.log("Image failed to load:", item.image);
+            }}
+            onLoad={() => {
+              // Image loaded successfully
+              console.log("Image loaded successfully:", item.image);
+            }}
           />
           {/* Indicador de imagen validada */}
           {item.imageValidated && (
