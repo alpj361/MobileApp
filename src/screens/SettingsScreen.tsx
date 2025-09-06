@@ -8,7 +8,7 @@ import PulseConnectionCard from '../components/PulseConnectionCard';
 import { useSettingsStore, ConnectionStatus } from '../state/settingsStore';
 import { textStyles } from '../utils/typography';
 import { getCurrentSpacing } from '../utils/responsive';
-import { getEnhancedCacheStats, clearEnhancedCache, isEnhancedProcessingAvailable } from '../api/enhanced-link-processor';
+import { getImprovedCacheStats, clearImprovedCache } from '../api/improved-link-processor';
 import { useSavedStore } from '../state/savedStore';
 
 export default function SettingsScreen() {
@@ -22,7 +22,7 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     // Update cache stats
-    const stats = getEnhancedCacheStats();
+    const stats = getImprovedCacheStats();
     setCacheStats(stats);
   }, []);
 
@@ -36,7 +36,7 @@ export default function SettingsScreen() {
           text: 'Limpiar', 
           style: 'destructive',
           onPress: () => {
-            clearEnhancedCache();
+            clearImprovedCache();
             setCacheStats({ size: 0, hitRate: 0 });
             Alert.alert('Cache Limpiado', 'El cache de enlaces ha sido limpiado exitosamente.');
           }
@@ -137,33 +137,23 @@ export default function SettingsScreen() {
           </View>
           
           <View className="bg-white rounded-3xl border border-gray-100 mb-8 shadow-sm">
-            {/* Enhanced Processing Status */}
+            {/* Processing Mode Info */}
             <View className="p-5 border-b border-gray-100">
               <View className="flex-row items-center justify-between mb-3">
                 <View className="flex-row items-center">
-                  <View className={`w-10 h-10 rounded-full items-center justify-center ${
-                    isEnhancedProcessingAvailable() ? 'bg-green-100' : 'bg-gray-100'
-                  }`}>
-                    <Ionicons 
-                      name={isEnhancedProcessingAvailable() ? "checkmark-circle" : "close-circle"} 
-                      size={20} 
-                      color={isEnhancedProcessingAvailable() ? "#10B981" : "#6B7280"} 
-                    />
+                  <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
+                    <Ionicons name="code-slash-outline" size={20} color="#3B82F6" />
                   </View>
                   <View className="ml-4">
-                    <Text className={textStyles.bodyText}>Procesamiento Mejorado</Text>
+                    <Text className={textStyles.bodyText}>Procesamiento HTML Limpio</Text>
                     <Text className={textStyles.helper + " text-gray-500"}>
-                      {isEnhancedProcessingAvailable() ? 'APIs externas configuradas' : 'Solo scraping básico'}
+                      Sin APIs externas • Enfoque en títulos, descripciones y miniaturas
                     </Text>
                   </View>
                 </View>
-                <View className={`px-3 py-1 rounded-full ${
-                  isEnhancedProcessingAvailable() ? 'bg-green-100' : 'bg-gray-100'
-                }`}>
-                  <Text className={`${textStyles.badge} ${
-                    isEnhancedProcessingAvailable() ? 'text-green-700' : 'text-gray-600'
-                  }`}>
-                    {isEnhancedProcessingAvailable() ? 'Activo' : 'Inactivo'}
+                <View className="px-3 py-1 rounded-full bg-blue-100">
+                  <Text className={`${textStyles.badge} text-blue-700`}>
+                    Activo
                   </Text>
                 </View>
               </View>

@@ -29,6 +29,8 @@ class LinkCache {
     timestamp: number;
     ttl: number;
   }>();
+  private hits = 0;
+  private gets = 0;
 
   set(url: string, data: ImprovedLinkData): void {
     const ttl = this.getTTLForDomain(url);
@@ -45,6 +47,7 @@ class LinkCache {
   }
 
   get(url: string): ImprovedLinkData | null {
+    this.gets++;
     const entry = this.cache.get(url);
     if (!entry) return null;
 
@@ -53,7 +56,13 @@ class LinkCache {
       return null;
     }
 
+    this.hits++;
     return entry.data;
+  }
+
+  getStats(): { size: number; hitRate: number } {
+    const hitRate = this.gets > 0 ? Math.round((this.hits / this.gets) * 100) : 0;
+    return { size: this.cache.size, hitRate };
   }
 
   private getTTLForDomain(url: string): number {
@@ -83,6 +92,8 @@ class LinkCache {
 
   clear(): void {
     this.cache.clear();
+    this.hits = 0;
+    this.gets = 0;
   }
 }
 
@@ -608,6 +619,13 @@ export async function processImprovedLinks(urls: string[]): Promise<ImprovedLink
  */
 export function clearImprovedCache(): void {
   linkCache.clear();
+}
+
+/**
+ * Cache stats for Settings screen
+ */
+export function getImprovedCacheStats(): { size: number; hitRate: number } {
+  return linkCache.getStats();
 }
 
 /**
