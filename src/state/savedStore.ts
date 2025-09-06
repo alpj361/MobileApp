@@ -1,20 +1,19 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinkData, processLink } from '../api/link-processor';
-import { EnhancedLinkData, processEnhancedLink, isEnhancedProcessingAvailable } from '../api/enhanced-link-processor';
+import { LinkData } from '../api/link-processor';
+import { ImprovedLinkData, processImprovedLink } from '../api/improved-link-processor';
 
 export interface SavedItem extends LinkData {
   id: string;
   source: 'chat' | 'clipboard' | 'manual';
   isFavorite?: boolean;
-  // Enhanced metadata fields
+  // Improved metadata fields
   quality?: 'excellent' | 'good' | 'fair' | 'poor';
-  metadataSource?: 'linkpreview' | 'microlink' | 'oembed' | 'html_scraping' | 'fallback';
-  imageValidated?: boolean;
-  descriptionSource?: 'meta' | 'og' | 'twitter' | 'content' | 'generated';
+  contentScore?: number;
+  hasCleanDescription?: boolean;
+  imageQuality?: 'high' | 'medium' | 'low' | 'none';
   processingTime?: number;
-  retryCount?: number;
   lastUpdated?: number;
 }
 
@@ -49,17 +48,15 @@ export const useSavedStore = create<SavedState>()(
         }
 
         // Try enhanced processing if available
-        let enhancedData: EnhancedLinkData | LinkData = linkData;
-        if (isEnhancedProcessingAvailable()) {
-          try {
-            enhancedData = await processEnhancedLink(linkData.url);
-          } catch (error) {
-            console.log('Enhanced processing failed, using original data:', error);
-          }
+        let improvedData: ImprovedLinkData | LinkData = linkData;
+        try {
+          improvedData = await processImprovedLink(linkData.url);
+        } catch (error) {
+          console.log('Improved processing failed, using original data:', error);
         }
         
         const newItem: SavedItem = {
-          ...enhancedData,
+          ...improvedData,
           id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
           source,
           isFavorite: false,
@@ -95,13 +92,8 @@ export const useSavedStore = create<SavedState>()(
         if (!item) return;
         
         try {
-          // Try enhanced processing first if available
-          let fresh: EnhancedLinkData | LinkData;
-          if (isEnhancedProcessingAvailable()) {
-            fresh = await processEnhancedLink(item.url);
-          } else {
-            fresh = await processLink(item.url);
-          }
+          // Use improved processing
+          const fresh = await processImprovedLink(item.url);
           
           set((state) => ({
             items: state.items.map(i => 

@@ -123,20 +123,11 @@ export default function SavedItemCard({
     }
   };
 
-  const getMetadataSourceLabel = () => {
-    switch (item.metadataSource) {
-      case 'linkpreview':
-        return 'LinkPreview API';
-      case 'microlink':
-        return 'Microlink API';
-      case 'oembed':
-        return 'oEmbed';
-      case 'html_scraping':
-        return 'HTML Scraping';
-      case 'fallback':
-      default:
-        return 'Básico';
+  const getProcessingLabel = () => {
+    if (item.hasCleanDescription) {
+      return 'HTML Limpio';
     }
+    return 'Procesado';
   };
 
   return (
@@ -157,11 +148,9 @@ export default function SavedItemCard({
             <Text className={`${textStyles.badge} text-gray-700 uppercase tracking-wide`}>
               {item.platform === 'generic' ? item.domain : item.platform}
             </Text>
-            {item.metadataSource && (
-              <Text className={`${textStyles.helper} text-gray-500 mt-0.5`}>
-                {getMetadataSourceLabel()}
-              </Text>
-            )}
+            <Text className={`${textStyles.helper} text-gray-500 mt-0.5`}>
+              {getProcessingLabel()}
+            </Text>
           </View>
         </View>
         
@@ -211,10 +200,13 @@ export default function SavedItemCard({
               console.log("Image loaded successfully:", item.image);
             }}
           />
-          {/* Indicador de imagen validada */}
-          {item.imageValidated && (
-            <View className="absolute top-3 right-3 bg-green-500 rounded-full p-1">
-              <Ionicons name="checkmark" size={12} color="white" />
+          {/* Indicador de calidad de imagen */}
+          {item.imageQuality && item.imageQuality !== 'none' && (
+            <View className={`absolute top-3 right-3 rounded-full p-1 ${
+              item.imageQuality === 'high' ? 'bg-green-500' : 
+              item.imageQuality === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
+            }`}>
+              <Ionicons name="image" size={12} color="white" />
             </View>
           )}
         </View>
@@ -239,12 +231,10 @@ export default function SavedItemCard({
           <Text className={`${textStyles.cardTitle} flex-1 mr-2`} numberOfLines={2}>
             {item.title}
           </Text>
-          {item.descriptionSource && item.descriptionSource !== 'generated' && (
-            <View className="bg-blue-50 px-2 py-1 rounded-full">
-              <Text className={`${textStyles.badge} text-blue-600`}>
-                {item.descriptionSource === 'meta' ? 'META' : 
-                 item.descriptionSource === 'og' ? 'OG' : 
-                 item.descriptionSource === 'twitter' ? 'TW' : 'CONTENT'}
+          {item.hasCleanDescription && (
+            <View className="bg-green-50 px-2 py-1 rounded-full">
+              <Text className={`${textStyles.badge} text-green-600`}>
+                LIMPIO
               </Text>
             </View>
           )}

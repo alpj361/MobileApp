@@ -13,8 +13,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useSavedStore } from '../state/savedStore';
-import { extractLinksFromText, processLinks } from '../api/link-processor';
-import { processEnhancedLinks, isEnhancedProcessingAvailable } from '../api/enhanced-link-processor';
+import { processImprovedLinks, extractLinksFromText } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import SavedItemCard from '../components/SavedItemCard';
 import { SavedItem } from '../state/savedStore';
@@ -84,13 +83,8 @@ export default function SavedScreen() {
         return;
       }
 
-      // Use enhanced processing if available
-      let linkDataArray;
-      if (isEnhancedProcessingAvailable()) {
-        linkDataArray = await processEnhancedLinks(links);
-      } else {
-        linkDataArray = await processLinks(links);
-      }
+      // Use improved processing
+      const linkDataArray = await processImprovedLinks(links);
       
       for (const linkData of linkDataArray) {
         await addSavedItem(linkData, 'clipboard');
@@ -161,14 +155,12 @@ export default function SavedScreen() {
         </Text>
       </Pressable>
       
-      {/* Enhanced processing indicator */}
-      {isEnhancedProcessingAvailable() && (
-        <View className="mt-6 px-4 py-2 bg-green-50 rounded-full border border-green-200">
-          <Text className={`${textStyles.badge} text-green-700`}>
-            ✨ Procesamiento mejorado activado
-          </Text>
-        </View>
-      )}
+      {/* Improved processing indicator */}
+      <View className="mt-6 px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
+        <Text className={`${textStyles.badge} text-blue-700`}>
+          ✨ Procesamiento mejorado con limpieza HTML
+        </Text>
+      </View>
     </View>
   );
 
