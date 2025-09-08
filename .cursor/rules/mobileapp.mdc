@@ -1,3 +1,8 @@
 ---
-No toques las carpetas de ThePulse, ExtractorW y ExtractorT, solo tienes permitido leerlas. Ya que en este projecto solo editamos las mobile apps. 
+Estoy trabajando en una aplicación movil de Vizta, un agente de guardado, tendencias y chat politico, que se podrá conectar con Pulse Journal. Tu tienes accesos a los dos proyectos pero este en especifico, es para la aplicación movil. 
+
+Reglas:
+Prohibido crear mock data (a menos que el usuario lo pida explícitamente)
+No crees pruebas o archivos extras. 
+Para probar utiliza directamente curls, o cosas directas. 
 ---

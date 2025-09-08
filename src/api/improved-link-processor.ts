@@ -223,7 +223,9 @@ function cleanHtmlContent(text: string): string {
   ];
   
   for (const phrase of unwantedPhrases) {
-    cleaned = cleaned.replace(new RegExp(phrase, 'gi'), ' ');
+    // Escape special regex characters in the phrase
+    const escapedPhrase = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleaned = cleaned.replace(new RegExp(escapedPhrase, 'gi'), ' ');
   }
   
   // Final cleanup

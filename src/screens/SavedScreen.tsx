@@ -102,6 +102,61 @@ export default function SavedScreen() {
     }
   };
 
+  // Test function for the improved extractor
+  const handleTestExtractor = async () => {
+    const testUrls = [
+      // Real URLs that should work for testing
+      'https://twitter.com/OpenAI/status/1750892850584875161',
+      'https://www.instagram.com/p/C2-XqX4tY8g/',
+      'https://www.tiktok.com/@openai/video/7321478173993053486',
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+    ];
+    
+    Alert.alert(
+      'Test Extractor',
+      'This will test the improved link extractor with sample URLs. Check console for results.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Test', 
+          onPress: async () => {
+            try {
+              setLoading(true);
+              console.log('🚀 Testing improved extractor...');
+              
+              for (const url of testUrls) {
+                try {
+                  console.log(`📄 Processing: ${url}`);
+                  const result = await processImprovedLinks([url]);
+                  const linkData = result[0];
+                  
+                  console.log(`✅ Result for ${url}:`, {
+                    title: linkData.title,
+                    description: linkData.description?.substring(0, 100),
+                    hasImage: !!linkData.image,
+                    platform: linkData.platform,
+                    quality: linkData.quality,
+                    processingTime: linkData.processingTime
+                  });
+                } catch (error) {
+                  console.log(`❌ Error processing ${url}:`, error.message);
+                }
+              }
+              
+              console.log('✨ Test completed!');
+              Alert.alert('Test Complete', 'Check console for detailed results');
+            } catch (error) {
+              console.error('Test error:', error);
+              Alert.alert('Test Error', error.message);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const renderFilterButton = (filter: typeof selectedFilter, label: string, icon: string) => (
     <Pressable
       onPress={() => setSelectedFilter(filter)}
@@ -155,11 +210,23 @@ export default function SavedScreen() {
         </Text>
       </Pressable>
       
-      {/* Improved processing indicator */}
-      <View className="mt-6 px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
-        <Text className={`${textStyles.badge} text-blue-700`}>
-          ✨ Procesamiento mejorado con limpieza HTML
-        </Text>
+      {/* Test and improved processing indicators */}
+      <View className="mt-6 flex-row gap-3">
+        <View className="px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
+          <Text className={`${textStyles.badge} text-blue-700`}>
+            ✨ Procesamiento mejorado
+          </Text>
+        </View>
+        
+        <Pressable
+          onPress={handleTestExtractor}
+          disabled={isLoading}
+          className="px-4 py-2 bg-green-50 rounded-full border border-green-200 active:bg-green-100"
+        >
+          <Text className={`${textStyles.badge} text-green-600`}>
+            🧪 Probar Extractor
+          </Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -251,16 +318,29 @@ export default function SavedScreen() {
               <Text className={textStyles.description}>
                 {filteredItems.length} elemento{filteredItems.length !== 1 ? 's' : ''}
               </Text>
-              <Pressable
-                onPress={handlePasteFromClipboard}
-                disabled={isLoading}
-                className="flex-row items-center bg-white px-3 py-2 rounded-full border border-gray-200 active:bg-gray-50"
-              >
-                <Ionicons name="add" size={16} color="#3B82F6" />
-                <Text className={`${textStyles.badge} text-blue-500 ml-1`}>
-                  {isLoading ? 'Agregando...' : 'Pegar'}
-                </Text>
-              </Pressable>
+              <View className="flex-row gap-2">
+                <Pressable
+                  onPress={handlePasteFromClipboard}
+                  disabled={isLoading}
+                  className="flex-row items-center bg-white px-3 py-2 rounded-full border border-gray-200 active:bg-gray-50"
+                >
+                  <Ionicons name="add" size={16} color="#3B82F6" />
+                  <Text className={`${textStyles.badge} text-blue-500 ml-1`}>
+                    {isLoading ? 'Agregando...' : 'Pegar'}
+                  </Text>
+                </Pressable>
+                
+                <Pressable
+                  onPress={handleTestExtractor}
+                  disabled={isLoading}
+                  className="flex-row items-center bg-green-50 px-3 py-2 rounded-full border border-green-200 active:bg-green-100"
+                >
+                  <Ionicons name="flask" size={16} color="#059669" />
+                  <Text className={`${textStyles.badge} text-green-600 ml-1`}>
+                    Test
+                  </Text>
+                </Pressable>
+              </View>
             </View>
             
             {/* Quality Stats */}
