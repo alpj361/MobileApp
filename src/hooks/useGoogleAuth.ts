@@ -46,28 +46,28 @@ export function useGoogleAuth() {
 
   const handleAuthSuccess = async (code: string) => {
     try {
-      // Send the code to the bridge server for token exchange
-      const bridgeResponse = await fetch('https://server.standatpd.com/auth/google/exchange', {
+      // Direct token exchange with Google (no backend), using PKCE
+      const tokenRes = await fetch(discovery.tokenEndpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: JSON.stringify({
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
           code,
-          redirectUri: redirectUri,
-          clientId: GOOGLE_CLIENT_ID,
-          // Include PKCE verifier so the server can exchange the code
-          codeVerifier: (request as any)?.codeVerifier,
-        }),
+          code_verifier: (request as any)?.codeVerifier || '',
+          grant_type: 'authorization_code',
+          redirect_uri: redirectUri,
+        }).toString(),
       });
 
-      if (!bridgeResponse.ok) {
-        const errorText = await bridgeResponse.text().catch(() => '');
-        console.error('Bridge token exchange failed:', bridgeResponse.status, errorText);
+      if (!tokenRes.ok) {
+        const errorText = await tokenRes.text().catch(() => '');
+        console.error('Google token exchange failed:', tokenRes.status, errorText);
         throw new Error('Failed to exchange code for tokens');
       }
 
-      const tokenData = await bridgeResponse.json();
+      const tokenData = await tokenRes.json();
 
       if (tokenData.access_token) {
         // Get user info from Google
