@@ -89,6 +89,35 @@ async function checkSupabaseSession(): Promise<{ session: any; error: string | n
 }
 
 /**
+ * Alternative approach: Create a temporary session using the Pulse user data
+ * This is a workaround when the normal Supabase session is not available
+ */
+async function createTemporarySession(pulseUserId: string): Promise<{ session: any; error: string | null }> {
+  try {
+    // For now, we'll return null and let the backend handle authentication differently
+    // This is a placeholder for a more sophisticated approach
+    console.log('Attempting to create temporary session for Pulse user:', pulseUserId);
+    
+    // TODO: Implement a proper session creation mechanism
+    // This could involve:
+    // 1. Creating a temporary token on the backend
+    // 2. Using a different authentication method
+    // 3. Modifying the backend to accept Pulse user IDs directly
+    
+    return { 
+      session: null, 
+      error: 'Sesión temporal no implementada. Se requiere autenticación completa con Supabase.' 
+    };
+  } catch (error) {
+    console.error('Error creating temporary session:', error);
+    return { 
+      session: null, 
+      error: 'Error creando sesión temporal.' 
+    };
+  }
+}
+
+/**
  * Save a saved link into Pulse Journal Codex (codex_items)
  * Requires: Supabase env configured and a valid Pulse user id
  * 
@@ -103,36 +132,68 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
     // Check if user has a valid Supabase session
     const { session, error: sessionError } = await checkSupabaseSession();
     
+    let response;
+    
     if (sessionError || !session) {
-      console.log('Authentication status:', await checkAuthenticationStatus());
-      return { 
-        success: false, 
-        error: 'La sesión de autenticación ha expirado. Por favor, ve a Configuración → Desconectar y vuelve a conectar tu cuenta de Pulse Journal.' 
-      };
-    }
-
-    // Use backend endpoint to handle RLS complexities and user mapping
-    const response = await fetch('https://server.standatpd.com/api/codex/save-link', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        link_data: {
-          url: item.url,
-          title: item.title,
-          description: item.description,
-          platform: item.platform,
-          image: item.image,
-          author: item.author,
-          domain: item.domain,
-          type: item.type,
-          timestamp: item.timestamp,
+      console.log('No Supabase session available, trying Pulse authentication...');
+      
+      // Get Pulse user data for alternative authentication
+      const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+      const pulseUser = pulseConnectionStore.connectedUser;
+      
+      if (!pulseUser) {
+        return { 
+          success: false, 
+          error: 'No se encontró una conexión válida con Pulse Journal. Por favor, ve a Configuración y conecta tu cuenta.' 
+        };
+      }
+      
+      // Use the alternative endpoint that doesn't require Supabase session
+      response = await fetch('https://server.standatpd.com/api/codex/save-link-pulse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      }),
-    });
+        body: JSON.stringify({
+          user_id: userId,
+          pulse_user_email: pulseUser.email,
+          link_data: {
+            url: item.url,
+            title: item.title,
+            description: item.description,
+            platform: item.platform,
+            image: item.image,
+            author: item.author,
+            domain: item.domain,
+            type: item.type,
+            timestamp: item.timestamp,
+          },
+        }),
+      });
+    } else {
+      // Use the standard endpoint with Supabase authentication
+      response = await fetch('https://server.standatpd.com/api/codex/save-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          link_data: {
+            url: item.url,
+            title: item.title,
+            description: item.description,
+            platform: item.platform,
+            image: item.image,
+            author: item.author,
+            domain: item.domain,
+            type: item.type,
+            timestamp: item.timestamp,
+          },
+        }),
+      });
+    }
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'Error desconocido');
