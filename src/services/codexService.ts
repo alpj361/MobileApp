@@ -13,11 +13,23 @@ export interface CodexSaveResult {
  */
 export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<CodexSaveResult> {
   try {
+    // Get the current Supabase session for authentication
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError || !session?.access_token) {
+      console.error('No valid Supabase session found:', sessionError);
+      return { 
+        success: false, 
+        error: 'No se encontró una sesión válida. Por favor, inicia sesión nuevamente.' 
+      };
+    }
+
     // Use backend endpoint to handle RLS complexities and user mapping
     const response = await fetch('https://server.standatpd.com/api/codex/save-link', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({
         user_id: userId,
