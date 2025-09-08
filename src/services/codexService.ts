@@ -17,11 +17,16 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
       return { success: false, error: 'Supabase no está configurado en la app' };
     }
 
-    // Prevent duplicates by URL for the same user
+    // Ensure we have a Supabase session to satisfy RLS policies
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      return { success: false, error: 'No hay sesión de Supabase activa (RLS)' };
+    }
+
+    // Prevent duplicates by URL for the same user (server-side RLS will scope by auth.uid())
     const { data: existing, error: existErr } = await supabase
       .from('codex_items')
       .select('id')
-      .eq('user_id', userId)
       .eq('url', item.url)
       .maybeSingle();
 

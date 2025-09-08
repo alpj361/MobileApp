@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { verifyPulseUser, ConnectionResult } from '../services/pulseAuth';
+import { supabase } from '../config/supabase';
 
 // Complete auth session when returning to app
 WebBrowser.maybeCompleteAuthSession();
@@ -68,6 +69,23 @@ export function useGoogleAuth() {
       }
 
       const tokenData = await tokenRes.json();
+
+      // If we got an ID token, sign in to Supabase to satisfy RLS
+      try {
+        if (tokenData?.id_token && supabase) {
+          const { data: supaSession, error: supaErr } = await supabase.auth.signInWithIdToken({
+            provider: 'google',
+            token: tokenData.id_token,
+          });
+          if (supaErr) {
+            console.warn('Supabase signInWithIdToken failed:', supaErr.message);
+          } else {
+            console.log('Supabase session established:', !!supaSession?.session);
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase auth linkage warning:', (e as any)?.message);
+      }
 
       if (tokenData.access_token) {
         // Get user info from Google
