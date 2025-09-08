@@ -8,6 +8,45 @@ export interface CodexSaveResult {
 }
 
 /**
+ * Check authentication status for debugging
+ */
+export async function checkAuthenticationStatus(): Promise<{
+  hasPulseConnection: boolean;
+  hasSupabaseSession: boolean;
+  pulseUser: any;
+  supabaseUser: any;
+  error?: string;
+}> {
+  try {
+    // Check Pulse connection (from store)
+    const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+    const hasPulseConnection = pulseConnectionStore.isConnected;
+    const pulseUser = pulseConnectionStore.connectedUser;
+
+    // Check Supabase session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    const hasSupabaseSession = !!(session?.access_token);
+    const supabaseUser = session?.user;
+
+    return {
+      hasPulseConnection,
+      hasSupabaseSession,
+      pulseUser,
+      supabaseUser,
+      error: sessionError?.message
+    };
+  } catch (error) {
+    return {
+      hasPulseConnection: false,
+      hasSupabaseSession: false,
+      pulseUser: null,
+      supabaseUser: null,
+      error: (error as Error).message
+    };
+  }
+}
+
+/**
  * Check if user has a valid Supabase session for API calls
  */
 async function checkSupabaseSession(): Promise<{ session: any; error: string | null }> {
@@ -65,9 +104,10 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
     const { session, error: sessionError } = await checkSupabaseSession();
     
     if (sessionError || !session) {
+      console.log('Authentication status:', await checkAuthenticationStatus());
       return { 
         success: false, 
-        error: sessionError || 'No se pudo verificar la sesión.' 
+        error: 'La sesión de autenticación ha expirado. Por favor, ve a Configuración → Desconectar y vuelve a conectar tu cuenta de Pulse Journal.' 
       };
     }
 
