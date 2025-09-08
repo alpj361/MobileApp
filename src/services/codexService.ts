@@ -48,33 +48,28 @@ export async function checkAuthenticationStatus(): Promise<{
 
 /**
  * Check if user has a valid Supabase session for API calls
+ * Updated to handle new Google OAuth flow with PKCE
  */
 async function checkSupabaseSession(): Promise<{ session: any; error: string | null }> {
   try {
     // First try to get current session
     let { data: { session }, error: sessionError } = await supabase.auth.getSession();
     
-    // If no session found, try to refresh it
-    if (!session?.access_token && !sessionError) {
-      console.log('No active session found, attempting to refresh...');
-      const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
-      
-      if (refreshError) {
-        console.error('Failed to refresh session:', refreshError);
-        return { 
-          session: null, 
-          error: 'La sesión ha expirado. Por favor, inicia sesión nuevamente.' 
-        };
-      }
-      
-      session = refreshedSession;
-    }
-    
-    if (sessionError || !session?.access_token) {
-      console.error('No valid Supabase session found:', sessionError);
+    // If no session found, don't try to refresh automatically
+    // The new Google OAuth flow with PKCE doesn't use Supabase's built-in session management
+    if (!session?.access_token) {
+      console.log('No active Supabase session found - this is expected with the new Google OAuth flow');
       return { 
         session: null, 
-        error: 'No se encontró una sesión válida. Por favor, inicia sesión nuevamente desde la configuración.' 
+        error: null // Don't treat this as an error, just return null session
+      };
+    }
+    
+    if (sessionError) {
+      console.error('Supabase session error:', sessionError);
+      return { 
+        session: null, 
+        error: 'Error en la sesión de Supabase.' 
       };
     }
     
@@ -83,7 +78,7 @@ async function checkSupabaseSession(): Promise<{ session: any; error: string | n
     console.error('Error checking Supabase session:', error);
     return { 
       session: null, 
-      error: 'Error verificando la sesión. Por favor, inicia sesión nuevamente.' 
+      error: null // Don't treat this as a critical error
     };
   }
 }
@@ -118,24 +113,65 @@ async function createTemporarySession(pulseUserId: string): Promise<{ session: a
 }
 
 /**
+ * Check if a link already exists in the user's codex
+ */
+async function checkLinkExists(userId: string, url: string): Promise<{ exists: boolean; id?: string }> {
+  try {
+    // Get Pulse user data for authentication
+    const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+    const pulseUser = pulseConnectionStore.connectedUser;
+    
+    if (!pulseUser) {
+      return { exists: false };
+    }
+
+    const response = await fetch('https://server.standatpd.com/api/codex/check-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        pulse_user_email: pulseUser.email,
+        url: url,
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return { exists: result.exists, id: result.id };
+    }
+    
+    return { exists: false };
+  } catch (error) {
+    console.error('Error checking if link exists:', error);
+    return { exists: false };
+  }
+}
+
+/**
  * Save a saved link into Pulse Journal Codex (codex_items)
- * Requires: Supabase env configured and a valid Pulse user id
- * 
- * Note: This function requires the user to be authenticated with Supabase.
- * If you get authentication errors, the user needs to:
- * 1. Go to Settings in the app
- * 2. Disconnect and reconnect their Pulse Journal account
- * 3. This will refresh the Supabase session
+ * Updated to work with new Google OAuth flow and check for duplicates
  */
 export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<CodexSaveResult> {
   try {
+    // First check if the link already exists
+    const { exists, id } = await checkLinkExists(userId, item.url);
+    if (exists) {
+      return { 
+        success: true, 
+        id: id,
+        error: 'Este enlace ya está guardado en tu Codex.' 
+      };
+    }
+
     // Check if user has a valid Supabase session
     const { session, error: sessionError } = await checkSupabaseSession();
     
     let response;
     
     if (sessionError || !session) {
-      console.log('No Supabase session available, trying Pulse authentication...');
+      console.log('No Supabase session available, using Pulse authentication...');
       
       // Get Pulse user data for alternative authentication
       const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();

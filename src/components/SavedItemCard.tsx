@@ -248,7 +248,12 @@ export default function SavedItemCard({
                     try {
                       const res = await saveLinkToCodex(connectedUser.id, item);
                       if (res.success) {
-                        Alert.alert('Guardado en Codex', 'El enlace se guardó correctamente.');
+                        // Check if it's a duplicate message
+                        if (res.error && res.error.includes('ya está guardado')) {
+                          Alert.alert('Ya guardado', res.error);
+                        } else {
+                          Alert.alert('Guardado en Codex', 'El enlace se guardó correctamente.');
+                        }
                       } else {
                         Alert.alert('Error', res.error || 'No se pudo guardar en Codex');
                       }
