@@ -13,62 +13,44 @@ export interface CodexSaveResult {
  */
 export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<CodexSaveResult> {
   try {
-    if (!supabase) {
-      return { success: false, error: 'Supabase no está configurado en la app' };
-    }
-
-    // Ensure we have a Supabase session to satisfy RLS policies
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      return { success: false, error: 'No hay sesión de Supabase activa (RLS)' };
-    }
-
-    // Prevent duplicates by URL for the same user (server-side RLS will scope by auth.uid())
-    const { data: existing, error: existErr } = await supabase
-      .from('codex_items')
-      .select('id')
-      .eq('url', item.url)
-      .maybeSingle();
-
-    if (!existErr && existing?.id) {
-      return { success: true, id: existing.id };
-    }
-
-    const payload: any = {
-      user_id: userId,
-      tipo: 'enlace',
-      titulo: item.title || item.domain,
-      descripcion: item.description || null,
-      etiquetas: [],
-      proyecto: null,
-      project_id: null,
-      storage_path: null,
-      url: item.url,
-      source_url: item.url,
-      nombre_archivo: null,
-      tamano: null,
-      fecha: new Date().toISOString(),
-      original_type: item.type || 'link',
-      content: {
-        platform: item.platform,
-        image: item.image,
-        author: item.author,
-        domain: item.domain,
-        saved_at: item.timestamp,
+    // Use backend endpoint to handle RLS complexities and user mapping
+    const response = await fetch('https://server.standatpd.com/api/codex/save-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
-    };
+      body: JSON.stringify({
+        user_id: userId,
+        link_data: {
+          url: item.url,
+          title: item.title,
+          description: item.description,
+          platform: item.platform,
+          image: item.image,
+          author: item.author,
+          domain: item.domain,
+          type: item.type,
+          timestamp: item.timestamp,
+        },
+      }),
+    });
 
-    const { data, error } = await supabase
-      .from('codex_items')
-      .insert([payload])
-      .select('id')
-      .single();
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Error desconocido');
+      console.error('Backend save to Codex failed:', response.status, errorText);
+      throw new Error(`Error del servidor: ${response.status}`);
+    }
 
-    if (error) throw error;
-
-    return { success: true, id: data?.id };
+    const result = await response.json();
+    
+    if (result.success) {
+      return { success: true, id: result.id };
+    } else {
+      return { success: false, error: result.error || 'Error guardando en Codex' };
+    }
   } catch (error: any) {
-    return { success: false, error: error?.message || 'Error guardando en Codex' };
+    console.error('Error saving to Codex via backend:', error);
+    return { success: false, error: error?.message || 'Error conectando con el servidor' };
   }
 }
 

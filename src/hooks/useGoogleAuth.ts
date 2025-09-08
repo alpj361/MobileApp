@@ -70,22 +70,7 @@ export function useGoogleAuth() {
 
       const tokenData = await tokenRes.json();
 
-      // If we got an ID token, sign in to Supabase to satisfy RLS
-      try {
-        if (tokenData?.id_token && supabase) {
-          const { data: supaSession, error: supaErr } = await supabase.auth.signInWithIdToken({
-            provider: 'google',
-            token: tokenData.id_token,
-          });
-          if (supaErr) {
-            console.warn('Supabase signInWithIdToken failed:', supaErr.message);
-          } else {
-            console.log('Supabase session established:', !!supaSession?.session);
-          }
-        }
-      } catch (e) {
-        console.warn('Supabase auth linkage warning:', (e as any)?.message);
-      }
+      // Note: Deferring Supabase session creation until we verify Pulse user exists
 
       if (tokenData.access_token) {
         // Get user info from Google
@@ -100,6 +85,23 @@ export function useGoogleAuth() {
         if (userInfo.email) {
           // Verify user exists in Pulse Journal
           const pulseUser = await verifyPulseUser(userInfo.email);
+          
+          if (pulseUser && tokenData?.id_token && supabase) {
+            // Now create Supabase session for RLS compliance
+            try {
+              const { data: supaSession, error: supaErr } = await supabase.auth.signInWithIdToken({
+                provider: 'google',
+                token: tokenData.id_token,
+              });
+              if (supaErr) {
+                console.warn('Supabase signInWithIdToken failed:', supaErr.message);
+              } else {
+                console.log('Supabase session established for:', userInfo.email);
+              }
+            } catch (e) {
+              console.warn('Supabase auth linkage warning:', (e as any)?.message);
+            }
+          }
           
           return {
             success: true,
