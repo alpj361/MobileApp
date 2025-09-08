@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
+import { usePulseConnectionStore } from '../state/pulseConnectionStore';
+import { saveLinkToCodex } from '../services/codexService';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -18,6 +20,7 @@ export default function SavedItemCard({
   onToggleFavorite, 
   onDelete 
 }: SavedItemCardProps) {
+  const { isConnected, connectedUser } = usePulseConnectionStore();
   const handlePress = () => {
     if (onPress) {
       onPress();
@@ -238,6 +241,31 @@ export default function SavedItemCard({
             
             {/* Acciones */}
             <View className="flex-row items-center gap-2">
+              {/* Guardar en Codex (sólo si conectado a Pulse Journal) */}
+              {isConnected && connectedUser?.id && (
+                <Pressable
+                  onPress={async () => {
+                    try {
+                      const res = await saveLinkToCodex(connectedUser.id, item);
+                      if (res.success) {
+                        Alert.alert('Guardado en Codex', 'El enlace se guardó correctamente.');
+                      } else {
+                        Alert.alert('Error', res.error || 'No se pudo guardar en Codex');
+                      }
+                    } catch (e) {
+                      Alert.alert('Error', 'No se pudo guardar en Codex');
+                    }
+                  }}
+                  className="p-2 rounded-full active:bg-gray-100"
+                  style={({ pressed }) => [
+                    {
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                    }
+                  ]}
+                >
+                  <Ionicons name="save-outline" size={20} color="#3B82F6" />
+                </Pressable>
+              )}
               {/* Botón de favorito */}
               <Pressable
                 onPress={onToggleFavorite}
