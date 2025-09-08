@@ -233,9 +233,150 @@ function cleanHtmlContent(text: string): string {
 }
 
 /**
- * Extract and validate image URLs with quality scoring
+ * Platform-specific image extraction
  */
-function extractImageUrl(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
+function extractPlatformSpecificImage(html: string, baseUrl: string, platform: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
+  switch (platform) {
+    case 'twitter':
+      return extractTwitterImage(html, baseUrl);
+    case 'instagram':
+      return extractInstagramImage(html, baseUrl);
+    case 'tiktok':
+      return extractTikTokImage(html, baseUrl);
+    default:
+      return extractGenericImage(html, baseUrl);
+  }
+}
+
+/**
+ * Enhanced Twitter/X image extraction
+ */
+function extractTwitterImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
+  const twitterImagePatterns = [
+    // Twitter Card images (highest priority)
+    /<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+name=["']twitter:image["']/i,
+    /<meta\s+name=["']twitter:image:src["']\s+content=["']([^"']+)["']/i,
+    
+    // Open Graph for Twitter
+    /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
+    
+    // Twitter specific patterns
+    /<meta\s+name=["']twitter:image:alt["']\s+content=["'][^"']*["'][^>]*>/i,
+    
+    // Video thumbnails for Twitter videos
+    /<meta\s+property=["']og:video:thumbnail["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']twitter:player:image["']\s+content=["']([^"']+)["']/i,
+    
+    // Twitter media URLs in content
+    /https:\/\/pbs\.twimg\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/ton\.twitter\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+  ];
+
+  for (let i = 0; i < twitterImagePatterns.length; i++) {
+    const matches = html.match(twitterImagePatterns[i]);
+    if (matches) {
+      let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      if (!imageUrl) continue;
+      
+      imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
+      
+      if (isValidImageUrl(imageUrl)) {
+        // Higher quality for Twitter Card images
+        const quality = i < 3 ? 'high' : i < 6 ? 'medium' : 'low';
+        return { url: imageUrl, quality };
+      }
+    }
+  }
+  
+  return { quality: 'none' };
+}
+
+/**
+ * Enhanced Instagram image extraction
+ */
+function extractInstagramImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
+  const instagramImagePatterns = [
+    // Instagram specific meta tags
+    /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
+    
+    // Instagram video thumbnails
+    /<meta\s+property=["']og:video:thumbnail["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i,
+    
+    // Instagram CDN patterns
+    /https:\/\/[^"'\s]*\.cdninstagram\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/scontent[^"'\s]*\.instagram\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/[^"'\s]*\.fbcdn\.net\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    
+    // Instagram story/reel thumbnails
+    /<img[^>]*src=["']([^"']*(?:cdninstagram|scontent)[^"']*\.(jpg|jpeg|png|webp))["']/gi,
+  ];
+
+  for (let i = 0; i < instagramImagePatterns.length; i++) {
+    const matches = html.match(instagramImagePatterns[i]);
+    if (matches) {
+      let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      if (!imageUrl) continue;
+      
+      imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
+      
+      if (isValidImageUrl(imageUrl) && imageUrl.includes('instagram')) {
+        const quality = i < 2 ? 'high' : i < 4 ? 'medium' : 'low';
+        return { url: imageUrl, quality };
+      }
+    }
+  }
+  
+  return { quality: 'none' };
+}
+
+/**
+ * Enhanced TikTok image extraction
+ */
+function extractTikTokImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
+  const tiktokImagePatterns = [
+    // TikTok Open Graph images
+    /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
+    
+    // TikTok video thumbnails
+    /<meta\s+property=["']og:video:thumbnail["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']twitter:image["']\s+content=["']([^"']+)["']/i,
+    
+    // TikTok CDN patterns
+    /https:\/\/[^"'\s]*\.tiktokcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/[^"'\s]*\.tiktokcdn-[^"'\s]*\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/p[^"'\s]*\.tiktokcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+    
+    // TikTok specific image patterns
+    /<img[^>]*src=["']([^"']*tiktokcdn[^"']*\.(jpg|jpeg|png|webp))["']/gi,
+  ];
+
+  for (let i = 0; i < tiktokImagePatterns.length; i++) {
+    const matches = html.match(tiktokImagePatterns[i]);
+    if (matches) {
+      let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      if (!imageUrl) continue;
+      
+      imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
+      
+      if (isValidImageUrl(imageUrl) && (imageUrl.includes('tiktok') || imageUrl.includes('musical.ly'))) {
+        const quality = i < 2 ? 'high' : i < 4 ? 'medium' : 'low';
+        return { url: imageUrl, quality };
+      }
+    }
+  }
+  
+  return { quality: 'none' };
+}
+
+/**
+ * Generic image extraction (fallback)
+ */
+function extractGenericImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
   const imagePatterns = [
     // Open Graph image (highest priority)
     /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
@@ -263,20 +404,8 @@ function extractImageUrl(html: string, baseUrl: string): { url?: string; quality
     const match = html.match(imagePatterns[i]);
     if (match && match[1]) {
       let imageUrl = match[1].trim();
+      imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
       
-      // Convert relative URLs to absolute
-      if (imageUrl.startsWith('/')) {
-        const base = new URL(baseUrl);
-        imageUrl = `${base.protocol}//${base.host}${imageUrl}`;
-      } else if (imageUrl.startsWith('./')) {
-        const base = new URL(baseUrl);
-        imageUrl = `${base.protocol}//${base.host}${base.pathname}/${imageUrl.substring(2)}`;
-      } else if (!imageUrl.startsWith('http')) {
-        const base = new URL(baseUrl);
-        imageUrl = `${base.protocol}//${base.host}/${imageUrl}`;
-      }
-      
-      // Validate image URL format
       if (isValidImageUrl(imageUrl)) {
         const quality = i < 2 ? 'high' : i < 4 ? 'medium' : 'low';
         return { url: imageUrl, quality };
@@ -288,24 +417,91 @@ function extractImageUrl(html: string, baseUrl: string): { url?: string; quality
 }
 
 /**
- * Validate if URL looks like a valid image
+ * Helper to convert relative URLs to absolute
+ */
+function makeAbsoluteUrl(imageUrl: string, baseUrl: string): string {
+  if (imageUrl.startsWith('http')) {
+    return imageUrl;
+  }
+  
+  if (imageUrl.startsWith('/')) {
+    const base = new URL(baseUrl);
+    return `${base.protocol}//${base.host}${imageUrl}`;
+  }
+  
+  if (imageUrl.startsWith('./')) {
+    const base = new URL(baseUrl);
+    return `${base.protocol}//${base.host}${base.pathname}/${imageUrl.substring(2)}`;
+  }
+  
+  const base = new URL(baseUrl);
+  return `${base.protocol}//${base.host}/${imageUrl}`;
+}
+
+/**
+ * Enhanced image URL validation with platform-specific checks
  */
 function isValidImageUrl(url: string): boolean {
   if (!url || url.length < 10) return false;
   
+  // Basic validation
+  try {
+    new URL(url);
+  } catch {
+    return false;
+  }
+  
   // Check for common image extensions
-  if (url.match(/\.(jpg|jpeg|png|gif|webp|svg|avif)(\?.*)?$/i)) {
+  if (url.match(/\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|tiff)(\?.*)?$/i)) {
     return true;
+  }
+  
+  // Platform-specific CDN patterns
+  const platformPatterns = [
+    // Twitter/X
+    /pbs\.twimg\.com/,
+    /ton\.twitter\.com/,
+    /abs\.twimg\.com/,
+    
+    // Instagram
+    /cdninstagram\.com/,
+    /scontent.*\.instagram\.com/,
+    /.*\.fbcdn\.net/,
+    
+    // TikTok
+    /tiktokcdn\.com/,
+    /tiktokcdn-.*\.com/,
+    /p.*\.tiktokcdn\.com/,
+    
+    // YouTube
+    /i\.ytimg\.com/,
+    /img\.youtube\.com/,
+    
+    // Generic CDN patterns
+    /cloudinary\.com/,
+    /imgur\.com/,
+    /amazonaws\.com/,
+    /googleusercontent\.com/,
+  ];
+  
+  for (const pattern of platformPatterns) {
+    if (pattern.test(url)) {
+      return true;
+    }
   }
   
   // Check for image-related keywords in URL
-  if (url.includes('image') || url.includes('photo') || url.includes('picture') || 
-      url.includes('thumbnail') || url.includes('avatar') || url.includes('logo')) {
+  if (url.match(/\b(image|photo|picture|thumbnail|avatar|logo|media|poster|cover)\b/i)) {
     return true;
   }
   
-  // Check for CDN patterns
-  if (url.includes('cdn') || url.includes('media') || url.includes('assets')) {
+  // Check for common CDN patterns
+  if (url.match(/\b(cdn|media|assets|static|img|images)\b/i)) {
+    return true;
+  }
+  
+  // Check for base64 data URLs
+  if (url.startsWith('data:image/')) {
     return true;
   }
   
@@ -313,9 +509,133 @@ function isValidImageUrl(url: string): boolean {
 }
 
 /**
- * Extract title with priority system and cleaning
+ * Platform-specific title extraction
  */
-function extractTitle(html: string, url: string): string {
+function extractPlatformSpecificTitle(html: string, url: string, platform: string): string {
+  switch (platform) {
+    case 'twitter':
+      return extractTwitterTitle(html, url);
+    case 'instagram':
+      return extractInstagramTitle(html, url);
+    case 'tiktok':
+      return extractTikTokTitle(html, url);
+    default:
+      return extractGenericTitle(html, url);
+  }
+}
+
+/**
+ * Enhanced Twitter/X title extraction
+ */
+function extractTwitterTitle(html: string, url: string): string {
+  const twitterTitlePatterns = [
+    // Twitter specific meta tags
+    /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']twitter:title["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:title["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+name=["']twitter:title["']/i,
+    
+    // Twitter page title
+    /<title>([^<]+)<\/title>/i,
+  ];
+  
+  for (const pattern of twitterTitlePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let title = cleanHtmlContent(match[1].trim());
+      
+      // Clean Twitter-specific suffixes
+      title = title.replace(/\s*[\|\-–—]\s*(Twitter|X|on X).*$/i, '').trim();
+      title = title.replace(/\s*on Twitter.*$/i, '').trim();
+      title = title.replace(/\s*\/ X.*$/i, '').trim();
+      
+      // Extract tweet content from title format: "User on X: Tweet content"
+      const tweetContentMatch = title.match(/^[^:]+:\s*(.+)$/);
+      if (tweetContentMatch && tweetContentMatch[1]) {
+        title = tweetContentMatch[1].trim();
+      }
+      
+      if (title.length > 3 && title.length < 280) {
+        return title;
+      }
+    }
+  }
+  
+  return new URL(url).hostname.replace('www.', '') || 'Tweet';
+}
+
+/**
+ * Enhanced Instagram title extraction
+ */
+function extractInstagramTitle(html: string, url: string): string {
+  const instagramTitlePatterns = [
+    /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:title["']/i,
+    /<meta\s+name=["']twitter:title["']\s+content=["']([^"']+)["']/i,
+    /<title>([^<]+)<\/title>/i,
+  ];
+  
+  for (const pattern of instagramTitlePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let title = cleanHtmlContent(match[1].trim());
+      
+      // Clean Instagram-specific suffixes
+      title = title.replace(/\s*[\|\-–—]\s*Instagram.*$/i, '').trim();
+      title = title.replace(/\s*on Instagram.*$/i, '').trim();
+      title = title.replace(/\s*•\s*Instagram.*$/i, '').trim();
+      
+      // Extract user and content from Instagram format
+      const instagramMatch = title.match(/^(.+?)\s*(?:on Instagram|:|•)\s*(.*)$/i);
+      if (instagramMatch && instagramMatch[2]) {
+        const user = instagramMatch[1].trim();
+        const content = instagramMatch[2].trim();
+        title = content || `Post by ${user}`;
+      }
+      
+      if (title.length > 3 && title.length < 300) {
+        return title;
+      }
+    }
+  }
+  
+  return new URL(url).hostname.replace('www.', '') || 'Instagram Post';
+}
+
+/**
+ * Enhanced TikTok title extraction
+ */
+function extractTikTokTitle(html: string, url: string): string {
+  const tiktokTitlePatterns = [
+    /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:title["']/i,
+    /<meta\s+name=["']twitter:title["']\s+content=["']([^"']+)["']/i,
+    /<title>([^<]+)<\/title>/i,
+  ];
+  
+  for (const pattern of tiktokTitlePatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let title = cleanHtmlContent(match[1].trim());
+      
+      // Clean TikTok-specific suffixes
+      title = title.replace(/\s*[\|\-–—]\s*TikTok.*$/i, '').trim();
+      title = title.replace(/\s*on TikTok.*$/i, '').trim();
+      title = title.replace(/\s*•\s*TikTok.*$/i, '').trim();
+      
+      if (title.length > 3 && title.length < 300) {
+        return title;
+      }
+    }
+  }
+  
+  return new URL(url).hostname.replace('www.', '') || 'TikTok Video';
+}
+
+/**
+ * Generic title extraction (fallback)
+ */
+function extractGenericTitle(html: string, url: string): string {
   const titlePatterns = [
     /<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i,
     /<meta\s+name=["']twitter:title["']\s+content=["']([^"']+)["']/i,
@@ -347,9 +667,140 @@ function extractTitle(html: string, url: string): string {
 }
 
 /**
- * Extract description with priority system and cleaning
+ * Platform-specific description extraction
  */
-function extractDescription(html: string): string {
+function extractPlatformSpecificDescription(html: string, platform: string): string {
+  switch (platform) {
+    case 'twitter':
+      return extractTwitterDescription(html);
+    case 'instagram':
+      return extractInstagramDescription(html);
+    case 'tiktok':
+      return extractTikTokDescription(html);
+    default:
+      return extractGenericDescription(html);
+  }
+}
+
+/**
+ * Enhanced Twitter/X description extraction
+ */
+function extractTwitterDescription(html: string): string {
+  const twitterDescriptionPatterns = [
+    // Twitter specific meta descriptions
+    /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+name=["']twitter:description["']/i,
+    /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
+  ];
+  
+  for (const pattern of twitterDescriptionPatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let description = cleanHtmlContent(match[1].trim());
+      
+      // Clean Twitter-specific artifacts
+      description = description.replace(/^"([^"]*)"$/, '$1'); // Remove surrounding quotes
+      description = description.replace(/\s*via\s+@\w+\s*$/i, ''); // Remove "via @username"
+      description = description.replace(/\s*—\s*Twitter.*$/i, ''); // Remove Twitter suffixes
+      
+      // Clean common Twitter spam patterns
+      description = description.replace(/\b(?:RT|retweet)\b/gi, '');
+      description = description.replace(/\s+/g, ' ').trim();
+      
+      if (description.length > 10 && description.length < 280) {
+        return description;
+      }
+    }
+  }
+  
+  return '';
+}
+
+/**
+ * Enhanced Instagram description extraction
+ */
+function extractInstagramDescription(html: string): string {
+  const instagramDescriptionPatterns = [
+    /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
+    /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
+  ];
+  
+  for (const pattern of instagramDescriptionPatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let description = cleanHtmlContent(match[1].trim());
+      
+      // Clean Instagram-specific artifacts
+      description = description.replace(/^\d+\s+Likes?,?\s*/i, ''); // Remove "123 Likes, "
+      description = description.replace(/^\d+\s+Comments?,?\s*/i, ''); // Remove "45 Comments, "
+      description = description.replace(/\s*on Instagram.*$/i, ''); // Remove "on Instagram"
+      description = description.replace(/^"([^"]*)"$/, '$1'); // Remove surrounding quotes
+      
+      // Clean hashtags at the end for better readability
+      const hashtagIndex = description.search(/\s+#\w+/);
+      if (hashtagIndex > 50) { // Keep hashtags if they're part of the main content
+        const mainContent = description.substring(0, hashtagIndex).trim();
+        const hashtags = description.substring(hashtagIndex).trim();
+        if (mainContent.length > 20) {
+          description = `${mainContent} ${hashtags}`;
+        }
+      }
+      
+      if (description.length > 10 && description.length < 500) {
+        return description;
+      }
+    }
+  }
+  
+  return '';
+}
+
+/**
+ * Enhanced TikTok description extraction
+ */
+function extractTikTokDescription(html: string): string {
+  const tiktokDescriptionPatterns = [
+    /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
+    /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
+  ];
+  
+  for (const pattern of tiktokDescriptionPatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      let description = cleanHtmlContent(match[1].trim());
+      
+      // Clean TikTok-specific artifacts
+      description = description.replace(/\s*on TikTok.*$/i, ''); // Remove "on TikTok"
+      description = description.replace(/^"([^"]*)"$/, '$1'); // Remove surrounding quotes
+      description = description.replace(/^\w+\s*\(@\w+\)\s*has created a short video/i, ''); // Remove TikTok format prefix
+      
+      // Clean common TikTok patterns
+      description = description.replace(/\s*#fyp\s*/gi, ' '); // Remove #fyp
+      description = description.replace(/\s*#foryou\s*/gi, ' '); // Remove #foryou
+      description = description.replace(/\s*#viral\s*/gi, ' '); // Remove #viral
+      
+      // Preserve hashtags that are part of the content
+      description = description.replace(/\s+/g, ' ').trim();
+      
+      if (description.length > 10 && description.length < 500) {
+        return description;
+      }
+    }
+  }
+  
+  return '';
+}
+
+/**
+ * Generic description extraction (fallback)
+ */
+function extractGenericDescription(html: string): string {
   const descriptionPatterns = [
     /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
     /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i,
@@ -454,20 +905,59 @@ function calculateContentScore(data: {
 }
 
 /**
- * Detect platform from URL
+ * Enhanced platform detection with URL pattern matching
  */
 function detectPlatform(url: string): string {
-  const domain = new URL(url).hostname.toLowerCase();
-  
-  if (domain.includes('twitter.com') || domain.includes('x.com')) return 'twitter';
-  if (domain.includes('youtube.com') || domain.includes('youtu.be')) return 'youtube';
-  if (domain.includes('instagram.com')) return 'instagram';
-  if (domain.includes('tiktok.com')) return 'tiktok';
-  if (domain.includes('linkedin.com')) return 'linkedin';
-  if (domain.includes('facebook.com')) return 'facebook';
-  if (domain.includes('reddit.com')) return 'reddit';
+  try {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.toLowerCase();
+    const path = urlObj.pathname.toLowerCase();
+    
+    // Twitter/X detection
+    if (domain.includes('twitter.com') || domain.includes('x.com') || domain === 't.co') {
+      return 'twitter';
+    }
+    
+    // Instagram detection (including various subdomains)
+    if (domain.includes('instagram.com') || domain.includes('instagr.am')) {
+      return 'instagram';
+    }
+    
+    // TikTok detection (including shortened URLs)
+    if (domain.includes('tiktok.com') || domain.includes('vm.tiktok.com') || domain.includes('musical.ly')) {
+      return 'tiktok';
+    }
+    
+    // YouTube detection
+    if (domain.includes('youtube.com') || domain.includes('youtu.be') || domain.includes('youtube.app.goo.gl')) {
+      return 'youtube';
+    }
+    
+    // LinkedIn detection
+    if (domain.includes('linkedin.com') || domain.includes('lnkd.in')) {
+      return 'linkedin';
+    }
+    
+    // Facebook detection
+    if (domain.includes('facebook.com') || domain.includes('fb.com') || domain.includes('fb.me')) {
+      return 'facebook';
+    }
+    
+    // Reddit detection
+    if (domain.includes('reddit.com') || domain.includes('redd.it')) {
+      return 'reddit';
+    }
+    
+    // Additional social platforms
+    if (domain.includes('snapchat.com')) return 'snapchat';
+    if (domain.includes('discord.com') || domain.includes('discord.gg')) return 'discord';
+    if (domain.includes('twitch.tv')) return 'twitch';
+    if (domain.includes('pinterest.com') || domain.includes('pin.it')) return 'pinterest';
   
   return 'generic';
+  } catch {
+    return 'generic';
+  }
 }
 
 /**
@@ -524,11 +1014,12 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     
     const html = await response.text();
     
-    // Extract metadata
-    const title = extractTitle(html, url);
-    const description = extractDescription(html);
+    // Extract metadata using platform-specific functions
+    const platform = detectPlatform(url);
+    const title = extractPlatformSpecificTitle(html, url, platform);
+    const description = extractPlatformSpecificDescription(html, platform);
     const author = extractAuthor(html);
-    const imageData = extractImageUrl(html, url);
+    const imageData = extractPlatformSpecificImage(html, url, platform);
     
     // Calculate quality score
     const { score, quality } = calculateContentScore({
