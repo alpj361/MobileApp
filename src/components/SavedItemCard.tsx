@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
-import { saveLinkToCodex } from '../services/codexService';
+import { saveLinkToCodex, checkMultipleLinksExist } from '../services/codexService';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -21,6 +21,31 @@ export default function SavedItemCard({
   onDelete 
 }: SavedItemCardProps) {
   const { isConnected, connectedUser } = usePulseConnectionStore();
+  const [isSavedInCodex, setIsSavedInCodex] = useState(false);
+  const [isCheckingCodex, setIsCheckingCodex] = useState(false);
+
+  // Check if item is saved in codex when component mounts or when connection changes
+  useEffect(() => {
+    const checkCodexStatus = async () => {
+      if (isConnected && connectedUser?.id) {
+        setIsCheckingCodex(true);
+        try {
+          const linkStatus = await checkMultipleLinksExist(connectedUser.id, [item.url]);
+          setIsSavedInCodex(linkStatus[item.url]?.exists || false);
+        } catch (error) {
+          console.error('Error checking codex status:', error);
+          setIsSavedInCodex(false);
+        } finally {
+          setIsCheckingCodex(false);
+        }
+      } else {
+        setIsSavedInCodex(false);
+      }
+    };
+
+    checkCodexStatus();
+  }, [isConnected, connectedUser?.id, item.url]);
+
   const handlePress = () => {
     if (onPress) {
       onPress();
@@ -121,6 +146,16 @@ export default function SavedItemCard({
         </View>
         
         <View className="flex-row items-center gap-2">
+          {/* Indicador de guardado en Codex */}
+          {isConnected && isSavedInCodex && (
+            <View className="flex-row items-center px-2 py-1 rounded-full bg-green-100">
+              <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+              <Text className={`${textStyles.helper} font-medium text-green-700 ml-1`}>
+                En Codex
+              </Text>
+            </View>
+          )}
+          
           {/* Indicador de fuente */}
           <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
             <Ionicons 
@@ -245,9 +280,17 @@ export default function SavedItemCard({
               {isConnected && connectedUser?.id && (
                 <Pressable
                   onPress={async () => {
+                    if (isSavedInCodex) {
+                      Alert.alert('Ya guardado', 'Este enlace ya está guardado en tu Codex.');
+                      return;
+                    }
+
                     try {
                       const res = await saveLinkToCodex(connectedUser.id, item);
                       if (res.success) {
+                        // Update local state to show as saved
+                        setIsSavedInCodex(true);
+                        
                         // Check if it's a duplicate message
                         if (res.error && res.error.includes('ya está guardado')) {
                           Alert.alert('Ya guardado', res.error);
@@ -267,8 +310,15 @@ export default function SavedItemCard({
                       transform: [{ scale: pressed ? 0.95 : 1 }],
                     }
                   ]}
+                  disabled={isCheckingCodex}
                 >
-                  <Ionicons name="save-outline" size={20} color="#3B82F6" />
+                  {isCheckingCodex ? (
+                    <Ionicons name="hourglass-outline" size={20} color="#9CA3AF" />
+                  ) : isSavedInCodex ? (
+                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                  ) : (
+                    <Ionicons name="save-outline" size={20} color="#3B82F6" />
+                  )}
                 </Pressable>
               )}
               {/* Botón de favorito */}

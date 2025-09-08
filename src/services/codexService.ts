@@ -150,6 +150,47 @@ async function checkLinkExists(userId: string, url: string): Promise<{ exists: b
 }
 
 /**
+ * Check if multiple links already exist in the user's codex
+ * Returns a map of URL -> { exists: boolean, id?: string }
+ */
+export async function checkMultipleLinksExist(userId: string, urls: string[]): Promise<Record<string, { exists: boolean; id?: string }>> {
+  try {
+    // Get Pulse user data for authentication
+    const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+    const pulseUser = pulseConnectionStore.connectedUser;
+    
+    if (!pulseUser) {
+      // Return all as not existing if no pulse user
+      return urls.reduce((acc, url) => ({ ...acc, [url]: { exists: false } }), {});
+    }
+
+    const response = await fetch('https://server.standatpd.com/api/codex/check-multiple-links', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        pulse_user_email: pulseUser.email,
+        urls: urls,
+      }),
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      return result.linkStatus || {};
+    }
+    
+    // If request fails, return all as not existing
+    return urls.reduce((acc, url) => ({ ...acc, [url]: { exists: false } }), {});
+  } catch (error) {
+    console.error('Error checking if multiple links exist:', error);
+    // Return all as not existing on error
+    return urls.reduce((acc, url) => ({ ...acc, [url]: { exists: false } }), {});
+  }
+}
+
+/**
  * Save a saved link into Pulse Journal Codex (codex_items)
  * Updated to work with new Google OAuth flow and check for duplicates
  */
