@@ -261,6 +261,7 @@ function extractTwitterImage(html: string, baseUrl: string): { url?: string; qua
     /<meta\s+name=["']twitter:image:src["']\s+content=["']([^"']+)["']/i,
     
     // Open Graph for Twitter
+    /<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']/i,
     /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
     /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
     
@@ -280,6 +281,7 @@ function extractTwitterImage(html: string, baseUrl: string): { url?: string; qua
     const matches = html.match(twitterImagePatterns[i]);
     if (matches) {
       let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      imageUrl = decodeHtmlEntities(imageUrl);
       if (!imageUrl) continue;
       
       imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
@@ -301,6 +303,7 @@ function extractTwitterImage(html: string, baseUrl: string): { url?: string; qua
 function extractInstagramImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
   const instagramImagePatterns = [
     // Instagram specific meta tags
+    /<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']/i,
     /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
     /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
     
@@ -321,11 +324,12 @@ function extractInstagramImage(html: string, baseUrl: string): { url?: string; q
     const matches = html.match(instagramImagePatterns[i]);
     if (matches) {
       let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      imageUrl = decodeHtmlEntities(imageUrl);
       if (!imageUrl) continue;
       
       imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
       
-      if (isValidImageUrl(imageUrl) && imageUrl.includes('instagram')) {
+      if (isValidImageUrl(imageUrl)) {
         const quality = i < 2 ? 'high' : i < 4 ? 'medium' : 'low';
         return { url: imageUrl, quality };
       }
@@ -341,6 +345,7 @@ function extractInstagramImage(html: string, baseUrl: string): { url?: string; q
 function extractTikTokImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
   const tiktokImagePatterns = [
     // TikTok Open Graph images
+    /<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']/i,
     /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
     /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
     
@@ -361,6 +366,7 @@ function extractTikTokImage(html: string, baseUrl: string): { url?: string; qual
     const matches = html.match(tiktokImagePatterns[i]);
     if (matches) {
       let imageUrl = matches[1]?.trim() || matches[0]?.trim();
+      imageUrl = decodeHtmlEntities(imageUrl);
       if (!imageUrl) continue;
       
       imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
@@ -381,6 +387,7 @@ function extractTikTokImage(html: string, baseUrl: string): { url?: string; qual
 function extractGenericImage(html: string, baseUrl: string): { url?: string; quality: 'high' | 'medium' | 'low' | 'none' } {
   const imagePatterns = [
     // Open Graph image (highest priority)
+    /<meta\s+property=["']og:image:secure_url["']\s+content=["']([^"']+)["']/i,
     /<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i,
     /<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i,
     
@@ -406,6 +413,7 @@ function extractGenericImage(html: string, baseUrl: string): { url?: string; qua
     const match = html.match(imagePatterns[i]);
     if (match && match[1]) {
       let imageUrl = match[1].trim();
+      imageUrl = decodeHtmlEntities(imageUrl);
       imageUrl = makeAbsoluteUrl(imageUrl, baseUrl);
       
       if (isValidImageUrl(imageUrl)) {
@@ -958,7 +966,7 @@ function detectPlatform(url: string): string {
   
   return 'generic';
   } catch {
-    return 'generic';
+  return 'generic';
   }
 }
 

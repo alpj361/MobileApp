@@ -7,7 +7,7 @@ import { verifyPulseUser, ConnectionResult } from '../services/pulseAuth';
 WebBrowser.maybeCompleteAuthSession();
 
 // Google OAuth configuration
-const GOOGLE_CLIENT_ID = '791862052938-000vods8guv7damvnt2gonrmo6vjtopd.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = '791862052938-rirmu7a1gqs7ji0eghhk00mr8mstjaoc.apps.googleusercontent.com';
 
 const discovery = {
   authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
