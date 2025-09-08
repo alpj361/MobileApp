@@ -180,42 +180,7 @@ export default function SavedScreen() {
               </View>
             </View>
             
-            {/* Quality Stats */}
-            {items.length > 0 && (
-              <View className="flex-row items-center gap-4">
-                {(() => {
-                  const stats = getQualityStats();
-                  return (
-                    <>
-                      {stats.excellent > 0 && (
-                        <View className="flex-row items-center">
-                          <View className="w-2 h-2 rounded-full bg-green-500 mr-1" />
-                          <Text className={`${textStyles.helper} text-gray-500`}>
-                            {stats.excellent} excelente{stats.excellent !== 1 ? 's' : ''}
-                          </Text>
-                        </View>
-                      )}
-                      {stats.good > 0 && (
-                        <View className="flex-row items-center">
-                          <View className="w-2 h-2 rounded-full bg-blue-500 mr-1" />
-                          <Text className={`${textStyles.helper} text-gray-500`}>
-                            {stats.good} buena{stats.good !== 1 ? 's' : ''}
-                          </Text>
-                        </View>
-                      )}
-                      {stats.poor > 0 && (
-                        <View className="flex-row items-center">
-                          <View className="w-2 h-2 rounded-full bg-red-500 mr-1" />
-                          <Text className={`${textStyles.helper} text-gray-500`}>
-                            {stats.poor} básica{stats.poor !== 1 ? 's' : ''}
-                          </Text>
-                        </View>
-                      )}
-                    </>
-                  );
-                })()}
-              </View>
-            )}
+            {/* Quality stats removed */}
           </View>
         </>
       )}
