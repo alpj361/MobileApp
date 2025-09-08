@@ -56,10 +56,14 @@ export function useGoogleAuth() {
           code,
           redirectUri: redirectUri,
           clientId: GOOGLE_CLIENT_ID,
+          // Include PKCE verifier so the server can exchange the code
+          codeVerifier: (request as any)?.codeVerifier,
         }),
       });
 
       if (!bridgeResponse.ok) {
+        const errorText = await bridgeResponse.text().catch(() => '');
+        console.error('Bridge token exchange failed:', bridgeResponse.status, errorText);
         throw new Error('Failed to exchange code for tokens');
       }
 

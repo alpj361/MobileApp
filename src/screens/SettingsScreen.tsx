@@ -8,42 +8,19 @@ import PulseConnectionCard from '../components/PulseConnectionCard';
 import { useSettingsStore, ConnectionStatus } from '../state/settingsStore';
 import { textStyles } from '../utils/typography';
 import { getCurrentSpacing } from '../utils/responsive';
-import { getImprovedCacheStats, clearImprovedCache } from '../api/improved-link-processor';
-import { useSavedStore } from '../state/savedStore';
+// Removed link processing configuration imports
 
 export default function SettingsScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const { connections, toggleConnection } = useSettingsStore();
-  const { getQualityStats } = useSavedStore();
-  const [cacheStats, setCacheStats] = useState({ size: 0, hitRate: 0 });
+  // Link processing configuration removed
 
   // Filtrar conexiones para excluir Pulqum (ahora manejado por PulseConnectionCard)
   const otherConnections = connections.filter(conn => conn.id !== 'pulqum');
 
-  useEffect(() => {
-    // Update cache stats
-    const stats = getImprovedCacheStats();
-    setCacheStats(stats);
-  }, []);
+  // Link processing stats removed
 
-  const handleClearCache = () => {
-    Alert.alert(
-      'Limpiar Cache',
-      '¿Estás seguro de que quieres limpiar el cache de enlaces? Esto puede hacer que los enlaces se procesen más lentamente la próxima vez.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { 
-          text: 'Limpiar', 
-          style: 'destructive',
-          onPress: () => {
-            clearImprovedCache();
-            setCacheStats({ size: 0, hitRate: 0 });
-            Alert.alert('Cache Limpiado', 'El cache de enlaces ha sido limpiado exitosamente.');
-          }
-        }
-      ]
-    );
-  };
+  // Clear cache handler removed
 
   const renderConnectionItem = (connection: ConnectionStatus) => {
     const handleToggle = () => {
@@ -127,133 +104,7 @@ export default function SettingsScreen() {
           </View>
         </View>
 
-        {/* Link Processing Section */}
-        <View className="px-5">
-          <View className="mb-6">
-            <Text className={textStyles.sectionTitle + " mb-2"}>Procesamiento de Enlaces</Text>
-            <Text className={textStyles.description}>
-              Configuración y estadísticas del sistema de scraping
-            </Text>
-          </View>
-          
-          <View className="bg-white rounded-3xl border border-gray-100 mb-8 shadow-sm">
-            {/* Processing Mode Info */}
-            <View className="p-5 border-b border-gray-100">
-              <View className="flex-row items-center justify-between mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
-                    <Ionicons name="code-slash-outline" size={20} color="#3B82F6" />
-                  </View>
-                  <View className="ml-4">
-                    <Text className={textStyles.bodyText}>Procesamiento HTML Limpio</Text>
-                    <Text className={textStyles.helper + " text-gray-500"}>
-                      Sin APIs externas • Enfoque en títulos, descripciones y miniaturas
-                    </Text>
-                  </View>
-                </View>
-                <View className="px-3 py-1 rounded-full bg-blue-100">
-                  <Text className={`${textStyles.badge} text-blue-700`}>
-                    Activo
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Cache Statistics */}
-            <View className="p-5 border-b border-gray-100">
-              <View className="flex-row items-center justify-between mb-3">
-                <View className="flex-row items-center">
-                  <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center">
-                    <Ionicons name="layers-outline" size={20} color="#3B82F6" />
-                  </View>
-                  <View className="ml-4">
-                    <Text className={textStyles.bodyText}>Cache de Enlaces</Text>
-                    <Text className={textStyles.helper + " text-gray-500"}>
-                      {cacheStats.size} elementos • {cacheStats.hitRate}% efectividad
-                    </Text>
-                  </View>
-                </View>
-                <Pressable
-                  onPress={handleClearCache}
-                  className="px-3 py-2 bg-red-50 rounded-full border border-red-200 active:bg-red-100"
-                >
-                  <Text className={`${textStyles.badge} text-red-700`}>
-                    Limpiar
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Quality Statistics */}
-            <View className="p-5">
-              <View className="flex-row items-center mb-4">
-                <View className="w-10 h-10 bg-purple-100 rounded-full items-center justify-center">
-                  <Ionicons name="analytics-outline" size={20} color="#8B5CF6" />
-                </View>
-                <View className="ml-4">
-                  <Text className={textStyles.bodyText}>Estadísticas de Calidad</Text>
-                  <Text className={textStyles.helper + " text-gray-500"}>
-                    Enlaces guardados por calidad
-                  </Text>
-                </View>
-              </View>
-              
-              {(() => {
-                const stats = getQualityStats();
-                const total = stats.excellent + stats.good + stats.fair + stats.poor;
-                
-                if (total === 0) {
-                  return (
-                    <Text className={textStyles.helper + " text-gray-400 text-center py-2"}>
-                      No hay enlaces guardados
-                    </Text>
-                  );
-                }
-                
-                return (
-                  <View className="space-y-2">
-                    {stats.excellent > 0 && (
-                      <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                          <View className="w-3 h-3 bg-green-500 rounded-full mr-3" />
-                          <Text className={textStyles.helper}>Excelente</Text>
-                        </View>
-                        <Text className={textStyles.helper + " text-gray-600"}>{stats.excellent}</Text>
-                      </View>
-                    )}
-                    {stats.good > 0 && (
-                      <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                          <View className="w-3 h-3 bg-blue-500 rounded-full mr-3" />
-                          <Text className={textStyles.helper}>Buena</Text>
-                        </View>
-                        <Text className={textStyles.helper + " text-gray-600"}>{stats.good}</Text>
-                      </View>
-                    )}
-                    {stats.fair > 0 && (
-                      <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                          <View className="w-3 h-3 bg-yellow-500 rounded-full mr-3" />
-                          <Text className={textStyles.helper}>Regular</Text>
-                        </View>
-                        <Text className={textStyles.helper + " text-gray-600"}>{stats.fair}</Text>
-                      </View>
-                    )}
-                    {stats.poor > 0 && (
-                      <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                          <View className="w-3 h-3 bg-red-500 rounded-full mr-3" />
-                          <Text className={textStyles.helper}>Básica</Text>
-                        </View>
-                        <Text className={textStyles.helper + " text-gray-600"}>{stats.poor}</Text>
-                      </View>
-                    )}
-                  </View>
-                );
-              })()}
-            </View>
-          </View>
-        </View>
+        {/* Link Processing Section removed */}
 
         {/* General Section */}
         <View className="px-5">
