@@ -22,8 +22,6 @@ import { textStyles } from '../utils/typography';
 export default function SavedScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'link' | 'tweet' | 'video' | 'article' | 'quality'>('all');
-  const [selectedQuality, setSelectedQuality] = useState<'all' | 'excellent' | 'good' | 'fair' | 'poor'>('all');
   const [refreshing, setRefreshing] = useState(false);
   
   const { 
@@ -33,23 +31,13 @@ export default function SavedScreen() {
     toggleFavorite, 
     addSavedItem,
     setLoading,
-    getQualityStats 
   } = useSavedStore();
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          item.domain.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    let matchesFilter = true;
-    if (selectedFilter === 'quality') {
-      matchesFilter = selectedQuality === 'all' || item.quality === selectedQuality || 
-                     (selectedQuality === 'poor' && !item.quality);
-    } else {
-      matchesFilter = selectedFilter === 'all' || item.type === selectedFilter;
-    }
-    
-    return matchesSearch && matchesFilter;
+    return matchesSearch;
   });
 
   const handleRefresh = async () => {
@@ -102,80 +90,9 @@ export default function SavedScreen() {
     }
   };
 
-  // Test function for the improved extractor
-  const handleTestExtractor = async () => {
-    const testUrls = [
-      // Real URLs that should work for testing
-      'https://twitter.com/OpenAI/status/1750892850584875161',
-      'https://www.instagram.com/p/C2-XqX4tY8g/',
-      'https://www.tiktok.com/@openai/video/7321478173993053486',
-      'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
-    ];
-    
-    Alert.alert(
-      'Test Extractor',
-      'This will test the improved link extractor with sample URLs. Check console for results.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Test', 
-          onPress: async () => {
-            try {
-              setLoading(true);
-              console.log('🚀 Testing improved extractor...');
-              
-              for (const url of testUrls) {
-                try {
-                  console.log(`📄 Processing: ${url}`);
-                  const result = await processImprovedLinks([url]);
-                  const linkData = result[0];
-                  
-                  console.log(`✅ Result for ${url}:`, {
-                    title: linkData.title,
-                    description: linkData.description?.substring(0, 100),
-                    hasImage: !!linkData.image,
-                    platform: linkData.platform,
-                    quality: linkData.quality,
-                    processingTime: linkData.processingTime
-                  });
-                } catch (error) {
-                  console.log(`❌ Error processing ${url}:`, error.message);
-                }
-              }
-              
-              console.log('✨ Test completed!');
-              Alert.alert('Test Complete', 'Check console for detailed results');
-            } catch (error) {
-              console.error('Test error:', error);
-              Alert.alert('Test Error', error.message);
-            } finally {
-              setLoading(false);
-            }
-          }
-        }
-      ]
-    );
-  };
+  // Test extractor removed
 
-  const renderFilterButton = (filter: typeof selectedFilter, label: string, icon: string) => (
-    <Pressable
-      onPress={() => setSelectedFilter(filter)}
-      className={`px-4 py-2 rounded-full mr-2 flex-row items-center ${
-        selectedFilter === filter ? 'bg-blue-500' : 'bg-white border border-gray-200'
-      }`}
-    >
-      <Ionicons 
-        name={icon as any} 
-        size={16} 
-        color={selectedFilter === filter ? 'white' : '#6B7280'} 
-      />
-      <Text className={`ml-2 text-sm ${
-        selectedFilter === filter ? 'text-white font-medium' : 'text-gray-700'
-      }`}>
-        {label}
-      </Text>
-    </Pressable>
-  );
+  // Filter button UI removed
 
   const renderSavedItem = ({ item }: { item: SavedItem }) => (
     <SavedItemCard
@@ -210,24 +127,7 @@ export default function SavedScreen() {
         </Text>
       </Pressable>
       
-      {/* Test and improved processing indicators */}
-      <View className="mt-6 flex-row gap-3">
-        <View className="px-4 py-2 bg-blue-50 rounded-full border border-blue-200">
-          <Text className={`${textStyles.badge} text-blue-700`}>
-            ✨ Procesamiento mejorado
-          </Text>
-        </View>
-        
-        <Pressable
-          onPress={handleTestExtractor}
-          disabled={isLoading}
-          className="px-4 py-2 bg-green-50 rounded-full border border-green-200 active:bg-green-100"
-        >
-          <Text className={`${textStyles.badge} text-green-600`}>
-            🧪 Probar Extractor
-          </Text>
-        </Pressable>
-      </View>
+      {/* Indicators removed for cleaner empty state */}
     </View>
   );
 
@@ -256,61 +156,9 @@ export default function SavedScreen() {
             </View>
           </View>
 
-          {/* Filter Buttons */}
-          <View className="px-4 pb-3">
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={[
-                { key: 'all', label: 'Todos', icon: 'apps' },
-                { key: 'link', label: 'Links', icon: 'link' },
-                { key: 'tweet', label: 'Tweets', icon: 'logo-twitter' },
-                { key: 'video', label: 'Videos', icon: 'play-circle' },
-                { key: 'article', label: 'Artículos', icon: 'document-text' },
-                { key: 'quality', label: 'Calidad', icon: 'star' },
-              ]}
-              renderItem={({ item }) => renderFilterButton(item.key as any, item.label, item.icon)}
-              keyExtractor={(item) => item.key}
-            />
-          </View>
+          {/* Filters removed for simpler UI */}
 
-          {/* Quality Filter (when quality filter is selected) */}
-          {selectedFilter === 'quality' && (
-            <View className="px-4 pb-3">
-              <FlatList
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                data={[
-                  { key: 'all', label: 'Todas', color: '#6B7280' },
-                  { key: 'excellent', label: 'Excelente', color: '#10B981' },
-                  { key: 'good', label: 'Buena', color: '#3B82F6' },
-                  { key: 'fair', label: 'Regular', color: '#F59E0B' },
-                  { key: 'poor', label: 'Básica', color: '#EF4444' },
-                ]}
-                renderItem={({ item }) => (
-                  <Pressable
-                    onPress={() => setSelectedQuality(item.key as any)}
-                    className={`px-3 py-2 rounded-full mr-2 flex-row items-center ${
-                      selectedQuality === item.key ? 'border-2' : 'bg-white border border-gray-200'
-                    }`}
-                    style={selectedQuality === item.key ? { borderColor: item.color, backgroundColor: item.color + '20' } : {}}
-                  >
-                    <View 
-                      className="w-3 h-3 rounded-full mr-2" 
-                      style={{ backgroundColor: item.color }} 
-                    />
-                    <Text 
-                      className={`text-sm ${selectedQuality === item.key ? 'font-medium' : 'text-gray-700'}`}
-                      style={selectedQuality === item.key ? { color: item.color } : {}}
-                    >
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                )}
-                keyExtractor={(item) => item.key}
-              />
-            </View>
-          )}
+          {/* Quality filter removed */}
 
           {/* Action Bar with Stats */}
           <View className="px-4 pb-3">
@@ -327,17 +175,6 @@ export default function SavedScreen() {
                   <Ionicons name="add" size={16} color="#3B82F6" />
                   <Text className={`${textStyles.badge} text-blue-500 ml-1`}>
                     {isLoading ? 'Agregando...' : 'Pegar'}
-                  </Text>
-                </Pressable>
-                
-                <Pressable
-                  onPress={handleTestExtractor}
-                  disabled={isLoading}
-                  className="flex-row items-center bg-green-50 px-3 py-2 rounded-full border border-green-200 active:bg-green-100"
-                >
-                  <Ionicons name="flask" size={16} color="#059669" />
-                  <Text className={`${textStyles.badge} text-green-600 ml-1`}>
-                    Test
                   </Text>
                 </Pressable>
               </View>

@@ -95,40 +95,6 @@ export default function SavedItemCard({
     }
   };
 
-  const getQualityColor = () => {
-    switch (item.quality) {
-      case 'excellent':
-        return '#10B981'; // green
-      case 'good':
-        return '#3B82F6'; // blue
-      case 'fair':
-        return '#F59E0B'; // yellow
-      case 'poor':
-      default:
-        return '#EF4444'; // red
-    }
-  };
-
-  const getQualityLabel = () => {
-    switch (item.quality) {
-      case 'excellent':
-        return 'Excelente';
-      case 'good':
-        return 'Buena';
-      case 'fair':
-        return 'Regular';
-      case 'poor':
-      default:
-        return 'Básica';
-    }
-  };
-
-  const getProcessingLabel = () => {
-    if (item.hasCleanDescription) {
-      return 'HTML Limpio';
-    }
-    return 'Procesado';
-  };
 
   return (
     <Pressable
@@ -140,7 +106,7 @@ export default function SavedItemCard({
         }
       ]}
     >
-      {/* Header con plataforma, fuente y calidad */}
+      {/* Header con plataforma y fuente */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
         <View className="flex-row items-center">
           <Text className="text-xl mr-3">{getPlatformIcon()}</Text>
@@ -148,28 +114,10 @@ export default function SavedItemCard({
             <Text className={`${textStyles.badge} text-gray-700 uppercase tracking-wide`}>
               {item.platform === 'generic' ? item.domain : item.platform}
             </Text>
-            <Text className={`${textStyles.helper} text-gray-500 mt-0.5`}>
-              {getProcessingLabel()}
-            </Text>
           </View>
         </View>
         
         <View className="flex-row items-center gap-2">
-          {/* Indicador de calidad */}
-          {item.quality && (
-            <View 
-              className="px-2 py-1 rounded-full"
-              style={{ backgroundColor: getQualityColor() + '20' }}
-            >
-              <Text 
-                className={`${textStyles.badge} font-medium`}
-                style={{ color: getQualityColor() }}
-              >
-                {getQualityLabel()}
-              </Text>
-            </View>
-          )}
-          
           {/* Indicador de fuente */}
           <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
             <Ionicons 
@@ -200,26 +148,12 @@ export default function SavedItemCard({
               console.log("Image loaded successfully:", item.image);
             }}
           />
-          {/* Indicador de calidad de imagen */}
-          {item.imageQuality && item.imageQuality !== 'none' && (
-            <View className={`absolute top-3 right-3 rounded-full p-1 ${
-              item.imageQuality === 'high' ? 'bg-green-500' : 
-              item.imageQuality === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'
-            }`}>
-              <Ionicons name="image" size={12} color="white" />
-            </View>
-          )}
         </View>
       ) : (
         <View className="w-full h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex-row items-center justify-center">
           <View className="items-center">
             <Text className="text-5xl mb-3 opacity-60">{getPlatformIcon()}</Text>
             <Text className={`${textStyles.helper} text-gray-500`}>Sin miniatura disponible</Text>
-            {item.quality === 'poor' && (
-              <Text className={`${textStyles.helper} text-gray-400 mt-1`}>
-                Metadatos limitados
-              </Text>
-            )}
           </View>
         </View>
       )}
@@ -231,13 +165,6 @@ export default function SavedItemCard({
           <Text className={`${textStyles.cardTitle} flex-1 mr-2`} numberOfLines={2}>
             {item.title}
           </Text>
-          {item.hasCleanDescription && (
-            <View className="bg-green-50 px-2 py-1 rounded-full">
-              <Text className={`${textStyles.badge} text-green-600`}>
-                LIMPIO
-              </Text>
-            </View>
-          )}
         </View>
         
         {/* Descripción mejorada */}
@@ -287,28 +214,7 @@ export default function SavedItemCard({
         {/* Footer mejorado con más información */}
         <View className="pt-4 border-t border-gray-100">
           {/* Información de procesamiento */}
-          {(item.processingTime || item.lastUpdated) && (
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center gap-4">
-                {item.processingTime && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="flash-outline" size={12} color="#9CA3AF" />
-                    <Text className={`${textStyles.helper} text-gray-400 ml-1`}>
-                      {item.processingTime}ms
-                    </Text>
-                  </View>
-                )}
-                {item.lastUpdated && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="refresh-outline" size={12} color="#9CA3AF" />
-                    <Text className={`${textStyles.helper} text-gray-400 ml-1`}>
-                      {new Date(item.lastUpdated).toLocaleDateString()}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          )}
+          {/* Información secundaria removida para UI más limpia */}
           
           {/* Fila principal del footer */}
           <View className="flex-row items-center justify-between">
