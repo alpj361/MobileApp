@@ -418,6 +418,31 @@ export async function saveRecordingToCodex(userId: string, recording: Recording)
     const result = await response.json();
     
     if (result.success) {
+      // Add the recording to the saved store so it appears on the saved page
+      const savedStore = require('../state/savedStore').useSavedStore.getState();
+      const audioItem = {
+        url: recording.uri, // Use the audio URI as the URL
+        title: recording.title,
+        description: recording.transcription || 'Grabación de audio',
+        type: 'audio' as const,
+        domain: 'audio-recording',
+        timestamp: recording.timestamp,
+        platform: 'audio' as const,
+        author: 'Usuario',
+        image: undefined,
+        favicon: undefined,
+      };
+      
+      // Add to saved store with codex_id
+      await savedStore.addSavedItem(audioItem, 'manual');
+      
+      // Find the newly added item and set its codex_id
+      const savedItems = savedStore.getSavedItems();
+      const newItem = savedItems.find((item: SavedItem) => item.url === recording.uri && item.title === recording.title);
+      if (newItem) {
+        savedStore.setCodexId(newItem.id, result.id);
+      }
+      
       return { success: true, id: result.id };
     } else {
       return { success: false, error: result.error || 'Error guardando grabación en Codex' };

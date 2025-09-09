@@ -29,6 +29,9 @@ export default function SavedItemCard({
   const handlePress = () => {
     if (onPress) {
       onPress();
+    } else if (item.platform === 'audio') {
+      // For audio items, don't try to open URL - just show a message
+      Alert.alert('Grabación de Audio', 'Esta es una grabación de audio guardada en tu Codex.');
     } else {
       Linking.openURL(item.url);
     }
@@ -44,6 +47,8 @@ export default function SavedItemCard({
         return '🐦';
       case 'youtube':
         return '▶️';
+      case 'audio':
+        return '🎤';
       default:
         return '🔗';
     }
@@ -59,6 +64,8 @@ export default function SavedItemCard({
         return '#1DA1F2';
       case 'youtube':
         return '#FF0000';
+      case 'audio':
+        return '#10B981';
       default:
         return '#6B7280';
     }
@@ -261,7 +268,13 @@ export default function SavedItemCard({
                 <Pressable
                   onPress={async () => {
                     if (isSavedInCodex) {
-                      Alert.alert('Ya guardado', 'Este enlace ya está guardado en tu Codex.');
+                      Alert.alert('Ya guardado', 'Este elemento ya está guardado en tu Codex.');
+                      return;
+                    }
+
+                    // For audio items, they should already be saved to codex when created
+                    if (item.platform === 'audio') {
+                      Alert.alert('Audio guardado', 'Las grabaciones de audio se guardan automáticamente en el Codex.');
                       return;
                     }
 
@@ -273,7 +286,7 @@ export default function SavedItemCard({
                         if (res.error && res.error.includes('ya está guardado')) {
                           Alert.alert('Ya guardado', res.error);
                         } else {
-                          Alert.alert('Guardado en Codex', 'El enlace se guardó correctamente.');
+                          Alert.alert('Guardado en Codex', 'El elemento se guardó correctamente.');
                         }
                       } else {
                         Alert.alert('Error', res.error || 'No se pudo guardar en Codex');

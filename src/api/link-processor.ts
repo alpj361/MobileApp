@@ -4,10 +4,10 @@ export interface LinkData {
   description: string;
   image?: string;
   favicon?: string;
-  type: 'link' | 'tweet' | 'video' | 'article' | 'instagram' | 'tiktok';
+  type: 'link' | 'tweet' | 'video' | 'article' | 'instagram' | 'tiktok' | 'audio';
   domain: string;
   timestamp: number;
-  platform?: 'instagram' | 'tiktok' | 'twitter' | 'youtube' | 'generic';
+  platform?: 'instagram' | 'tiktok' | 'twitter' | 'youtube' | 'generic' | 'audio';
   author?: string;
   engagement?: {
     likes?: number;
