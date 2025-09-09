@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Image, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
-import { useCodexStatusStore } from '../state/codexStatusStore';
 import { saveLinkToCodex } from '../services/codexService';
 
 interface SavedItemCardProps {
@@ -22,12 +21,10 @@ export default function SavedItemCard({
   onDelete 
 }: SavedItemCardProps) {
   const { isConnected, connectedUser } = usePulseConnectionStore();
-  const { getCodexStatus, setCodexStatus } = useCodexStatusStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
 
-  // Get the current codex status from the persistent store
-  const codexStatus = getCodexStatus(item.url);
-  const isSavedInCodex = codexStatus.exists;
+  // Check if item is saved in codex by looking at codex_id
+  const isSavedInCodex = !!item.codex_id;
 
   const handlePress = () => {
     if (onPress) {
@@ -271,9 +268,7 @@ export default function SavedItemCard({
                     try {
                       const res = await saveLinkToCodex(connectedUser.id, item);
                       if (res.success) {
-                        // Update persistent store to show as saved
-                        setCodexStatus(item.url, { exists: true, id: res.id });
-                        
+                        // The codex_id will be automatically updated in the saved item
                         // Check if it's a duplicate message
                         if (res.error && res.error.includes('ya está guardado')) {
                           Alert.alert('Ya guardado', res.error);

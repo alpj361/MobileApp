@@ -8,6 +8,8 @@ export interface SavedItem extends LinkData {
   id: string;
   source: 'chat' | 'clipboard' | 'manual';
   isFavorite?: boolean;
+  // Codex relationship
+  codex_id?: string; // ID from codex_items table when saved to codex
   // Improved metadata fields
   quality?: 'excellent' | 'good' | 'fair' | 'poor';
   contentScore?: number;
@@ -25,6 +27,7 @@ interface SavedState {
   toggleFavorite: (id: string) => void;
   updateSavedItem: (id: string, patch: Partial<SavedItem>) => void;
   reprocessSavedItem: (id: string) => Promise<void>;
+  setCodexId: (id: string, codex_id: string) => void;
   getSavedItems: () => SavedItem[];
   getSavedItemsByType: (type: LinkData['type']) => SavedItem[];
   getSavedItemsByQuality: (quality: SavedItem['quality']) => SavedItem[];
@@ -110,6 +113,16 @@ export const useSavedStore = create<SavedState>()(
           console.error('Reprocessing failed:', e);
           // Keep existing item on error
         }
+      },
+      
+      setCodexId: (id: string, codex_id: string) => {
+        set((state) => ({
+          items: state.items.map(item => 
+            item.id === id 
+              ? { ...item, codex_id }
+              : item
+          ),
+        }));
       },
       
       getSavedItems: () => {

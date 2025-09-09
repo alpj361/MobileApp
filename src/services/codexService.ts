@@ -1,5 +1,6 @@
 import { supabase } from '../config/supabase';
 import type { SavedItem } from '../state/savedStore';
+import type { Recording } from '../state/recordingStore';
 
 export interface CodexSaveResult {
   success: boolean;
@@ -190,7 +191,7 @@ export async function checkMultipleLinksExist(userId: string, urls: string[]): P
 
 /**
  * Check codex status for all saved items at once
- * This is more efficient than checking each item individually
+ * This checks directly against the database using codex_id when available
  */
 export async function checkAllSavedItemsCodexStatus(items: SavedItem[]): Promise<Record<string, { exists: boolean; id?: string }>> {
   try {
@@ -203,8 +204,32 @@ export async function checkAllSavedItemsCodexStatus(items: SavedItem[]): Promise
       return items.reduce((acc, item) => ({ ...acc, [item.url]: { exists: false } }), {});
     }
 
-    const urls = items.map(item => item.url);
-    return await checkMultipleLinksExist(pulseUser.id, urls);
+    // First, check items that already have codex_id (they're definitely saved)
+    const statusMap: Record<string, { exists: boolean; id?: string }> = {};
+    
+    items.forEach(item => {
+      if (item.codex_id) {
+        // Item has codex_id, so it's definitely saved
+        statusMap[item.url] = { exists: true, id: item.codex_id };
+      } else {
+        // Item doesn't have codex_id, check if it exists in database
+        statusMap[item.url] = { exists: false };
+      }
+    });
+
+    // For items without codex_id, check if they exist in the database
+    const itemsWithoutCodexId = items.filter(item => !item.codex_id);
+    if (itemsWithoutCodexId.length > 0) {
+      const urls = itemsWithoutCodexId.map(item => item.url);
+      const dbStatus = await checkMultipleLinksExist(pulseUser.id, urls);
+      
+      // Update status map with database results
+      Object.entries(dbStatus).forEach(([url, status]) => {
+        statusMap[url] = status;
+      });
+    }
+
+    return statusMap;
   } catch (error) {
     console.error('Error checking all saved items codex status:', error);
     // Return all as not existing on error
@@ -303,12 +328,102 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
     const result = await response.json();
     
     if (result.success) {
+      // Update the saved item with the codex_id
+      const savedStore = require('../state/savedStore').useSavedStore.getState();
+        const savedItem = savedStore.getSavedItems().find((savedItem: SavedItem) => savedItem.url === item.url);
+      if (savedItem) {
+        savedStore.setCodexId(savedItem.id, result.id);
+      }
+      
       return { success: true, id: result.id };
     } else {
       return { success: false, error: result.error || 'Error guardando en Codex' };
     }
   } catch (error: any) {
     console.error('Error saving to Codex via backend:', error);
+    return { success: false, error: error?.message || 'Error conectando con el servidor' };
+  }
+}
+
+/**
+ * Save an audio recording to Pulse Journal Codex
+ * This function uploads the audio file and creates a codex item
+ */
+export async function saveRecordingToCodex(userId: string, recording: Recording): Promise<CodexSaveResult> {
+  try {
+    // Get Pulse user data for authentication
+    const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+    const pulseUser = pulseConnectionStore.connectedUser;
+    
+    if (!pulseUser) {
+      return { 
+        success: false, 
+        error: 'No se encontró una conexión válida con Pulse Journal. Por favor, ve a Configuración y conecta tu cuenta.' 
+      };
+    }
+
+    // Check if user has a valid Supabase session
+    const { session, error: sessionError } = await checkSupabaseSession();
+    
+    let response;
+    
+    if (sessionError || !session) {
+      console.log('No Supabase session available, using Pulse authentication...');
+      
+      // Use the alternative endpoint that doesn't require Supabase session
+      response = await fetch('https://server.standatpd.com/api/codex/save-recording-pulse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          pulse_user_email: pulseUser.email,
+          recording_data: {
+            title: recording.title,
+            duration: recording.duration,
+            transcription: recording.transcription,
+            timestamp: recording.timestamp,
+            audio_uri: recording.uri,
+          },
+        }),
+      });
+    } else {
+      // Use the standard endpoint with Supabase authentication
+      response = await fetch('https://server.standatpd.com/api/codex/save-recording', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          user_id: userId,
+          recording_data: {
+            title: recording.title,
+            duration: recording.duration,
+            transcription: recording.transcription,
+            timestamp: recording.timestamp,
+            audio_uri: recording.uri,
+          },
+        }),
+      });
+    }
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Error desconocido');
+      console.error('Backend save recording to Codex failed:', response.status, errorText);
+      throw new Error(`Error del servidor: ${response.status}`);
+    }
+
+    const result = await response.json();
+    
+    if (result.success) {
+      return { success: true, id: result.id };
+    } else {
+      return { success: false, error: result.error || 'Error guardando grabación en Codex' };
+    }
+  } catch (error: any) {
+    console.error('Error saving recording to Codex via backend:', error);
     return { success: false, error: error?.message || 'Error conectando con el servidor' };
   }
 }

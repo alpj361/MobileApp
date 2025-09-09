@@ -12,7 +12,9 @@ import { Audio } from 'expo-av';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { useRecordingStore } from '../state/recordingStore';
+import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { transcribeAudio } from '../api/transcribe-audio';
+import { saveRecordingToCodex as saveRecordingToCodexService } from '../services/codexService';
 import CustomHeader from '../components/CustomHeader';
 import { textStyles } from '../utils/typography';
 import { getCurrentSpacing } from '../utils/responsive';
@@ -33,6 +35,8 @@ export default function RecordingScreen() {
     deleteRecording,
     setRecording: setIsRecording,
   } = useRecordingStore();
+
+  const { isConnected, connectedUser } = usePulseConnectionStore();
 
   const startRecording = async () => {
     try {
@@ -146,6 +150,29 @@ export default function RecordingScreen() {
       console.error('Transcription failed:', error);
       updateRecording(recordingItem.id, { isTranscribing: false });
       Alert.alert('Error', 'Failed to transcribe audio. Please try again.');
+    }
+  };
+
+  const saveRecordingToCodex = async (recordingItem: any) => {
+    if (!isConnected || !connectedUser?.id) {
+      Alert.alert(
+        'Conexión requerida',
+        'Necesitas estar conectado a Pulse Journal para guardar grabaciones en el Codex.'
+      );
+      return;
+    }
+
+    try {
+      const result = await saveRecordingToCodexService(connectedUser.id, recordingItem);
+      
+      if (result.success) {
+        Alert.alert('Guardado en Codex', 'La grabación se guardó correctamente en tu Codex.');
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo guardar la grabación en Codex');
+      }
+    } catch (error) {
+      console.error('Error saving recording to codex:', error);
+      Alert.alert('Error', 'No se pudo guardar la grabación en Codex');
     }
   };
 
@@ -287,6 +314,20 @@ export default function RecordingScreen() {
                     {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir'}
                   </Text>
                 </Pressable>
+
+                {isConnected && (
+                  <Pressable
+                    onPress={() => saveRecordingToCodex(item)}
+                    className="bg-green-500 rounded-full w-12 h-12 justify-center items-center"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
+                      }
+                    ]}
+                  >
+                    <Ionicons name="cloud-upload-outline" size={18} color="white" />
+                  </Pressable>
+                )}
               </View>
 
               {item.transcription && (
