@@ -132,7 +132,6 @@ async function checkLinkExists(userId: string, url: string): Promise<{ exists: b
       },
       body: JSON.stringify({
         user_id: userId,
-        pulse_user_email: pulseUser.email,
         url: url,
       }),
     });
@@ -171,7 +170,6 @@ export async function checkMultipleLinksExist(userId: string, urls: string[]): P
       },
       body: JSON.stringify({
         user_id: userId,
-        pulse_user_email: pulseUser.email,
         urls: urls,
       }),
     });
@@ -187,6 +185,30 @@ export async function checkMultipleLinksExist(userId: string, urls: string[]): P
     console.error('Error checking if multiple links exist:', error);
     // Return all as not existing on error
     return urls.reduce((acc, url) => ({ ...acc, [url]: { exists: false } }), {});
+  }
+}
+
+/**
+ * Check codex status for all saved items at once
+ * This is more efficient than checking each item individually
+ */
+export async function checkAllSavedItemsCodexStatus(items: SavedItem[]): Promise<Record<string, { exists: boolean; id?: string }>> {
+  try {
+    // Get Pulse user data for authentication
+    const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
+    const pulseUser = pulseConnectionStore.connectedUser;
+    
+    if (!pulseUser || items.length === 0) {
+      // Return all as not existing if no pulse user or no items
+      return items.reduce((acc, item) => ({ ...acc, [item.url]: { exists: false } }), {});
+    }
+
+    const urls = items.map(item => item.url);
+    return await checkMultipleLinksExist(pulseUser.id, urls);
+  } catch (error) {
+    console.error('Error checking all saved items codex status:', error);
+    // Return all as not existing on error
+    return items.reduce((acc, item) => ({ ...acc, [item.url]: { exists: false } }), {});
   }
 }
 

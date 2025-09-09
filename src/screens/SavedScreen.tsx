@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -13,6 +13,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { useSavedStore } from '../state/savedStore';
+import { useCodexStatusStore } from '../state/codexStatusStore';
 import { processImprovedLinks, extractLinksFromText } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import SavedItemCard from '../components/SavedItemCard';
@@ -32,6 +33,15 @@ export default function SavedScreen() {
     addSavedItem,
     setLoading,
   } = useSavedStore();
+  
+  const { refreshAllCodexStatus } = useCodexStatusStore();
+
+  // Refresh codex status when screen loads or items change
+  useEffect(() => {
+    if (items.length > 0) {
+      refreshAllCodexStatus(items);
+    }
+  }, [items.length]); // Only refresh when number of items changes
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -48,6 +58,11 @@ export default function SavedScreen() {
       const needs = items.filter(i => !i.image || !i.description || badPhrases.has(i.description));
       for (const it of needs) {
         await useSavedStore.getState().reprocessSavedItem(it.id);
+      }
+      
+      // Also refresh codex status
+      if (items.length > 0) {
+        await refreshAllCodexStatus(items);
       }
     } finally {
       setRefreshing(false);

@@ -5,7 +5,8 @@ import * as Linking from 'expo-linking';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
-import { saveLinkToCodex, checkMultipleLinksExist } from '../services/codexService';
+import { useCodexStatusStore } from '../state/codexStatusStore';
+import { saveLinkToCodex } from '../services/codexService';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -21,30 +22,12 @@ export default function SavedItemCard({
   onDelete 
 }: SavedItemCardProps) {
   const { isConnected, connectedUser } = usePulseConnectionStore();
-  const [isSavedInCodex, setIsSavedInCodex] = useState(false);
+  const { getCodexStatus, setCodexStatus } = useCodexStatusStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
 
-  // Check if item is saved in codex when component mounts or when connection changes
-  useEffect(() => {
-    const checkCodexStatus = async () => {
-      if (isConnected && connectedUser?.id) {
-        setIsCheckingCodex(true);
-        try {
-          const linkStatus = await checkMultipleLinksExist(connectedUser.id, [item.url]);
-          setIsSavedInCodex(linkStatus[item.url]?.exists || false);
-        } catch (error) {
-          console.error('Error checking codex status:', error);
-          setIsSavedInCodex(false);
-        } finally {
-          setIsCheckingCodex(false);
-        }
-      } else {
-        setIsSavedInCodex(false);
-      }
-    };
-
-    checkCodexStatus();
-  }, [isConnected, connectedUser?.id, item.url]);
+  // Get the current codex status from the persistent store
+  const codexStatus = getCodexStatus(item.url);
+  const isSavedInCodex = codexStatus.exists;
 
   const handlePress = () => {
     if (onPress) {
@@ -288,8 +271,8 @@ export default function SavedItemCard({
                     try {
                       const res = await saveLinkToCodex(connectedUser.id, item);
                       if (res.success) {
-                        // Update local state to show as saved
-                        setIsSavedInCodex(true);
+                        // Update persistent store to show as saved
+                        setCodexStatus(item.url, { exists: true, id: res.id });
                         
                         // Check if it's a duplicate message
                         if (res.error && res.error.includes('ya está guardado')) {
