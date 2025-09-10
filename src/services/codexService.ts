@@ -291,6 +291,7 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
             domain: item.domain,
             type: item.type,
             timestamp: item.timestamp,
+            engagement: item.engagement,
           },
         }),
       });
@@ -314,6 +315,7 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
             domain: item.domain,
             type: item.type,
             timestamp: item.timestamp,
+            engagement: item.engagement,
           },
         }),
       });

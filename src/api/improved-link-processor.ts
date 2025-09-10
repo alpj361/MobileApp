@@ -729,7 +729,7 @@ function extractTwitterDescription(html: string): string {
 }
 
 /**
- * Enhanced Instagram description extraction
+ * Enhanced Instagram description extraction with engagement separation
  */
 function extractInstagramDescription(html: string): string {
   const instagramDescriptionPatterns = [
@@ -767,6 +767,93 @@ function extractInstagramDescription(html: string): string {
   }
   
   return '';
+}
+
+/**
+ * Extract Instagram engagement metrics separately
+ */
+function extractInstagramEngagement(html: string): { likes?: number; comments?: number; shares?: number; views?: number } {
+  const engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
+  
+  const instagramDescriptionPatterns = [
+    /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
+    /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["']/i,
+    /<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i,
+  ];
+  
+  for (const pattern of instagramDescriptionPatterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      const rawDescription = match[1].trim();
+      
+      // Extract likes
+      const likesMatch = rawDescription.match(/(\d+(?:,\d+)*)\s+Likes?/i);
+      if (likesMatch) {
+        engagement.likes = parseInt(likesMatch[1].replace(/,/g, ''));
+      }
+      
+      // Extract comments
+      const commentsMatch = rawDescription.match(/(\d+(?:,\d+)*)\s+Comments?/i);
+      if (commentsMatch) {
+        engagement.comments = parseInt(commentsMatch[1].replace(/,/g, ''));
+      }
+      
+      // Extract shares (if available)
+      const sharesMatch = rawDescription.match(/(\d+(?:,\d+)*)\s+Shares?/i);
+      if (sharesMatch) {
+        engagement.shares = parseInt(sharesMatch[1].replace(/,/g, ''));
+      }
+      
+      // Extract views (for videos/reels)
+      const viewsMatch = rawDescription.match(/(\d+(?:,\d+)*)\s+Views?/i);
+      if (viewsMatch) {
+        engagement.views = parseInt(viewsMatch[1].replace(/,/g, ''));
+      }
+      
+      break; // Use first match found
+    }
+  }
+  
+  return engagement;
+}
+
+/**
+ * Generate AI title for Instagram posts based on content
+ */
+function generateInstagramTitle(description: string, author?: string): string {
+  if (!description || description.length < 10) {
+    return author ? `Post by ${author}` : 'Instagram Post';
+  }
+  
+  // Clean the description for title generation
+  let cleanDesc = description
+    .replace(/#\w+/g, '') // Remove hashtags
+    .replace(/@\w+/g, '') // Remove mentions
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+  
+  // If description is short enough, use it as title
+  if (cleanDesc.length <= 60) {
+    return cleanDesc;
+  }
+  
+  // Extract first sentence or meaningful phrase
+  const sentences = cleanDesc.split(/[.!?]+/);
+  if (sentences.length > 0 && sentences[0].length > 10) {
+    let title = sentences[0].trim();
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
+    }
+    return title;
+  }
+  
+  // Fallback: use first 60 characters
+  if (cleanDesc.length > 60) {
+    cleanDesc = cleanDesc.substring(0, 57) + '...';
+  }
+  
+  return cleanDesc;
 }
 
 /**
@@ -1026,10 +1113,19 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     
     // Extract metadata using platform-specific functions
     const platform = detectPlatform(url);
-    const title = extractPlatformSpecificTitle(html, url, platform);
-    const description = extractPlatformSpecificDescription(html, platform);
+    let title = extractPlatformSpecificTitle(html, url, platform);
+    let description = extractPlatformSpecificDescription(html, platform);
     const author = extractAuthor(html);
     const imageData = extractPlatformSpecificImage(html, url, platform);
+    
+    // Special handling for Instagram posts
+    let engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
+    if (platform === 'instagram') {
+      // Extract engagement metrics separately
+      engagement = extractInstagramEngagement(html);
+      // Generate AI title based on content
+      title = generateInstagramTitle(description, author);
+    }
     
     // Calculate quality score
     const { score, quality } = calculateContentScore({
@@ -1054,6 +1150,7 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       timestamp: Date.now(),
       platform: detectPlatform(url) as any,
       author: author || undefined,
+      engagement: Object.keys(engagement).length > 0 ? engagement : undefined,
       quality,
       contentScore: score,
       hasCleanDescription: description.length > 20,
