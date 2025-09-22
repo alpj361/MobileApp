@@ -390,3 +390,4 @@ export const StoriesCarousel: React.FC<StoriesCarouselProps> = ({ onStoryPress }
 };
 
 export default StoriesCarousel;
+
