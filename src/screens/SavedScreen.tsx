@@ -50,10 +50,8 @@ export default function SavedScreen() {
         await useSavedStore.getState().reprocessSavedItem(it.id);
       }
       
-      // Also refresh codex status
-      if (items.length > 0) {
-        await refreshAllCodexStatus(items);
-      }
+      // Also refresh codex status would go here if needed
+      console.log('Refresh completed for', items.length, 'items');
     } finally {
       setRefreshing(false);
     }

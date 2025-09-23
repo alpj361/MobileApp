@@ -6,6 +6,7 @@ import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { saveLinkToCodex } from '../services/codexService';
+import InstagramCommentsModal from './InstagramCommentsModal';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -14,14 +15,15 @@ interface SavedItemCardProps {
   onDelete?: () => void;
 }
 
-export default function SavedItemCard({ 
-  item, 
-  onPress, 
-  onToggleFavorite, 
-  onDelete 
+export default function SavedItemCard({
+  item,
+  onPress,
+  onToggleFavorite,
+  onDelete
 }: SavedItemCardProps) {
   const { isConnected, connectedUser } = usePulseConnectionStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -215,22 +217,42 @@ export default function SavedItemCard({
           )}
           
           {item.engagement && (
-            <View className="flex-row items-center space-x-3">
-              {item.engagement.likes && (
-                <View className="flex-row items-center">
-                  <Ionicons name="heart-outline" size={14} color="#EF4444" />
-                  <Text className="text-gray-500 text-xs ml-1">
-                    {item.engagement.likes}
+            <View className="flex-row items-center justify-between">
+              <View className="flex-row items-center space-x-3">
+                {item.engagement.likes && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="heart-outline" size={14} color="#EF4444" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement.likes}
+                    </Text>
+                  </View>
+                )}
+                {item.engagement.comments && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement.comments}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Comments Button for Instagram posts */}
+              {item.platform === 'instagram' && item.engagement.comments && item.engagement.comments > 0 && (
+                <Pressable
+                  onPress={() => setShowCommentsModal(true)}
+                  className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
+                  style={({ pressed }) => [
+                    {
+                      transform: [{ scale: pressed ? 0.95 : 1 }],
+                    }
+                  ]}
+                >
+                  <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
+                  <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
+                    Ver comentarios
                   </Text>
-                </View>
-              )}
-              {item.engagement.comments && (
-                <View className="flex-row items-center">
-                  <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
-                  <Text className="text-gray-500 text-xs ml-1">
-                    {item.engagement.comments}
-                  </Text>
-                </View>
+                </Pressable>
               )}
             </View>
           )}
@@ -345,6 +367,16 @@ export default function SavedItemCard({
           </View>
         </View>
       </View>
+
+      {/* Instagram Comments Modal */}
+      {item.platform === 'instagram' && (
+        <InstagramCommentsModal
+          visible={showCommentsModal}
+          onClose={() => setShowCommentsModal(false)}
+          url={item.url}
+          commentCount={item.engagement?.comments || 0}
+        />
+      )}
     </Pressable>
   );
 }

@@ -109,8 +109,8 @@ export default function LinkProcessingIndicator({
         {/* Indicador de progreso */}
         <View className="flex-row items-center mt-4 space-x-1">
           <View className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-          <View className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.1s' }} />
-          <View className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+          <View className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+          <View className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
         </View>
       </View>
     </View>

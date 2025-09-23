@@ -1,3 +1,14 @@
+export interface InstagramComment {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: number;
+  likes?: number;
+  verified?: boolean;
+  replies?: InstagramComment[];
+  parentId?: string;
+}
+
 export interface LinkData {
   url: string;
   title: string;
@@ -15,6 +26,8 @@ export interface LinkData {
     shares?: number;
     views?: number;
   };
+  comments?: InstagramComment[];
+  commentsLoaded?: boolean;
 }
 
 // Configuración de plataformas sociales con APIs oEmbed

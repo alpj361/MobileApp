@@ -3,7 +3,8 @@
  * Focuses on robust content extraction and cleaning without third-party dependencies
  */
 
-import { LinkData } from './link-processor';
+import { LinkData, InstagramComment } from './link-processor';
+import { getInstagramCommentsSummary } from '../services/extractorTService';
 
 // Enhanced LinkData interface with quality scoring
 export interface ImprovedLinkData extends LinkData {
@@ -1120,11 +1121,30 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     
     // Special handling for Instagram posts
     let engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
+    let comments: InstagramComment[] | undefined;
+    let commentsLoaded = false;
+
     if (platform === 'instagram') {
       // Extract engagement metrics separately
       engagement = extractInstagramEngagement(html);
       // Generate AI title based on content
       title = generateInstagramTitle(description, author);
+
+      // Optionally load comments summary (non-blocking)
+      try {
+        const commentsSummary = await getInstagramCommentsSummary(url);
+        if (commentsSummary.hasComments) {
+          comments = commentsSummary.topComments;
+          commentsLoaded = true;
+          // Update engagement comment count if we got more accurate data
+          if (commentsSummary.totalComments > 0) {
+            engagement.comments = commentsSummary.totalComments;
+          }
+        }
+      } catch (error) {
+        console.log('Comments loading failed (non-critical):', error);
+        // Don't fail the entire process if comments fail
+      }
     }
     
     // Calculate quality score
@@ -1151,6 +1171,8 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       platform: detectPlatform(url) as any,
       author: author || undefined,
       engagement: Object.keys(engagement).length > 0 ? engagement : undefined,
+      comments: comments,
+      commentsLoaded: commentsLoaded,
       quality,
       contentScore: score,
       hasCleanDescription: description.length > 20,

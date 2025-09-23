@@ -8,9 +8,8 @@ import {
   Modal,
   StatusBar,
   Animated,
-  PanGestureHandler,
-  State,
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Story } from '../config/supabase';
 import { StoriesService } from '../services/storiesService';
@@ -30,7 +29,7 @@ export const StoriesCarousel: React.FC<StoriesCarouselProps> = ({ onStoryPress }
   const [currentStoryIndex, setCurrentStoryIndex] = useState(0);
   const [progress, setProgress] = useState(0);
   const progressAnimated = useRef(new Animated.Value(0)).current;
-  const storyTimer = useRef<NodeJS.Timeout>();
+  const storyTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadStories();
@@ -150,7 +149,7 @@ export const StoriesCarousel: React.FC<StoriesCarouselProps> = ({ onStoryPress }
       style={{ width: STORY_WIDTH, height: STORY_HEIGHT }}
     >
       <LinearGradient
-        colors={story.gradient_colors || [story.background_color, story.background_color]}
+        colors={(story.gradient_colors || [story.background_color, story.background_color]) as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         className="flex-1 rounded-2xl p-3 justify-between shadow-lg"
@@ -221,7 +220,7 @@ export const StoriesCarousel: React.FC<StoriesCarouselProps> = ({ onStoryPress }
         >
           <Animated.View className="flex-1">
             <LinearGradient
-              colors={selectedStory.gradient_colors || [selectedStory.background_color, selectedStory.background_color]}
+              colors={(selectedStory.gradient_colors || [selectedStory.background_color, selectedStory.background_color]) as [string, string, ...string[]]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               className="flex-1"
