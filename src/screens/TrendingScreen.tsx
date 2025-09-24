@@ -14,13 +14,14 @@ import CustomHeader from '../components/CustomHeader';
 import TrendingLoading from '../components/TrendingLoading';
 import NewsCard from '../components/NewsCard';
 import FullScreenStoriesDisplay from '../components/FullScreenStoriesDisplay';
+import MobileTweetsSection from '../components/MobileTweetsSection';
 import { TrendingService } from '../services/trendingService';
 import { NewsService } from '../services/newsService';
 import { TrendingData, NewsItem } from '../config/supabase';
 import { supabaseAvailable } from '../config/supabase';
 import { textStyles } from '../utils/typography';
 
-type TabType = 'stories' | 'trending' | 'news';
+type TabType = 'stories' | 'trending' | 'news' | 'tweets';
 
 interface TrendingItem {
   id: string;
@@ -77,6 +78,7 @@ export default function TrendingScreen() {
     sourcesCount: number;
   } | null>(null);
 
+
   // Mapeo de categorías a iconos y colores para trending
   const categoryMapping: { [key: string]: { icon: string; color: string } } = {
     'Deportes': { icon: 'football', color: '#10B981' },
@@ -96,7 +98,7 @@ export default function TrendingScreen() {
     } else if (activeTab === 'news') {
       loadInitialNewsData();
     }
-    // Stories se cargan automáticamente en su componente
+    // Stories y Tweets se cargan automáticamente en sus componentes
   }, [activeTab]);
 
   // TRENDING FUNCTIONS
@@ -227,6 +229,7 @@ export default function TrendingScreen() {
     await loadNews();
     setLoadingNews(false);
   };
+
 
   // TRENDING HELPER FUNCTIONS
   const toggleItemExpansion = (itemId: string) => {
@@ -456,7 +459,7 @@ export default function TrendingScreen() {
     );
   };
 
-  const isLoading = activeTab === 'trending' ? loadingTrending : 
+  const isLoading = activeTab === 'trending' ? loadingTrending :
                    activeTab === 'news' ? loadingNews : false;
 
   if (isLoading) {
@@ -478,13 +481,14 @@ export default function TrendingScreen() {
       <View className="bg-white border-b border-gray-100">
         <View className="flex-row px-2">
           {renderTabButton('trending', 'Trending', 'trending-up')}
+          {renderTabButton('tweets', 'Tweets', 'chatbubbles')}
           {renderTabButton('news', 'Noticias', 'newspaper')}
           {renderTabButton('stories', 'Stories', 'albums')}
         </View>
       </View>
 
       {/* Categories for active tab (only for trending and news) */}
-      {activeTab !== 'stories' && (
+      {activeTab !== 'stories' && activeTab !== 'tweets' && (
         <View className="px-4 py-3 bg-white border-b border-gray-100">
           <ScrollView 
             horizontal 
@@ -502,11 +506,11 @@ export default function TrendingScreen() {
       )}
 
       {/* Stats Bar (only for trending and news) */}
-      {activeTab !== 'stories' && (
+      {activeTab !== 'stories' && activeTab !== 'tweets' && (
         <View className="px-5 py-3 bg-gray-50">
           <View className="flex-row items-center justify-between">
             <Text className={textStyles.description}>
-              {activeTab === 'trending' ? 
+              {activeTab === 'trending' ?
                 `${transformedTrendingData.length} tendencia${transformedTrendingData.length !== 1 ? 's' : ''}` :
                 `${newsData.length} noticia${newsData.length !== 1 ? 's' : ''}`
               }
@@ -514,7 +518,7 @@ export default function TrendingScreen() {
             <View className="flex-row items-center">
               <Ionicons name="time" size={14} color="#9CA3AF" />
               <Text className={`${textStyles.helper} ml-2`}>
-                {activeTab === 'trending' ? 
+                {activeTab === 'trending' ?
                   (trendingStats ? `${trendingStats?.localTrends ?? 0} locales, ${trendingStats?.globalTrends ?? 0} globales` : 'Actualizando...') :
                   (newsStats ? `${newsStats?.recentNews ?? 0} recientes, ${newsStats?.sourcesCount ?? 0} fuentes` : 'Actualizando...')
                 }
@@ -526,7 +530,8 @@ export default function TrendingScreen() {
               <Text className={`${textStyles.badge} text-yellow-700`}>Demo data (no Supabase key)</Text>
             </View>
           )}
-          {(activeTab === 'trending' ? trendingError : newsError) && (
+          {((activeTab === 'trending' && trendingError) ||
+            (activeTab === 'news' && newsError)) && (
             <View className="mt-3 px-4 py-3 bg-red-50 rounded-xl border border-red-200">
               <Text className={`${textStyles.helper} text-red-700`}>
                 {activeTab === 'trending' ? trendingError : newsError}
@@ -555,6 +560,13 @@ export default function TrendingScreen() {
             </View>
           )}
         </View>
+      ) : activeTab === 'tweets' ? (
+        <MobileTweetsSection
+          onTweetPress={(tweet) => {
+            // Optional: Handle tweet press
+            console.log('Tweet pressed:', tweet.id);
+          }}
+        />
       ) : (
         activeTab === 'trending' ? (
           <FlatList
