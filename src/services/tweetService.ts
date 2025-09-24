@@ -4,6 +4,19 @@ import { TrendingTweet, TweetStats, TweetFilters } from '../types/tweets';
 export class TweetService {
 
   /**
+   * Limpia texto de tweets similar a la implementación de la web app
+   */
+  private static cleanTweetText(text: string): string {
+    if (!text) return '';
+    return text
+      .replace(/https?:\/\/[^\s]+/g, '') // Eliminar URLs
+      .replace(/@\w+/g, (match) => match) // Mantener mentions pero limpiar
+      .replace(/#\w+/g, (match) => match) // Mantener hashtags pero limpiar
+      .replace(/\s+/g, ' ') // Normalizar espacios
+      .trim();
+  }
+
+  /**
    * Obtiene tweets con análisis de IA desde Supabase
    */
   static async getTweets(options: TweetFilters = {}): Promise<{
@@ -27,7 +40,7 @@ export class TweetService {
       } = options;
 
       let query = supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select(`
           id,
           trend_original,
@@ -57,7 +70,8 @@ export class TweetService {
           created_at,
           updated_at
         `)
-        .order('created_at', { ascending: false })
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('fecha_captura', { ascending: false })
         .limit(limit);
 
       // Aplicar filtros si se proporcionan
@@ -82,8 +96,14 @@ export class TweetService {
         };
       }
 
+      // Limpiar texto de tweets antes de retornar
+      const cleanedData = (data || []).map(tweet => ({
+        ...tweet,
+        texto: this.cleanTweetText(tweet.texto)
+      }));
+
       return {
-        data: data || [],
+        data: cleanedData,
         error: null
       };
 
@@ -107,26 +127,29 @@ export class TweetService {
     try {
       // Obtener conteo total de tweets con análisis
       const { count: totalTweets } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('*', { count: 'exact', head: true })
         .not('sentimiento', 'is', null);
 
-      // Obtener estadísticas de sentimiento
+      // Obtener estadísticas de sentimiento (últimas 24 horas)
       const { data: sentimentData } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('sentimiento')
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .not('sentimiento', 'is', null);
 
-      // Obtener estadísticas de intención comunicativa
+      // Obtener estadísticas de intención comunicativa (últimas 24 horas)
       const { data: intentionData } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('intencion_comunicativa')
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .not('intencion_comunicativa', 'is', null);
 
-      // Obtener engagement promedio
+      // Obtener engagement promedio (últimas 24 horas)
       const { data: engagementData } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('likes, retweets, replies')
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .not('sentimiento', 'is', null);
 
       // Procesar estadísticas de sentimiento
@@ -183,8 +206,9 @@ export class TweetService {
 
     try {
       const { data } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('categoria')
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .not('sentimiento', 'is', null);
 
       const categoryCounts: Record<string, number> = {};
@@ -228,11 +252,12 @@ export class TweetService {
 
     try {
       const { data, error } = await supabase
-        .from('capturados')
+        .from('trending_tweets')
         .select('*')
         .textSearch('texto', searchText)
+        .gte('fecha_captura', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .not('sentimiento', 'is', null)
-        .order('created_at', { ascending: false })
+        .order('fecha_captura', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -242,8 +267,14 @@ export class TweetService {
         };
       }
 
+      // Limpiar texto de tweets en resultados de búsqueda
+      const cleanedData = (data || []).map(tweet => ({
+        ...tweet,
+        texto: this.cleanTweetText(tweet.texto)
+      }));
+
       return {
-        data: data || [],
+        data: cleanedData,
         error: null
       };
 
