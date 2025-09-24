@@ -169,7 +169,7 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
   };
 
   // Renderizar filtro de categorías
-  const renderCategoryFilter = () => (
+  const renderCategoryFilter = useCallback(() => (
     <View className="mb-4">
       <Text className={`${textStyles.bodyText} font-medium mb-3 text-gray-700`}>
         Categorías
@@ -200,10 +200,10 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
         </View>
       </ScrollView>
     </View>
-  );
+  ), [categories, selectedCategory, categoryStats]);
 
   // Renderizar filtro de sentimientos
-  const renderSentimentFilter = () => (
+  const renderSentimentFilter = useCallback(() => (
     <View className="mb-4">
       <Text className={`${textStyles.bodyText} font-medium mb-3 text-gray-700`}>
         Sentimiento
@@ -241,10 +241,10 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
         </View>
       </ScrollView>
     </View>
-  );
+  ), [selectedSentiment]);
 
   // Renderizar controles de layout y ordenamiento
-  const renderControls = () => (
+  const renderControls = useCallback(() => (
     <View className="mb-4">
       <View className="flex-row justify-between items-center">
         {/* Controles de Layout */}
@@ -301,10 +301,10 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
         </View>
       </View>
     </View>
-  );
+  ), [layout, sortBy]);
 
   // Renderizar estadísticas
-  const renderStats = () => (
+  const renderStats = useCallback(() => (
     <View className="mb-4 p-4 bg-blue-50 rounded-xl border border-blue-100">
       <View className="flex-row items-center justify-between">
         <Text className={`${textStyles.description} text-blue-800`}>
@@ -318,7 +318,7 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
         </View>
       </View>
     </View>
-  );
+  ), [tweets.length, totalTweets]);
 
   const renderTweetItem = useCallback(({ item }: { item: TrendingTweet }) => (
     <MobileTweetCard
@@ -372,6 +372,17 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
     </View>
   ), []);
 
+  // Memoized filtered and sorted data - Always call hooks before conditional returns
+  const processedTweets = useMemo(() => tweets, [tweets]);
+  const headerComponent = useMemo(() => (
+    <View>
+      {renderStats()}
+      {renderCategoryFilter()}
+      {renderSentimentFilter()}
+      {renderControls()}
+    </View>
+  ), [tweets.length, selectedCategory, selectedSentiment, layout, sortBy, categories, categoryStats, totalTweets]);
+
   if (loading) {
     return (
       <View className="flex-1 bg-gray-50 px-4 pt-4">
@@ -387,9 +398,6 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
       </View>
     );
   }
-
-  // Memoized filtered and sorted data
-  const processedTweets = useMemo(() => tweets, [tweets]);
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -407,14 +415,7 @@ const MobileTweetsSection: React.FC<MobileTweetsSectionProps> = ({
           />
         }
         showsVerticalScrollIndicator={false}
-        ListHeaderComponent={useMemo(() => (
-          <View>
-            {renderStats()}
-            {renderCategoryFilter()}
-            {renderSentimentFilter()}
-            {renderControls()}
-          </View>
-        ), [tweets.length, selectedCategory, selectedSentiment, layout, sortBy, categories, categoryStats, totalTweets])}
+        ListHeaderComponent={headerComponent}
         ListEmptyComponent={renderEmptyState()}
         ItemSeparatorComponent={null}
         removeClippedSubviews={true}
