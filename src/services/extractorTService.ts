@@ -6,6 +6,9 @@ import {
   StoredInstagramComments,
 } from '../storage/commentsRepo';
 
+// Primary: use the public server wrapper (ExtractorW) which handles auth and routing
+const EXTRACTOR_WRAPPER_URL = 'https://server.standatpd.com/api/instagram/comments';
+// Fallback: call ExtractorT directly if wrapper is unavailable (requires valid token)
 const EXTRACTOR_T_API_URL = 'https://api.standatpd.com/api/instagram_comment/';
 const API_AUTH_TOKEN = 'extractorw-auth-token';
 
@@ -80,6 +83,57 @@ function hashCode(value: string): number {
 }
 
 async function fetchCommentsFromApi(url: string, postId: string, options?: FetchCommentsOptions): Promise<StoredInstagramComments> {
+  // 1) Try the server wrapper first (no auth required on device)
+  try {
+    const wrapperRes = await fetch(EXTRACTOR_WRAPPER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, limit: options?.commentLimit ?? 120 }),
+    });
+
+    if (wrapperRes.ok) {
+      const data: any = await wrapperRes.json();
+      const commentsRaw: any[] = Array.isArray(data?.comments)
+        ? data.comments
+        : Array.isArray(data?.results?.[0]?.comments)
+          ? data.results[0].comments
+          : [];
+      const total =
+        data?.total ??
+        data?.count ??
+        data?.results?.[0]?.comments_count ??
+        data?.total_comments_extracted ??
+        commentsRaw.length;
+
+      const mapped = commentsRaw.map((c, idx) => {
+        // Allow both wrapper shape and ExtractorT shape
+        const normalized: ApiComment = {
+          id: c.id,
+          user: c.user || c.author,
+          username: c.username || c.author,
+          text: c.text,
+          likes: c.likes ?? c.like_count,
+          replies: c.replies,
+          timestamp: c.timestamp ?? c.created_at ?? c.time,
+          is_verified: c.verified ?? c.is_verified,
+        };
+        return mapApiComment(normalized, postId, idx);
+      });
+
+      return {
+        url,
+        postId,
+        comments: mapped,
+        extractedCount: mapped.length,
+        totalCount: total,
+        savedAt: Date.now(),
+      };
+    }
+  } catch (e) {
+    // Ignore and try direct ExtractorT
+  }
+
+  // 2) Fallback to direct ExtractorT
   const body = JSON.stringify({
     urls: [url],
     comment_limit: options?.commentLimit ?? 120,

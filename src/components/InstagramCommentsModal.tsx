@@ -71,6 +71,40 @@ export default function InstagramCommentsModal({
     })();
   }, [visible, url, postIdProp]);
 
+  // Poll local cache while loading to reflect background progress
+  useEffect(() => {
+    if (!visible) return undefined;
+    const postId = postIdProp ?? extractInstagramPostId(url);
+    if (!postId) return undefined;
+
+    let cancelled = false;
+    let ticks = 0;
+    const maxTicks = 15; // ~30s at 2s interval
+
+    const interval = setInterval(async () => {
+      if (!loading) return; // stop polling when loading prop goes false
+      ticks += 1;
+      try {
+        const cached = await loadInstagramComments(postId);
+        if (cached && !cancelled) {
+          setComments((prev) => (cached.comments.length > prev.length ? cached.comments : prev));
+          setTotalCount((prev) => cached.totalCount ?? cached.extractedCount ?? prev);
+          if (onCommentsLoaded && cached.comments.length > 0) onCommentsLoaded(cached.comments);
+        }
+      } catch {
+        // ignore during polling
+      }
+      if (ticks >= maxTicks) {
+        clearInterval(interval);
+      }
+    }, 2000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [visible, loading, url, postIdProp]);
+
   const handleRetry = async () => {
     if (onRetry) onRetry();
     setLoading(true);

@@ -225,7 +225,7 @@ export default function SavedItemCard({
             </View>
           )}
           
-          {item.engagement && (
+          {(item.engagement || item.platform === 'instagram') && (
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center space-x-3">
                 {item.engagement.likes && (
@@ -236,15 +236,25 @@ export default function SavedItemCard({
                     </Text>
                   </View>
                 )}
-                {totalComments > 0 && (
+                {item.platform === 'instagram' && (
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {totalComments}
-                    </Text>
-                    {loadedComments > 0 && (
+                    {totalComments > 0 ? (
+                      <>
+                        <Text className="text-gray-500 text-xs ml-1">
+                          {totalComments}
+                        </Text>
+                        {(
+                          loadedComments > 0 || commentsLoading
+                        ) && (
+                          <Text className="text-gray-400 text-[10px] ml-1">
+                            {Math.min(loadedComments, totalComments)}/{totalComments}
+                          </Text>
+                        )}
+                      </>
+                    ) : (
                       <Text className="text-gray-400 text-[10px] ml-1">
-                        {Math.min(loadedComments, totalComments)}/{totalComments}
+                        {commentsLoading ? 'Cargando…' : 'Desconocido'}
                       </Text>
                     )}
                     {commentsLoading && (
@@ -258,7 +268,7 @@ export default function SavedItemCard({
               </View>
 
               {/* Comments Button for Instagram posts */}
-              {item.platform === 'instagram' && totalComments > 0 && (
+              {item.platform === 'instagram' && (
                 <Pressable
                   onPress={() => setShowCommentsModal(true)}
                   className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
@@ -270,7 +280,7 @@ export default function SavedItemCard({
                 >
                   <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
                   <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
-                    Ver comentarios
+                    {commentsLoading ? 'Cargando' : 'Ver comentarios'}
                   </Text>
                 </Pressable>
               )}
