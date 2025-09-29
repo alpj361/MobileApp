@@ -303,7 +303,7 @@ export const useSavedStore = create<SavedState>()(
           item.id,
           item.url,
           item.commentsInfo.postId,
-          item.commentsInfo.totalCount,
+          item.commentsInfo.totalCount
         );
       },
     }),

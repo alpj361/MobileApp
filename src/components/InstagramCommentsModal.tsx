@@ -12,12 +12,18 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { InstagramComment } from '../api/link-processor';
 import { textStyles } from '../utils/typography';
+import { loadInstagramComments } from '../storage/commentsRepo';
+import { extractInstagramPostId } from '../utils/instagram';
 
 interface InstagramCommentsModalProps {
   visible: boolean;
   onClose: () => void;
   url: string;
+  postId?: string | null;
   commentCount?: number;
+  isLoading?: boolean;
+  initialComments?: InstagramComment[];
+  onRetry?: () => void;
   onCommentsLoaded?: (comments: InstagramComment[]) => void;
 }
 
@@ -25,51 +31,67 @@ export default function InstagramCommentsModal({
   visible,
   onClose,
   url,
+  postId: postIdProp,
   commentCount = 0,
+  isLoading = false,
+  initialComments = [],
+  onRetry,
   onCommentsLoaded,
 }: InstagramCommentsModalProps) {
-  const [comments, setComments] = useState<InstagramComment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [comments, setComments] = useState<InstagramComment[]>(initialComments);
+  const [loading, setLoading] = useState<boolean>(isLoading);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'popular'>('newest');
   const [expandedComments, setExpandedComments] = useState<Set<string>>(new Set());
+  const [totalCount, setTotalCount] = useState<number>(commentCount);
 
   useEffect(() => {
-    if (visible && comments.length === 0) {
-      loadComments();
-    }
-  }, [visible]);
+    setLoading(isLoading);
+  }, [isLoading]);
 
-  const loadComments = async () => {
+  useEffect(() => {
+    if (!visible) return;
+    // initialize with provided initial comments if any
+    if (initialComments.length > 0) {
+      setComments(initialComments);
+    }
+    const postId = postIdProp ?? extractInstagramPostId(url);
+    if (!postId) return;
+    (async () => {
+      try {
+        const cached = await loadInstagramComments(postId);
+        if (cached) {
+          setComments((prev) => (prev.length >= cached.comments.length ? prev : cached.comments));
+          setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
+          if (onCommentsLoaded) onCommentsLoaded(cached.comments);
+        }
+      } catch (e) {
+        // ignore cache errors in modal; UI has retry
+      }
+    })();
+  }, [visible, url, postIdProp]);
+
+  const handleRetry = async () => {
+    if (onRetry) onRetry();
     setLoading(true);
-    try {
-      const response = await fetch('https://server.standatpd.com/api/instagram/comments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load comments');
+    const postId = postIdProp ?? extractInstagramPostId(url);
+    if (!postId) return;
+    setTimeout(async () => {
+      try {
+        const cached = await loadInstagramComments(postId);
+        if (cached) {
+          setComments(cached.comments);
+          setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
+          if (onCommentsLoaded) onCommentsLoaded(cached.comments);
+        } else {
+          Alert.alert('Sin datos', 'Aún no hay comentarios nuevos en la caché.');
+        }
+      } catch (e) {
+        Alert.alert('Error', 'No se pudieron cargar los comentarios locales.');
+      } finally {
+        setLoading(false);
       }
-
-      const data = await response.json();
-      setComments(data.comments || []);
-
-      if (onCommentsLoaded) {
-        onCommentsLoaded(data.comments || []);
-      }
-    } catch (error) {
-      console.error('Error loading comments:', error);
-      Alert.alert(
-        'Error',
-        'No se pudieron cargar los comentarios. Inténtalo de nuevo más tarde.'
-      );
-    } finally {
-      setLoading(false);
-    }
+    }, 1500);
   };
 
   const filteredAndSortedComments = React.useMemo(() => {
@@ -234,7 +256,7 @@ export default function InstagramCommentsModal({
               Comentarios
             </Text>
             <Text className={`${textStyles.description} text-gray-500`}>
-              {comments.length} comentario{comments.length !== 1 ? 's' : ''}
+              {comments.length} de {totalCount} comentario{totalCount !== 1 ? 's' : ''}
             </Text>
           </View>
 
@@ -246,7 +268,7 @@ export default function InstagramCommentsModal({
           </Pressable>
         </View>
 
-        {/* Search and Sort */}
+        {/* Search, Sort and Actions */}
         <View className="bg-white px-5 py-3 border-b border-gray-100">
           <View className="flex-row items-center bg-gray-50 rounded-full px-4 py-2 mb-3">
             <Ionicons name="search" size={16} color="#9CA3AF" />
@@ -264,7 +286,8 @@ export default function InstagramCommentsModal({
             )}
           </View>
 
-          <View className="flex-row gap-2">
+          <View className="flex-row gap-2 items-center justify-between">
+            <View className="flex-row gap-2">
             {(['newest', 'oldest', 'popular'] as const).map((sort) => (
               <Pressable
                 key={sort}
@@ -283,6 +306,18 @@ export default function InstagramCommentsModal({
                 </Text>
               </Pressable>
             ))}
+            </View>
+            {onRetry && (
+              <Pressable
+                onPress={handleRetry}
+                className="px-3 py-1 rounded-full bg-blue-50 border border-blue-200"
+                disabled={loading}
+              >
+                <Text className={`${textStyles.badge} text-blue-700`}>
+                  {loading ? 'Cargando…' : 'Reintentar'}
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
 
