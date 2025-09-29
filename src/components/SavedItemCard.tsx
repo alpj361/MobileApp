@@ -228,11 +228,11 @@ export default function SavedItemCard({
           {(item.engagement || item.platform === 'instagram') && (
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center space-x-3">
-                {item.engagement.likes && (
+                {item.engagement?.likes && (
                   <View className="flex-row items-center">
                     <Ionicons name="heart-outline" size={14} color="#EF4444" />
                     <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement.likes}
+                      {item.engagement?.likes}
                     </Text>
                   </View>
                 )}
