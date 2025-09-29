@@ -4,7 +4,6 @@
  */
 
 import { LinkData, InstagramComment } from './link-processor';
-import { getInstagramCommentsSummary } from '../services/extractorTService';
 
 // Enhanced LinkData interface with quality scoring
 export interface ImprovedLinkData extends LinkData {
@@ -1130,21 +1129,7 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       // Generate AI title based on content
       title = generateInstagramTitle(description, author);
 
-      // Optionally load comments summary (non-blocking)
-      try {
-        const commentsSummary = await getInstagramCommentsSummary(url);
-        if (commentsSummary.hasComments) {
-          comments = commentsSummary.topComments;
-          commentsLoaded = true;
-          // Update engagement comment count if we got more accurate data
-          if (commentsSummary.totalComments > 0) {
-            engagement.comments = commentsSummary.totalComments;
-          }
-        }
-      } catch (error) {
-        console.log('Comments loading failed (non-critical):', error);
-        // Don't fail the entire process if comments fail
-      }
+      commentsLoaded = false;
     }
     
     // Calculate quality score

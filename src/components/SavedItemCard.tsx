@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Image, Alert } from 'react-native';
+import { View, Text, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
 import { SavedItem } from '../state/savedStore';
@@ -7,6 +7,7 @@ import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { saveLinkToCodex } from '../services/codexService';
 import InstagramCommentsModal from './InstagramCommentsModal';
+import { useSavedStore } from '../state/savedStore';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -24,6 +25,14 @@ export default function SavedItemCard({
   const { isConnected, connectedUser } = usePulseConnectionStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
+
+  const commentsInfo = item.commentsInfo;
+  const postId = commentsInfo?.postId;
+  const totalComments = commentsInfo?.totalCount ?? item.engagement?.comments ?? 0;
+  const loadedComments = commentsInfo?.loadedCount ?? 0;
+  const commentsLoading = commentsInfo?.loading ?? false;
+  const commentsError = commentsInfo?.error ?? null;
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -227,18 +236,29 @@ export default function SavedItemCard({
                     </Text>
                   </View>
                 )}
-                {item.engagement.comments && (
+                {totalComments > 0 && (
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
                     <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement.comments}
+                      {totalComments}
                     </Text>
+                    {loadedComments > 0 && (
+                      <Text className="text-gray-400 text-[10px] ml-1">
+                        {Math.min(loadedComments, totalComments)}/{totalComments}
+                      </Text>
+                    )}
+                    {commentsLoading && (
+                      <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 6 }} />
+                    )}
+                    {commentsError && !commentsLoading && (
+                      <Ionicons name="warning-outline" size={12} color="#F59E0B" style={{ marginLeft: 6 }} />
+                    )}
                   </View>
                 )}
               </View>
 
               {/* Comments Button for Instagram posts */}
-              {item.platform === 'instagram' && item.engagement.comments && item.engagement.comments > 0 && (
+              {item.platform === 'instagram' && totalComments > 0 && (
                 <Pressable
                   onPress={() => setShowCommentsModal(true)}
                   className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
@@ -374,7 +394,11 @@ export default function SavedItemCard({
           visible={showCommentsModal}
           onClose={() => setShowCommentsModal(false)}
           url={item.url}
-          commentCount={item.engagement?.comments || 0}
+          postId={postId}
+          commentCount={totalComments}
+          isLoading={commentsLoading}
+          initialComments={item.comments ?? []}
+          onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
         />
       )}
     </Pressable>
