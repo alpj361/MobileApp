@@ -30,12 +30,18 @@ export default function SavedItemCard({
   const commentsInfo = item.commentsInfo;
   const postId = commentsInfo?.postId;
   const totalComments = commentsInfo?.totalCount ?? item.engagement?.comments ?? 0;
-  const loadedComments = commentsInfo?.loadedCount ?? 0;
   const commentsLoading = commentsInfo?.loading ?? false;
   const commentsError = commentsInfo?.error ?? null;
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
+
+  const handleRefreshComments = () => {
+    if (commentsLoading || !postId) {
+      return;
+    }
+    fetchCommentsForItem(item.id);
+  };
 
   const handlePress = () => {
     if (onPress) {
@@ -242,12 +248,20 @@ export default function SavedItemCard({
                     <Text className="text-gray-500 text-xs ml-1">
                       {totalComments && totalComments > 0 ? `${totalComments}` : '—'}
                     </Text>
-                    {commentsLoading && (
-                      <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 6 }} />
-                    )}
                     {commentsError && !commentsLoading && (
                       <Ionicons name="warning-outline" size={12} color="#F59E0B" style={{ marginLeft: 6 }} />
                     )}
+                    <Pressable
+                      onPress={handleRefreshComments}
+                      disabled={commentsLoading}
+                      className="ml-2 p-1 rounded-full active:bg-blue-100"
+                    >
+                      {commentsLoading ? (
+                        <ActivityIndicator size="small" color="#3B82F6" />
+                      ) : (
+                        <Ionicons name="refresh-outline" size={14} color="#3B82F6" />
+                      )}
+                    </Pressable>
                   </View>
                 )}
               </View>
@@ -262,11 +276,18 @@ export default function SavedItemCard({
                       transform: [{ scale: pressed ? 0.95 : 1 }],
                     }
                   ]}
+                  disabled={commentsLoading}
                 >
-                  <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
-                  <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
-                    {commentsLoading ? 'Cargando' : 'Ver comentarios'}
-                  </Text>
+                  {commentsLoading ? (
+                    <ActivityIndicator size="small" color="#3B82F6" />
+                  ) : (
+                    <>
+                      <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
+                      <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
+                        Ver comentarios
+                      </Text>
+                    </>
+                  )}
                 </Pressable>
               )}
             </View>

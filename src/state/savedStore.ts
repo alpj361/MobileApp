@@ -94,10 +94,19 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
           set((state) => ({
             items: state.items.map((item) => {
               if (item.id !== itemId) return item;
+
               const previousTotal = item.commentsInfo?.totalCount && item.commentsInfo.totalCount > 0
                 ? item.commentsInfo.totalCount
                 : (hintedTotal && hintedTotal > 0 ? hintedTotal : undefined);
-              const stableTotal = previousTotal ?? payload.totalCount ?? payload.extractedCount;
+
+              const payloadTotal = payload.totalCount ?? hintedTotal ?? payload.extractedCount;
+              const stableTotal = (() => {
+                if (previousTotal && payloadTotal) {
+                  return Math.max(previousTotal, payloadTotal);
+                }
+                return previousTotal ?? payloadTotal;
+              })();
+
               return {
                 ...item,
                 comments: previewComments,

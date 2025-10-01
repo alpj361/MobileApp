@@ -4,6 +4,7 @@
  */
 
 import { LinkData, InstagramComment } from './link-processor';
+import { generateInstagramTitleAI } from '../services/instagramTitleService';
 
 // Enhanced LinkData interface with quality scoring
 export interface ImprovedLinkData extends LinkData {
@@ -850,7 +851,7 @@ function extractInstagramEngagement(html: string): { likes?: number; comments?: 
 /**
  * Generate AI title for Instagram posts based on content
  */
-function generateInstagramTitle(description: string, author?: string): string {
+function generateFallbackInstagramTitle(description: string, author?: string): string {
   if (!description || description.length < 10) {
     return author ? `Post by ${author}` : 'Instagram Post';
   }
@@ -1159,8 +1160,29 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     if (platform === 'instagram') {
       // Extract engagement metrics separately
       engagement = extractInstagramEngagement(html);
-      // Generate AI title based on content
-      title = generateInstagramTitle(description, author);
+
+      const fallbackTitle = generateFallbackInstagramTitle(description, author);
+      if (description) {
+        try {
+          const aiTitle = await generateInstagramTitleAI({
+            caption: description,
+            author,
+            url,
+          });
+          if (aiTitle) {
+            title = aiTitle;
+          } else if (fallbackTitle) {
+            title = fallbackTitle;
+          }
+        } catch (error) {
+          console.log('Instagram title AI error:', error);
+          if (fallbackTitle) {
+            title = fallbackTitle;
+          }
+        }
+      } else if (fallbackTitle) {
+        title = fallbackTitle;
+      }
 
       commentsLoaded = false;
     }
