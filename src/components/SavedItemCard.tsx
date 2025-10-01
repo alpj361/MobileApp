@@ -240,7 +240,7 @@ export default function SavedItemCard({
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
                     <Text className="text-gray-500 text-xs ml-1">
-                      {totalComments > 0 ? totalComments : '—'}
+                      {totalComments && totalComments > 0 ? `${totalComments}` : '—'}
                     </Text>
                     {commentsLoading && (
                       <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 6 }} />

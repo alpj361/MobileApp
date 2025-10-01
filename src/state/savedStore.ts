@@ -166,9 +166,11 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       }
 
       const engagement = baseData.engagement ?? linkData.engagement;
+      const engagementComments = engagement?.comments;
+      const cachedTotal = cachedComments?.totalCount ?? cachedComments?.extractedCount;
       const totalCount = postId
-        ? cachedComments?.totalCount ?? cachedComments?.extractedCount ?? engagement?.comments ?? 0
-        : engagement?.comments ?? 0;
+        ? (engagementComments ?? cachedTotal)
+        : engagementComments;
       const loadedCount = cachedComments?.extractedCount ?? 0;
       const now = Date.now();
       const shouldRefetch = Boolean(
