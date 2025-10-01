@@ -91,25 +91,28 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
 
       const previewComments = payload.comments.slice(0, 3);
 
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
+          set((state) => ({
+            items: state.items.map((item) => {
+              if (item.id !== itemId) return item;
+              const previousTotal = item.commentsInfo?.totalCount && item.commentsInfo.totalCount > 0
+                ? item.commentsInfo.totalCount
+                : (hintedTotal && hintedTotal > 0 ? hintedTotal : undefined);
+              const stableTotal = previousTotal ?? payload.totalCount ?? payload.extractedCount;
+              return {
                 ...item,
                 comments: previewComments,
                 commentsLoaded: payload.extractedCount > 0,
                 commentsInfo: {
                   postId,
-                  totalCount: payload.totalCount ?? hintedTotal ?? payload.extractedCount,
+                  totalCount: stableTotal,
                   loadedCount: payload.extractedCount,
                   loading: false,
                   lastUpdated: payload.savedAt,
                   error: null,
                 },
-              }
-            : item,
-        ),
-      }));
+              };
+            }),
+          }));
     } catch (error) {
       set((state) => ({
         items: state.items.map((item) =>

@@ -732,6 +732,24 @@ function extractTwitterDescription(html: string): string {
  * Enhanced Instagram description extraction with engagement separation
  */
 function extractInstagramDescription(html: string): string {
+  // 1) Try JSON-LD blocks for a direct caption field
+  try {
+    const ldMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi) || [];
+    for (const block of ldMatches) {
+      const jsonTextMatch = block.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+      const jsonText = jsonTextMatch ? jsonTextMatch[1] : null;
+      if (!jsonText) continue;
+      try {
+        const data = JSON.parse(jsonText);
+        const caption = (Array.isArray(data) ? data : [data]).find((x: any) => x && (x.caption || x.description || x.headline));
+        const value = caption?.caption || caption?.description || caption?.headline;
+        if (typeof value === 'string' && value.trim().length > 0) {
+          return finalizeInstagramCaption(value);
+        }
+      } catch {}
+    }
+  } catch {}
+
   const instagramDescriptionPatterns = [
     /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i,
     /<meta\s+content=["']([^"']+)["']\s+property=["']og:description["']/i,
@@ -742,31 +760,42 @@ function extractInstagramDescription(html: string): string {
   for (const pattern of instagramDescriptionPatterns) {
     const match = html.match(pattern);
     if (match && match[1]) {
-      let description = cleanHtmlContent(match[1].trim());
-      
-      // Clean Instagram-specific artifacts
-      description = description.replace(/^\d+\s+Likes?,?\s*/i, ''); // Remove "123 Likes, "
-      description = description.replace(/^\d+\s+Comments?,?\s*/i, ''); // Remove "45 Comments, "
-      description = description.replace(/\s*on Instagram.*$/i, ''); // Remove "on Instagram"
-      description = description.replace(/^"([^"]*)"$/, '$1'); // Remove surrounding quotes
-      
-      // Clean hashtags at the end for better readability
-      const hashtagIndex = description.search(/\s+#\w+/);
-      if (hashtagIndex > 50) { // Keep hashtags if they're part of the main content
-        const mainContent = description.substring(0, hashtagIndex).trim();
-        const hashtags = description.substring(hashtagIndex).trim();
-        if (mainContent.length > 20) {
-          description = `${mainContent} ${hashtags}`;
-        }
-      }
-      
-      if (description.length > 10 && description.length < 500) {
-        return description;
-      }
+      const candidate = match[1].trim();
+      const description = finalizeInstagramCaption(candidate);
+      if (description.length > 0) return description;
     }
   }
   
   return '';
+}
+
+// Final cleaning pass for Instagram captions extracted from meta/JSON-LD
+function finalizeInstagramCaption(raw: string): string {
+  let description = cleanHtmlContent(raw.trim());
+  
+  // Remove engagement prefixes and site suffixes
+  description = description
+    .replace(/^\d+\s+Likes?,?\s*/i, '')
+    .replace(/^\d+\s+Comments?,?\s*/i, '')
+    .replace(/\s*on Instagram.*$/i, '')
+    .replace(/^"([^"]*)"$/, '$1');
+
+  // Remove leading publisher line: "username on Month DD, YYYY:" or variations
+  description = description.replace(/^[\-–—\s]*[A-Za-z0-9_.]+\s+on\s+[A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?[:\-\s]+/i, '');
+
+  // Normalize weird replacement chars and trim
+  description = description.replace(/\uFFFD+/g, ''); // remove �
+  description = description.replace(/\s+/g, ' ').trim();
+
+  // Keep hashtags only if they appear after a sizeable caption
+  const hashtagIndex = description.search(/\s+#\w+/);
+  if (hashtagIndex > 50) {
+    const mainContent = description.substring(0, hashtagIndex).trim();
+    const hashtags = description.substring(hashtagIndex).trim();
+    if (mainContent.length > 20) description = `${mainContent} ${hashtags}`;
+  }
+
+  return description;
 }
 
 /**
@@ -830,12 +859,16 @@ function generateInstagramTitle(description: string, author?: string): string {
   let cleanDesc = description
     .replace(/#\w+/g, '') // Remove hashtags
     .replace(/@\w+/g, '') // Remove mentions
+    .replace(/[\u{1F300}-\u{1FAFF}\u{1F900}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '') // Remove emoji
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
-  
+
+  // Sentence case
+  const toSentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
   // If description is short enough, use it as title
   if (cleanDesc.length <= 60) {
-    return cleanDesc;
+    return toSentence(cleanDesc);
   }
   
   // Extract first sentence or meaningful phrase
@@ -845,7 +878,7 @@ function generateInstagramTitle(description: string, author?: string): string {
     if (title.length > 60) {
       title = title.substring(0, 57) + '...';
     }
-    return title;
+    return toSentence(title);
   }
   
   // Fallback: use first 60 characters
@@ -853,7 +886,7 @@ function generateInstagramTitle(description: string, author?: string): string {
     cleanDesc = cleanDesc.substring(0, 57) + '...';
   }
   
-  return cleanDesc;
+  return toSentence(cleanDesc);
 }
 
 /**

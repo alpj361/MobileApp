@@ -239,24 +239,9 @@ export default function SavedItemCard({
                 {item.platform === 'instagram' && (
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
-                    {totalComments > 0 ? (
-                      <>
-                        <Text className="text-gray-500 text-xs ml-1">
-                          {totalComments}
-                        </Text>
-                        {(
-                          loadedComments > 0 || commentsLoading
-                        ) && (
-                          <Text className="text-gray-400 text-[10px] ml-1">
-                            {Math.min(loadedComments, totalComments)}/{totalComments}
-                          </Text>
-                        )}
-                      </>
-                    ) : (
-                      <Text className="text-gray-400 text-[10px] ml-1">
-                        {commentsLoading ? 'Cargando…' : 'Desconocido'}
-                      </Text>
-                    )}
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {totalComments > 0 ? totalComments : '—'}
+                    </Text>
                     {commentsLoading && (
                       <ActivityIndicator size="small" color="#3B82F6" style={{ marginLeft: 6 }} />
                     )}

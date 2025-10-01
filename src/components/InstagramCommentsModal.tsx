@@ -290,7 +290,7 @@ export default function InstagramCommentsModal({
               Comentarios
             </Text>
             <Text className={`${textStyles.description} text-gray-500`}>
-              {comments.length} de {totalCount} comentario{totalCount !== 1 ? 's' : ''}
+              {comments.length} comentario{comments.length !== 1 ? 's' : ''}
             </Text>
           </View>
 
