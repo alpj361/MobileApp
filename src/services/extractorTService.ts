@@ -71,6 +71,19 @@ function mapApiComment(raw: ApiComment, postId: string, index: number, parentId?
   };
 }
 
+function isLikelyCaptionPlaceholder(comment: InstagramComment, postLikes?: number, index?: number): boolean {
+  const textNormalized = comment.text.trim().toLowerCase();
+  const authorNormalized = comment.author.trim().toLowerCase();
+
+  const sameAsAuthor = textNormalized !== '' && textNormalized === authorNormalized;
+  const noTimestamp = !comment.timestamp || Number.isNaN(comment.timestamp);
+  const noReplies = !comment.replies || comment.replies.length === 0;
+  const likesMatchesPost = typeof postLikes === 'number' && postLikes > 0 && comment.likes === postLikes;
+  const isFirst = index === 0;
+
+  return sameAsAuthor && noReplies && likesMatchesPost && (noTimestamp || isFirst);
+}
+
 function hashCode(value: string): number {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -105,27 +118,32 @@ async function fetchCommentsFromApi(url: string, postId: string, options?: Fetch
         data?.total_comments_extracted ??
         commentsRaw.length;
 
-      const mapped = commentsRaw.map((c, idx) => {
-        // Allow both wrapper shape and ExtractorT shape
-        const normalized: ApiComment = {
-          id: c.id,
-          user: c.user || c.author,
-          username: c.username || c.author,
-          text: c.text,
-          likes: c.likes ?? c.like_count,
-          replies: c.replies,
-          timestamp: c.timestamp ?? c.created_at ?? c.time,
-          is_verified: c.verified ?? c.is_verified,
-        };
-        return mapApiComment(normalized, postId, idx);
-      });
+      const mapped = commentsRaw
+        .map((c, idx) => {
+          // Allow both wrapper shape and ExtractorT shape
+          const normalized: ApiComment = {
+            id: c.id,
+            user: c.user || c.author,
+            username: c.username || c.author,
+            text: c.text,
+            likes: c.likes ?? c.like_count,
+            replies: c.replies,
+            timestamp: c.timestamp ?? c.created_at ?? c.time,
+            is_verified: c.verified ?? c.is_verified,
+          };
+          return mapApiComment(normalized, postId, idx);
+        })
+        .filter((comment, idx) => !isLikelyCaptionPlaceholder(comment, total, idx));
+
+      const filteredCount = mapped.length;
+      const finalTotal = total > 0 ? total : filteredCount;
 
       return {
         url,
         postId,
         comments: mapped,
-        extractedCount: mapped.length,
-        totalCount: total,
+        extractedCount: filteredCount,
+        totalCount: finalTotal,
         savedAt: Date.now(),
       };
     }

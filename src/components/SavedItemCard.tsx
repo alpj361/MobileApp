@@ -26,21 +26,24 @@ export default function SavedItemCard({
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
+  const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
 
   const commentsInfo = item.commentsInfo;
   const postId = commentsInfo?.postId;
   const totalComments = commentsInfo?.totalCount ?? item.engagement?.comments ?? 0;
   const commentsLoading = commentsInfo?.loading ?? false;
+  const commentsRefreshing = commentsInfo?.refreshing ?? false;
+  const commentsBusy = commentsLoading || commentsRefreshing;
   const commentsError = commentsInfo?.error ?? null;
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
 
   const handleRefreshComments = () => {
-    if (commentsLoading || !postId) {
+    if (commentsBusy || !postId) {
       return;
     }
-    fetchCommentsForItem(item.id);
+    refreshCommentsCount(item.id);
   };
 
   const handlePress = () => {
@@ -248,15 +251,15 @@ export default function SavedItemCard({
                     <Text className="text-gray-500 text-xs ml-1">
                       {totalComments && totalComments > 0 ? `${totalComments}` : '—'}
                     </Text>
-                    {commentsError && !commentsLoading && (
+                    {commentsError && !commentsBusy && (
                       <Ionicons name="warning-outline" size={12} color="#F59E0B" style={{ marginLeft: 6 }} />
                     )}
                     <Pressable
                       onPress={handleRefreshComments}
-                      disabled={commentsLoading}
+                      disabled={commentsBusy}
                       className="ml-2 p-1 rounded-full active:bg-blue-100"
                     >
-                      {commentsLoading ? (
+                      {commentsBusy ? (
                         <ActivityIndicator size="small" color="#3B82F6" />
                       ) : (
                         <Ionicons name="refresh-outline" size={14} color="#3B82F6" />
@@ -276,9 +279,9 @@ export default function SavedItemCard({
                       transform: [{ scale: pressed ? 0.95 : 1 }],
                     }
                   ]}
-                  disabled={commentsLoading}
+                  disabled={commentsBusy}
                 >
-                  {commentsLoading ? (
+                  {commentsBusy ? (
                     <ActivityIndicator size="small" color="#3B82F6" />
                   ) : (
                     <>

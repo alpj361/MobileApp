@@ -27,6 +27,7 @@ export interface SavedItem extends LinkData {
     loading: boolean;
     lastUpdated?: number;
     error?: string | null;
+    refreshing?: boolean;
   };
 }
 
@@ -46,6 +47,7 @@ interface SavedState {
   setLoading: (loading: boolean) => void;
   getQualityStats: () => { excellent: number; good: number; fair: number; poor: number };
   fetchCommentsForItem: (id: string) => Promise<void>;
+  refreshCommentsCount: (id: string) => Promise<void>;
 }
 
 const runningCommentFetches = new Set<string>();
@@ -77,6 +79,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                     loading: true,
                     lastUpdated: undefined,
                     error: null,
+                    refreshing: false,
                   },
             }
           : item,
@@ -118,10 +121,87 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                   loading: false,
                   lastUpdated: payload.savedAt,
                   error: null,
+                  refreshing: false,
                 },
               };
             }),
           }));
+    } catch (error) {
+          set((state) => ({
+            items: state.items.map((item) =>
+              item.id === itemId
+                ? {
+                    ...item,
+                    commentsInfo: item.commentsInfo
+                      ? {
+                          ...item.commentsInfo,
+                          loading: false,
+                          error: error instanceof Error ? error.message : 'No se pudo cargar comentarios',
+                          refreshing: false,
+                        }
+                      : undefined,
+                  }
+                : item,
+            ),
+      }));
+    } finally {
+      runningCommentFetches.delete(postId);
+    }
+  };
+
+  const refreshCommentCount = async (itemId: string, url: string, postId: string) => {
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              commentsInfo: item.commentsInfo
+                ? { ...item.commentsInfo, refreshing: true, error: null }
+                : {
+                    postId,
+                    totalCount: undefined,
+                    loadedCount: 0,
+                    loading: false,
+                    lastUpdated: undefined,
+                    error: null,
+                    refreshing: true,
+                  },
+            }
+          : item,
+      ),
+    }));
+
+    try {
+      const refreshed = await processImprovedLink(url);
+      const refreshedCount = refreshed.engagement?.comments ?? 0;
+
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+                ? {
+                    ...item,
+                    engagement: refreshed.engagement ?? item.engagement,
+                    commentsInfo: item.commentsInfo
+                      ? {
+                          ...item.commentsInfo,
+                          totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
+                          lastUpdated: Date.now(),
+                          refreshing: false,
+                          error: null,
+                        }
+                      : {
+                          postId,
+                          totalCount: refreshedCount,
+                          loadedCount: 0,
+                          loading: false,
+                          lastUpdated: Date.now(),
+                          error: null,
+                          refreshing: false,
+                        },
+                  }
+                : item,
+        ),
+      }));
     } catch (error) {
       set((state) => ({
         items: state.items.map((item) =>
@@ -131,16 +211,14 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                 commentsInfo: item.commentsInfo
                   ? {
                       ...item.commentsInfo,
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo cargar comentarios',
+                      refreshing: false,
+                      error: error instanceof Error ? error.message : 'No se pudo actualizar contador',
                     }
-                  : undefined,
+                  : item.commentsInfo,
               }
             : item,
         ),
       }));
-    } finally {
-      runningCommentFetches.delete(postId);
     }
   };
 
@@ -198,6 +276,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
             loading: shouldRefetch,
             lastUpdated: cachedComments?.savedAt,
             error: null,
+            refreshing: false,
           }
         : undefined;
 
@@ -317,6 +396,14 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         item.commentsInfo.postId,
         item.commentsInfo.totalCount
       );
+    },
+    refreshCommentsCount: async (id: string) => {
+      const item = get().items.find((saved) => saved.id === id);
+      if (!item || !item.commentsInfo?.postId) {
+        return;
+      }
+
+      await refreshCommentCount(item.id, item.url, item.commentsInfo.postId);
     },
   };
 };
