@@ -68,7 +68,8 @@ export const textStyles = {
   navTitle: getTextStyle('headline', 'large', 'primary'),
   sectionTitle: getTextStyle('headline', 'medium', 'primary'),
   cardTitle: getTextStyle('headline', 'small', 'primary'),
-  
+  cardTitleLarge: getTextStyle('headline', 'large', 'primary'),
+
   // Content text
   bodyText: getTextStyle('body', 'medium', 'primary'),
   bodySecondary: getTextStyle('body', 'medium', 'secondary'),
