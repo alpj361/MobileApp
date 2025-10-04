@@ -467,6 +467,8 @@ export default function SavedItemCard({
           onClose={() => setShowAnalysisModal(false)}
           analysis={analysisInfo}
           onRefresh={() => refreshInstagramAnalysis(item.id)}
+          platform={item.platform}
+          url={item.url}
         />
       )}
     </Pressable>
