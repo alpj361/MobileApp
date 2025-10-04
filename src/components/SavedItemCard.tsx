@@ -7,6 +7,7 @@ import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { saveLinkToCodex } from '../services/codexService';
 import InstagramCommentsModal from './InstagramCommentsModal';
+import InstagramAnalysisModal from './InstagramAnalysisModal';
 import { useSavedStore } from '../state/savedStore';
 
 interface SavedItemCardProps {
@@ -25,8 +26,11 @@ export default function SavedItemCard({
   const { isConnected, connectedUser } = usePulseConnectionStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
   const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
+  const analyzeInstagramPost = useSavedStore((state) => state.analyzeInstagramPost);
+  const refreshInstagramAnalysis = useSavedStore((state) => state.refreshInstagramAnalysis);
 
   const commentsInfo = item.commentsInfo;
   const postId = commentsInfo?.postId;
@@ -36,6 +40,9 @@ export default function SavedItemCard({
   const commentsBusy = commentsLoading || commentsRefreshing;
   const commentsError = commentsInfo?.error ?? null;
 
+  const analysisInfo = item.analysisInfo;
+  const analysisLoading = analysisInfo?.loading ?? false;
+
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
 
@@ -44,6 +51,16 @@ export default function SavedItemCard({
       return;
     }
     refreshCommentsCount(item.id);
+  };
+
+  const handleOpenAnalysis = () => {
+    if (item.platform !== 'instagram') {
+      return;
+    }
+    setShowAnalysisModal(true);
+    if (!analysisInfo || (!analysisInfo.summary && !analysisInfo.transcript && !analysisInfo.loading)) {
+      analyzeInstagramPost(item.id);
+    }
   };
 
   const handlePress = () => {
@@ -271,27 +288,51 @@ export default function SavedItemCard({
 
               {/* Comments Button for Instagram posts */}
               {item.platform === 'instagram' && (
-                <Pressable
-                  onPress={() => setShowCommentsModal(true)}
-                  className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
-                  style={({ pressed }) => [
-                    {
-                      transform: [{ scale: pressed ? 0.95 : 1 }],
-                    }
-                  ]}
-                  disabled={commentsBusy}
-                >
-                  {commentsBusy ? (
-                    <ActivityIndicator size="small" color="#3B82F6" />
-                  ) : (
-                    <>
-                      <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
-                      <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
-                        Ver comentarios
-                      </Text>
-                    </>
-                  )}
-                </Pressable>
+                <View className="flex-row items-center gap-2">
+                  <Pressable
+                    onPress={() => setShowCommentsModal(true)}
+                    className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
+                      }
+                    ]}
+                    disabled={commentsBusy}
+                  >
+                    {commentsBusy ? (
+                      <ActivityIndicator size="small" color="#3B82F6" />
+                    ) : (
+                      <>
+                        <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
+                        <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
+                          Ver comentarios
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenAnalysis}
+                    className="flex-row items-center bg-purple-50 px-2 py-1 rounded-full border border-purple-200 active:bg-purple-100"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
+                      }
+                    ]}
+                    disabled={analysisLoading}
+                  >
+                    {analysisLoading ? (
+                      <ActivityIndicator size="small" color="#7C3AED" />
+                    ) : (
+                      <>
+                        <Ionicons name="document-text-outline" size={12} color="#7C3AED" />
+                        <Text className={`${textStyles.helper} text-purple-600 ml-1 font-medium`}>
+                          {analysisInfo?.summary || analysisInfo?.transcript ? 'Ver análisis' : 'Analizar post'}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
               )}
             </View>
           )}
@@ -418,6 +459,14 @@ export default function SavedItemCard({
           isLoading={commentsLoading}
           initialComments={item.comments ?? []}
           onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
+        />
+      )}
+      {item.platform === 'instagram' && (
+        <InstagramAnalysisModal
+          visible={showAnalysisModal}
+          onClose={() => setShowAnalysisModal(false)}
+          analysis={analysisInfo}
+          onRefresh={() => refreshInstagramAnalysis(item.id)}
         />
       )}
     </Pressable>

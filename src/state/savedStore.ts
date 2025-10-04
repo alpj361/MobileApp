@@ -6,6 +6,8 @@ import { ImprovedLinkData, processImprovedLink } from '../api/improved-link-proc
 import { extractInstagramPostId } from '../utils/instagram';
 import { loadInstagramComments, StoredInstagramComments } from '../storage/commentsRepo';
 import { fetchAndStoreInstagramComments } from '../services/extractorTService';
+import { analyzeInstagramPost as runInstagramAnalysis } from '../services/instagramAnalysisService';
+import { loadInstagramAnalysis } from '../storage/instagramAnalysisRepo';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -29,6 +31,17 @@ export interface SavedItem extends LinkData {
     error?: string | null;
     refreshing?: boolean;
   };
+  analysisInfo?: {
+    postId: string;
+    type: 'video' | 'image' | 'carousel' | 'unknown';
+    summary?: string;
+    transcript?: string;
+    images?: Array<{ url: string; description: string }>;
+    caption?: string;
+    loading: boolean;
+    error?: string | null;
+    lastUpdated?: number;
+  };
 }
 
 interface SavedState {
@@ -48,6 +61,8 @@ interface SavedState {
   getQualityStats: () => { excellent: number; good: number; fair: number; poor: number };
   fetchCommentsForItem: (id: string) => Promise<void>;
   refreshCommentsCount: (id: string) => Promise<void>;
+  analyzeInstagramPost: (id: string) => Promise<void>;
+  refreshInstagramAnalysis: (id: string) => Promise<void>;
 }
 
 const runningCommentFetches = new Set<string>();
@@ -222,6 +237,82 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     }
   };
 
+  const runAnalysisForItem = async (itemId: string, url: string, caption?: string, force = false) => {
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              analysisInfo: item.analysisInfo
+                ? { ...item.analysisInfo, loading: true, error: null }
+                : {
+                    postId: extractInstagramPostId(url) ?? '',
+                    type: 'unknown',
+                    loading: true,
+                    summary: undefined,
+                    transcript: undefined,
+                    images: undefined,
+                    caption,
+                    lastUpdated: undefined,
+                    error: null,
+                  },
+            }
+          : item,
+      ),
+    }));
+
+    try {
+      const analysis = await runInstagramAnalysis(url, caption, { force });
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                analysisInfo: {
+                  postId: analysis.postId,
+                  type: analysis.type,
+                  summary: analysis.summary,
+                  transcript: analysis.transcript,
+                  images: analysis.images,
+                  caption: analysis.caption,
+                  loading: false,
+                  error: null,
+                  lastUpdated: analysis.createdAt,
+                },
+              }
+            : item,
+        ),
+      }));
+    } catch (error) {
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                analysisInfo: item.analysisInfo
+                  ? {
+                      ...item.analysisInfo,
+                      loading: false,
+                      error: error instanceof Error ? error.message : 'No se pudo analizar el post',
+                    }
+                  : {
+                      postId: extractInstagramPostId(url) ?? '',
+                      type: 'unknown',
+                      summary: undefined,
+                      transcript: undefined,
+                      images: undefined,
+                      caption,
+                      loading: false,
+                      error: error instanceof Error ? error.message : 'No se pudo analizar el post',
+                      lastUpdated: undefined,
+                    },
+              }
+            : item,
+        ),
+      }));
+    }
+  };
+
   return {
     items: [],
     isLoading: false,
@@ -243,12 +334,19 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       const baseData = improvedData as LinkData;
       const postId = extractInstagramPostId(linkData.url);
       let cachedComments: StoredInstagramComments | null = null;
+      let cachedAnalysis = null;
 
       if (postId) {
         try {
           cachedComments = await loadInstagramComments(postId);
         } catch (error) {
           console.log('Failed to load cached Instagram comments:', error);
+        }
+
+        try {
+          cachedAnalysis = await loadInstagramAnalysis(postId);
+        } catch (error) {
+          console.log('Failed to load cached Instagram analysis:', error);
         }
       }
 
@@ -290,6 +388,19 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         source,
         isFavorite: false,
         commentsInfo,
+        analysisInfo: cachedAnalysis
+          ? {
+              postId: cachedAnalysis.postId,
+              type: cachedAnalysis.type,
+              summary: cachedAnalysis.summary,
+              transcript: cachedAnalysis.transcript,
+              images: cachedAnalysis.images,
+              caption: cachedAnalysis.caption,
+              loading: false,
+              error: null,
+              lastUpdated: cachedAnalysis.createdAt,
+            }
+          : undefined,
       };
 
       set((state) => ({
@@ -404,6 +515,22 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       }
 
       await refreshCommentCount(item.id, item.url, item.commentsInfo.postId);
+    },
+    analyzeInstagramPost: async (id: string) => {
+      const item = get().items.find((saved) => saved.id === id);
+      if (!item) {
+        return;
+      }
+
+      await runAnalysisForItem(item.id, item.url, item.description);
+    },
+    refreshInstagramAnalysis: async (id: string) => {
+      const item = get().items.find((saved) => saved.id === id);
+      if (!item) {
+        return;
+      }
+
+      await runAnalysisForItem(item.id, item.url, item.description, true);
     },
   };
 };

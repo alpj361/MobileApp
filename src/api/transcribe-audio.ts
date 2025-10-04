@@ -9,17 +9,26 @@ You can use this function to transcribe audio files, and it will return the text
  * @param localAudioUri - The local URI of the audio file to transcribe. Obtained via the expo-av library.
  * @returns The text of the audio file
  */
-export const transcribeAudio = async (localAudioUri: string) => {
+interface TranscribeOptions {
+  mimeType?: string;
+  fileName?: string;
+  language?: string;
+}
+
+export const transcribeAudio = async (
+  localAudioUri: string,
+  options: TranscribeOptions = {},
+) => {
   try {
     // Create FormData for the audio file
     const formData = new FormData();
     formData.append("file", {
       uri: localAudioUri,
-      type: "audio/m4a",
-      name: "recording.m4a",
+      type: options.mimeType || "audio/m4a",
+      name: options.fileName || "recording.m4a",
     } as any);
     formData.append("model", "gpt-4o-transcribe");
-    formData.append("language", "en");
+    formData.append("language", options.language || "auto");
 
     const OPENAI_API_KEY = process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY;
     if (!OPENAI_API_KEY) {
