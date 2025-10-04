@@ -13,6 +13,7 @@ interface TranscribeOptions {
   mimeType?: string;
   fileName?: string;
   language?: string;
+  translateTo?: string;
 }
 
 export const transcribeAudio = async (
@@ -28,7 +29,16 @@ export const transcribeAudio = async (
       name: options.fileName || "recording.m4a",
     } as any);
     formData.append("model", "gpt-4o-transcribe");
-    formData.append("language", options.language || "auto");
+
+    const language = options.language?.trim().toLowerCase();
+    if (language && language !== "auto") {
+      formData.append("language", language);
+    }
+
+    const translateTo = options.translateTo?.trim().toLowerCase();
+    if (translateTo && translateTo !== "auto" && translateTo !== "none") {
+      formData.append("translate_to", translateTo);
+    }
 
     const OPENAI_API_KEY = process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY;
     if (!OPENAI_API_KEY) {
