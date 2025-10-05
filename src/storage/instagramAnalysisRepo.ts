@@ -7,6 +7,8 @@ export interface StoredInstagramAnalysis {
   transcript?: string;
   images?: Array<{ url: string; description: string }>;
   caption?: string;
+  topic?: string;
+  sentiment?: 'positive' | 'negative' | 'neutral';
   createdAt: number;
   metadata?: Record<string, any>;
 }

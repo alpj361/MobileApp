@@ -729,6 +729,32 @@ function extractTwitterDescription(html: string): string {
   return '';
 }
 
+function extractTwitterEngagement(html: string): { likes?: number; comments?: number; shares?: number; views?: number } {
+  const engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
+
+  const replyMatch = html.match(/"reply_count":\s*(\d+)/) || html.match(/"replyCount":\s*(\d+)/);
+  if (replyMatch) {
+    engagement.comments = parseInt(replyMatch[1], 10);
+  }
+
+  const likeMatch = html.match(/"favorite_count":\s*(\d+)/) || html.match(/"favoriteCount":\s*(\d+)/) || html.match(/"like_count":\s*(\d+)/);
+  if (likeMatch) {
+    engagement.likes = parseInt(likeMatch[1], 10);
+  }
+
+  const retweetMatch = html.match(/"retweet_count":\s*(\d+)/) || html.match(/"retweetCount":\s*(\d+)/);
+  if (retweetMatch) {
+    engagement.shares = parseInt(retweetMatch[1], 10);
+  }
+
+  const viewMatch = html.match(/"view_count":\s*(\d+)/) || html.match(/"viewCount":\s*(\d+)/);
+  if (viewMatch) {
+    engagement.views = parseInt(viewMatch[1], 10);
+  }
+
+  return engagement;
+}
+
 /**
  * Enhanced Instagram description extraction with engagement separation
  */
@@ -1185,6 +1211,8 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       }
 
       commentsLoaded = false;
+    } else if (platform === 'twitter') {
+      engagement = extractTwitterEngagement(html);
     }
     
     // Calculate quality score

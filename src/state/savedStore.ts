@@ -42,6 +42,8 @@ export interface SavedItem extends LinkData {
     transcript?: string;
     images?: Array<{ url: string; description: string }>;
     caption?: string;
+    topic?: string;
+    sentiment?: 'positive' | 'negative' | 'neutral';
     loading: boolean;
     error?: string | null;
     lastUpdated?: number;
@@ -237,23 +239,22 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                     engagement: refreshed.engagement ?? item.engagement,
                     commentsInfo: item.commentsInfo
                       ? {
-                      ...item.commentsInfo,
-                      platform,
-                      totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
-                      lastUpdated: Date.now(),
-                      refreshing: false,
-                      error: null,
-                    }
-                  : {
-                      platform,
-                      postId,
-                      totalCount: refreshedCount,
-                      platform,
-                      loadedCount: 0,
-                      loading: false,
-                      lastUpdated: Date.now(),
-                      error: null,
-                      refreshing: false,
+                          ...item.commentsInfo,
+                          platform,
+                          totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
+                          lastUpdated: Date.now(),
+                          refreshing: false,
+                          error: null,
+                        }
+                      : {
+                          platform,
+                          postId,
+                          totalCount: refreshedCount,
+                          loadedCount: 0,
+                          loading: false,
+                          lastUpdated: Date.now(),
+                          error: null,
+                          refreshing: false,
                         },
                   }
                 : item,
@@ -295,6 +296,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                     transcript: undefined,
                     images: undefined,
                     caption,
+                    topic: undefined,
+                    sentiment: undefined,
                     lastUpdated: undefined,
                     error: null,
                   },
@@ -317,6 +320,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                   transcript: analysis.transcript,
                   images: analysis.images,
                   caption: analysis.caption,
+                  topic: analysis.topic,
+                  sentiment: analysis.sentiment,
                   loading: false,
                   error: null,
                   lastUpdated: analysis.createdAt,
@@ -344,6 +349,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                       transcript: undefined,
                       images: undefined,
                       caption,
+                      topic: undefined,
+                      sentiment: undefined,
                       loading: false,
                       error: error instanceof Error ? error.message : 'No se pudo analizar el post',
                       lastUpdated: undefined,
@@ -452,6 +459,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
               transcript: cachedAnalysis.transcript,
               images: cachedAnalysis.images,
               caption: cachedAnalysis.caption,
+              topic: cachedAnalysis.topic,
+              sentiment: cachedAnalysis.sentiment,
               loading: false,
               error: null,
               lastUpdated: cachedAnalysis.createdAt,

@@ -103,9 +103,15 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
   });
 
   if (!response.ok) {
-    const message = `X comments endpoint responded with ${response.status}`;
-    console.error('[X] Comments request failed:', message);
-    throw new Error(message);
+    let errorMessage = `X comments endpoint responded with ${response.status}`;
+    try {
+      const payload = await response.json();
+      errorMessage = payload?.error?.message || errorMessage;
+    } catch (_) {
+      // ignore JSON parse errors
+    }
+    console.error('[X] Comments request failed:', errorMessage);
+    throw new Error(errorMessage);
   }
 
   const data: XCommentsApiResponse = await response.json();
@@ -128,4 +134,3 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
 export async function loadCachedXComments(postId: string): Promise<StoredXComments | null> {
   return loadXComments(postId);
 }
-
