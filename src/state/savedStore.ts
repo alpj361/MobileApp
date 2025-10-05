@@ -4,10 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinkData } from '../api/link-processor';
 import { ImprovedLinkData, processImprovedLink } from '../api/improved-link-processor';
 import { extractInstagramPostId } from '../utils/instagram';
-import { loadInstagramComments, StoredInstagramComments } from '../storage/commentsRepo';
+import { extractXPostId } from '../utils/x';
+import { loadInstagramComments as loadIgComments, StoredInstagramComments } from '../storage/commentsRepo';
 import { fetchAndStoreInstagramComments } from '../services/extractorTService';
 import { analyzeInstagramPost as runInstagramAnalysis } from '../services/instagramAnalysisService';
 import { loadInstagramAnalysis } from '../storage/instagramAnalysisRepo';
+import { loadXComments, StoredXComments } from '../storage/xCommentsRepo';
+import { fetchXComments } from '../services/xCommentService';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -23,6 +26,7 @@ export interface SavedItem extends LinkData {
   processingTime?: number;
   lastUpdated?: number;
   commentsInfo?: {
+    platform: 'instagram' | 'x';
     postId: string;
     totalCount?: number;
     loadedCount: number;
@@ -67,18 +71,44 @@ interface SavedState {
 
 const runningCommentFetches = new Set<string>();
 
+type SocialPlatform = 'instagram' | 'x';
+
+function detectPostPlatform(url: string, hint?: string | null): SocialPlatform | null {
+  const normalizedHint = hint?.toLowerCase();
+  if (normalizedHint === 'instagram') return 'instagram';
+  if (normalizedHint === 'twitter' || normalizedHint === 'x') return 'x';
+
+  const lowerUrl = url.toLowerCase();
+  if (lowerUrl.includes('instagram.com') || lowerUrl.includes('instagr.am')) {
+    return 'instagram';
+  }
+  if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
+    return 'x';
+  }
+  return null;
+}
+
 const createSavedState: StateCreator<SavedState> = (set, get) => {
+  const resolveItemPlatform = (item: SavedItem): SocialPlatform | null => {
+    if (item.commentsInfo?.platform) {
+      return item.commentsInfo.platform;
+    }
+    return detectPostPlatform(item.url, item.platform);
+  };
+
   const startCommentFetch = async (
     itemId: string,
     url: string,
+    platform: SocialPlatform,
     postId: string,
-    hintedTotal?: number
+    hintedTotal?: number,
   ) => {
-    if (runningCommentFetches.has(postId)) {
+    const fetchKey = `${platform}:${postId}`;
+    if (runningCommentFetches.has(fetchKey)) {
       return;
     }
 
-    runningCommentFetches.add(postId);
+    runningCommentFetches.add(fetchKey);
 
     set((state) => ({
       items: state.items.map((item) =>
@@ -86,8 +116,9 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
           ? {
               ...item,
               commentsInfo: item.commentsInfo
-                ? { ...item.commentsInfo, loading: true, error: null }
+                ? { ...item.commentsInfo, platform, loading: true, error: null }
                 : {
+                    platform,
                     postId,
                     totalCount: hintedTotal,
                     loadedCount: 0,
@@ -102,77 +133,85 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     }));
 
     try {
-      const payload = await fetchAndStoreInstagramComments(url, postId, {
-        includeReplies: true,
-        commentLimit: 120,
-      });
+      const payload = platform === 'instagram'
+        ? await fetchAndStoreInstagramComments(url, postId, {
+            includeReplies: true,
+            commentLimit: 120,
+          })
+        : await fetchXComments(url, {
+            includeReplies: true,
+            limit: 120,
+            force: true,
+          });
 
       const previewComments = payload.comments.slice(0, 3);
 
-          set((state) => ({
-            items: state.items.map((item) => {
-              if (item.id !== itemId) return item;
+      set((state) => ({
+        items: state.items.map((item) => {
+          if (item.id !== itemId) return item;
 
-              const previousTotal = item.commentsInfo?.totalCount && item.commentsInfo.totalCount > 0
-                ? item.commentsInfo.totalCount
-                : (hintedTotal && hintedTotal > 0 ? hintedTotal : undefined);
+          const previousTotal = item.commentsInfo?.totalCount && item.commentsInfo.totalCount > 0
+            ? item.commentsInfo.totalCount
+            : (hintedTotal && hintedTotal > 0 ? hintedTotal : undefined);
 
-              const payloadTotal = payload.totalCount ?? hintedTotal ?? payload.extractedCount;
-              const stableTotal = (() => {
-                if (previousTotal && payloadTotal) {
-                  return Math.max(previousTotal, payloadTotal);
-                }
-                return previousTotal ?? payloadTotal;
-              })();
+          const payloadTotal = payload.totalCount ?? hintedTotal ?? payload.extractedCount;
+          const stableTotal = (() => {
+            if (previousTotal && payloadTotal) {
+              return Math.max(previousTotal, payloadTotal);
+            }
+            return previousTotal ?? payloadTotal;
+          })();
 
-              return {
-                ...item,
-                comments: previewComments,
-                commentsLoaded: payload.extractedCount > 0,
-                commentsInfo: {
-                  postId,
-                  totalCount: stableTotal,
-                  loadedCount: payload.extractedCount,
-                  loading: false,
-                  lastUpdated: payload.savedAt,
-                  error: null,
-                  refreshing: false,
-                },
-              };
-            }),
-          }));
+          return {
+            ...item,
+            comments: previewComments,
+            commentsLoaded: payload.extractedCount > 0,
+            commentsInfo: {
+              platform,
+              postId,
+              totalCount: stableTotal,
+              loadedCount: payload.extractedCount,
+              loading: false,
+              lastUpdated: payload.savedAt,
+              error: null,
+              refreshing: false,
+            },
+          };
+        }),
+      }));
     } catch (error) {
-          set((state) => ({
-            items: state.items.map((item) =>
-              item.id === itemId
-                ? {
-                    ...item,
-                    commentsInfo: item.commentsInfo
-                      ? {
-                          ...item.commentsInfo,
-                          loading: false,
-                          error: error instanceof Error ? error.message : 'No se pudo cargar comentarios',
-                          refreshing: false,
-                        }
-                      : undefined,
-                  }
-                : item,
-            ),
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                commentsInfo: item.commentsInfo
+                  ? {
+                      ...item.commentsInfo,
+                      loading: false,
+                      error: error instanceof Error ? error.message : 'No se pudo cargar comentarios',
+                      refreshing: false,
+                    }
+                  : item.commentsInfo,
+              }
+            : item,
+        ),
       }));
     } finally {
-      runningCommentFetches.delete(postId);
+      runningCommentFetches.delete(fetchKey);
     }
   };
 
-  const refreshCommentCount = async (itemId: string, url: string, postId: string) => {
+  const refreshCommentCount = async (itemId: string, url: string, platform: SocialPlatform, postId: string) => {
     set((state) => ({
       items: state.items.map((item) =>
         item.id === itemId
           ? {
               ...item,
               commentsInfo: item.commentsInfo
-                ? { ...item.commentsInfo, refreshing: true, error: null }
+                ? { ...item.commentsInfo, platform, refreshing: true, error: null }
                 : {
+                    platform,
                     postId,
                     totalCount: undefined,
                     loadedCount: 0,
@@ -198,20 +237,23 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                     engagement: refreshed.engagement ?? item.engagement,
                     commentsInfo: item.commentsInfo
                       ? {
-                          ...item.commentsInfo,
-                          totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
-                          lastUpdated: Date.now(),
-                          refreshing: false,
-                          error: null,
-                        }
-                      : {
-                          postId,
-                          totalCount: refreshedCount,
-                          loadedCount: 0,
-                          loading: false,
-                          lastUpdated: Date.now(),
-                          error: null,
-                          refreshing: false,
+                      ...item.commentsInfo,
+                      platform,
+                      totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
+                      lastUpdated: Date.now(),
+                      refreshing: false,
+                      error: null,
+                    }
+                  : {
+                      platform,
+                      postId,
+                      totalCount: refreshedCount,
+                      platform,
+                      loadedCount: 0,
+                      loading: false,
+                      lastUpdated: Date.now(),
+                      error: null,
+                      refreshing: false,
                         },
                   }
                 : item,
@@ -332,21 +374,34 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       }
 
       const baseData = improvedData as LinkData;
-      const postId = extractInstagramPostId(linkData.url);
-      let cachedComments: StoredInstagramComments | null = null;
+      const platform = detectPostPlatform(linkData.url, baseData.platform);
+      let postId = '';
+      let cachedComments: StoredInstagramComments | StoredXComments | null = null;
       let cachedAnalysis = null;
 
-      if (postId) {
-        try {
-          cachedComments = await loadInstagramComments(postId);
-        } catch (error) {
-          console.log('Failed to load cached Instagram comments:', error);
-        }
+      if (platform === 'instagram') {
+        postId = extractInstagramPostId(linkData.url) ?? '';
+        if (postId) {
+          try {
+            cachedComments = await loadIgComments(postId);
+          } catch (error) {
+            console.log('Failed to load cached Instagram comments:', error);
+          }
 
-        try {
-          cachedAnalysis = await loadInstagramAnalysis(postId);
-        } catch (error) {
-          console.log('Failed to load cached Instagram analysis:', error);
+          try {
+            cachedAnalysis = await loadInstagramAnalysis(postId);
+          } catch (error) {
+            console.log('Failed to load cached Instagram analysis:', error);
+          }
+        }
+      } else if (platform === 'x') {
+        postId = extractXPostId(linkData.url) ?? '';
+        if (postId) {
+          try {
+            cachedComments = await loadXComments(postId);
+          } catch (error) {
+            console.log('Failed to load cached X comments:', error);
+          }
         }
       }
 
@@ -359,15 +414,16 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       const loadedCount = cachedComments?.extractedCount ?? 0;
       const now = Date.now();
       const shouldRefetch = Boolean(
-        postId &&
+        postId && platform &&
           (!cachedComments ||
             loadedCount === 0 ||
             (engagement?.comments && loadedCount < engagement.comments) ||
             (cachedComments.savedAt && now - cachedComments.savedAt > 6 * 60 * 60 * 1000))
       );
 
-      const commentsInfo = postId
+      const commentsInfo = postId && platform
         ? {
+            platform,
             postId,
             totalCount,
             loadedCount,
@@ -407,8 +463,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         items: [newItem, ...state.items],
       }));
 
-      if (postId && shouldRefetch) {
-        startCommentFetch(newItem.id, linkData.url, postId, totalCount);
+      if (postId && platform && shouldRefetch) {
+        startCommentFetch(newItem.id, linkData.url, platform, postId, totalCount);
       }
     },
 
@@ -497,24 +553,45 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
 
     fetchCommentsForItem: async (id: string) => {
       const item = get().items.find((saved) => saved.id === id);
-      if (!item || !item.commentsInfo?.postId) {
+      if (!item) {
+        return;
+      }
+
+      const platform = resolveItemPlatform(item);
+      const postId = item.commentsInfo?.postId ?? (platform === 'instagram'
+        ? extractInstagramPostId(item.url) ?? ''
+        : platform === 'x'
+          ? extractXPostId(item.url) ?? ''
+          : '');
+
+      if (!platform || !postId) {
         return;
       }
 
       startCommentFetch(
         item.id,
         item.url,
-        item.commentsInfo.postId,
-        item.commentsInfo.totalCount
+        platform,
+        postId,
+        item.commentsInfo?.totalCount
       );
     },
     refreshCommentsCount: async (id: string) => {
       const item = get().items.find((saved) => saved.id === id);
-      if (!item || !item.commentsInfo?.postId) {
+      if (!item) {
         return;
       }
 
-      await refreshCommentCount(item.id, item.url, item.commentsInfo.postId);
+      const platform = resolveItemPlatform(item);
+      const postId = item.commentsInfo?.postId ?? (platform === 'instagram'
+        ? extractInstagramPostId(item.url) ?? ''
+        : platform === 'x'
+          ? extractXPostId(item.url) ?? ''
+          : '');
+
+      if (!platform || !postId) return;
+
+      await refreshCommentCount(item.id, item.url, platform, postId);
     },
     analyzeInstagramPost: async (id: string) => {
       const item = get().items.find((saved) => saved.id === id);
