@@ -10,11 +10,16 @@ gpt-4o-2024-11-20
 import OpenAI from "openai";
 
 export const getOpenAIClient = () => {
-  const apiKey = process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY;
+  const apiKey =
+    process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY ||
+    process.env.EXPO_PUBLIC_OPENAI_API_KEY ||
+    process.env.OPENAI_API_KEY;
+
   if (!apiKey) {
-    console.warn("OpenAI API key not found in environment variables");
+    console.warn('OpenAI API key not found in environment variables');
   }
+
   return new OpenAI({
-    apiKey: apiKey,
+    apiKey,
   });
 };

@@ -92,13 +92,17 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
     }
   }
 
+  const replyLimit = Math.min(Math.max(options.limit ?? 100, 1), 100);
+
   const response = await fetch(X_COMMENTS_ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       url,
-      maxComments: options.limit ?? 120,
+      maxComments: replyLimit,
+      reply_limit: replyLimit,
       includeReplies: options.includeReplies ?? true,
+      include_replies: options.includeReplies ?? true,
     }),
   });
 

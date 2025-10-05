@@ -5,6 +5,7 @@
 
 import { LinkData, InstagramComment } from './link-processor';
 import { generateInstagramTitleAI } from '../services/instagramTitleService';
+import { extractXPostId } from '../utils/x';
 
 // Enhanced LinkData interface with quality scoring
 export interface ImprovedLinkData extends LinkData {
@@ -755,6 +756,127 @@ function extractTwitterEngagement(html: string): { likes?: number; comments?: nu
   return engagement;
 }
 
+interface TwitterWidgetData {
+  text?: string;
+  username?: string;
+  name?: string;
+  profileImage?: string;
+  engagement: { likes?: number; comments?: number; shares?: number; views?: number };
+}
+
+function parseNumericValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const sanitized = value.replace(/,/g, '').trim();
+    const parsed = Number.parseInt(sanitized, 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
+function mergeEngagement(base: { likes?: number; comments?: number; shares?: number; views?: number }, addition: { likes?: number; comments?: number; shares?: number; views?: number }): { likes?: number; comments?: number; shares?: number; views?: number } {
+  const result = { ...base };
+  (['likes', 'comments', 'shares', 'views'] as const).forEach((key) => {
+    const nextValue = addition[key];
+    if (typeof nextValue === 'number' && nextValue >= 0) {
+      const existing = result[key];
+      result[key] = typeof existing === 'number' ? Math.max(existing, nextValue) : nextValue;
+    }
+  });
+  return result;
+}
+
+async function fetchTwitterWidgetData(postId: string): Promise<TwitterWidgetData | null> {
+  if (!postId) {
+    return null;
+  }
+
+  const widgetUrl = `https://cdn.syndication.twimg.com/widgets/tweet?id=${encodeURIComponent(postId)}&lang=es`;
+
+  try {
+    const response = await fetch(widgetUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
+        Accept: 'application/json,text/plain,*/*',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const raw = await response.json();
+    if (!raw || typeof raw !== 'object') {
+      return null;
+    }
+
+    const counts = (raw.counts ?? raw) as Record<string, unknown>;
+    const engagement = {
+      likes: parseNumericValue(raw.favorite_count ?? raw.like_count ?? counts.favorites ?? counts.likes),
+      comments: parseNumericValue(raw.reply_count ?? counts.replies ?? counts.reply_count),
+      shares: parseNumericValue(raw.retweet_count ?? counts.retweets ?? counts.retweet_count ?? raw.quote_count ?? counts.quotes),
+      views: parseNumericValue(raw.impression_count ?? raw.view_count ?? counts.impressions ?? counts.views),
+    };
+
+    const user = (raw.user ?? {}) as Record<string, unknown>;
+    const profileImage = typeof user.profile_image_url_https === 'string'
+      ? user.profile_image_url_https
+      : typeof user.profile_image_url === 'string'
+        ? user.profile_image_url
+        : undefined;
+
+    const textValue = typeof raw.text === 'string' ? raw.text : typeof raw.full_text === 'string' ? raw.full_text : undefined;
+    const cleanedText = textValue
+      ? cleanHtmlContent(decodeHtmlEntities(textValue)).replace(/\s+/g, ' ').trim()
+      : undefined;
+
+    return {
+      text: cleanedText,
+      username: typeof user.screen_name === 'string' ? user.screen_name : undefined,
+      name: typeof user.name === 'string' ? user.name : undefined,
+      profileImage,
+      engagement,
+    };
+  } catch (error) {
+    console.warn('[X] Failed to load twitter widget data:', error);
+    return null;
+  }
+}
+
+function buildTweetTitle(text: string | undefined, username?: string, name?: string): string | null {
+  if (!text || text.length < 3) {
+    return null;
+  }
+
+  let candidate = text.replace(/https?:\/\/\S+/gi, '').trim();
+  candidate = candidate.replace(/#[^\s]+/g, '').replace(/@[^\s]+/g, '').trim();
+
+  if (candidate.length === 0) {
+    candidate = text.trim();
+  }
+
+  if (candidate.length === 0) {
+    return null;
+  }
+
+  const sentences = candidate.split(/[.!?]+/).map((sentence) => sentence.trim()).filter(Boolean);
+  const first = sentences[0] ?? candidate;
+  const limited = first.length > 80 ? `${first.slice(0, 77).trim()}…` : first;
+
+  const prefix = username ? `@${username}` : name || null;
+  if (prefix && !limited.toLowerCase().startsWith(prefix.toLowerCase())) {
+    return `${prefix}: ${limited}`;
+  }
+
+  return limited.charAt(0).toUpperCase() + limited.slice(1);
+}
+
 /**
  * Enhanced Instagram description extraction with engagement separation
  */
@@ -1176,7 +1298,7 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     let title = extractPlatformSpecificTitle(html, url, platform);
     let description = extractPlatformSpecificDescription(html, platform);
     const author = extractAuthor(html);
-    const imageData = extractPlatformSpecificImage(html, url, platform);
+    let imageData = extractPlatformSpecificImage(html, url, platform);
     
     // Special handling for Instagram posts
     let engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
@@ -1213,6 +1335,31 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       commentsLoaded = false;
     } else if (platform === 'twitter') {
       engagement = extractTwitterEngagement(html);
+
+      const postId = extractXPostId(url);
+      const widgetData = await fetchTwitterWidgetData(postId);
+      if (widgetData) {
+        engagement = mergeEngagement(engagement, widgetData.engagement);
+
+        if (widgetData.text) {
+          const lacksDescription = !description || description === 'No description available' || description.length < 20;
+          if (lacksDescription) {
+            description = widgetData.text;
+          }
+
+          const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
+          if (lacksTitle) {
+            const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
+            if (tweetTitle) {
+              title = tweetTitle;
+            }
+          }
+        }
+
+        if (!imageData.url && widgetData.profileImage) {
+          imageData = { url: widgetData.profileImage, quality: 'low' };
+        }
+      }
     }
     
     // Calculate quality score

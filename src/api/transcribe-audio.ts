@@ -40,9 +40,13 @@ export const transcribeAudio = async (
       formData.append("translate_to", translateTo);
     }
 
-    const OPENAI_API_KEY = process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY;
+    const OPENAI_API_KEY =
+      process.env.EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY ||
+      process.env.EXPO_PUBLIC_OPENAI_API_KEY ||
+      process.env.OPENAI_API_KEY;
+
     if (!OPENAI_API_KEY) {
-      throw new Error("OPENAI_API_KEY is not set");
+      throw new Error('OPENAI_API_KEY is not set');
     }
 
     // API call to OpenAI's gpt-4o-transcribe
