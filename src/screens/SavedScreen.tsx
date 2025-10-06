@@ -77,14 +77,28 @@ export default function SavedScreen() {
       // Use improved processing
       const linkDataArray = await processImprovedLinks(links);
       
+      let addedCount = 0;
       for (const linkData of linkDataArray) {
-        await addSavedItem(linkData, 'clipboard');
+        const inserted = await addSavedItem(linkData, 'clipboard');
+        if (inserted) {
+          addedCount += 1;
+        }
       }
 
-      Alert.alert(
-        'Links Saved', 
-        `Successfully saved ${links.length} link${links.length > 1 ? 's' : ''} from clipboard`
-      );
+      if (addedCount === 0) {
+        Alert.alert(
+          'Sin cambios',
+          links.length === 1
+            ? 'Ese enlace ya estaba guardado.'
+            : 'Todos los enlaces del portapapeles ya estaban guardados.'
+        );
+      } else {
+        const skipped = links.length - addedCount;
+        const message = skipped > 0
+          ? `Se guardaron ${addedCount} enlace${addedCount > 1 ? 's' : ''}. ${skipped} ya estaban guardados.`
+          : `Successfully saved ${addedCount} link${addedCount > 1 ? 's' : ''} from clipboard`;
+        Alert.alert('Links Saved', message);
+      }
     } catch (error) {
       console.error('Clipboard paste error:', error);
       Alert.alert('Error', 'Failed to process clipboard content');

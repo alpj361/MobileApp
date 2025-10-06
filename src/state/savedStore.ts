@@ -53,7 +53,7 @@ export interface SavedItem extends LinkData {
 interface SavedState {
   items: SavedItem[];
   isLoading: boolean;
-  addSavedItem: (linkData: LinkData, source?: SavedItem['source']) => Promise<void>;
+  addSavedItem: (linkData: LinkData, source?: SavedItem['source']) => Promise<boolean>;
   removeSavedItem: (id: string) => void;
   toggleFavorite: (id: string) => void;
   updateSavedItem: (id: string, patch: Partial<SavedItem>) => void;
@@ -370,7 +370,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       const existingItem = get().items.find((item) => item.url === linkData.url);
       if (existingItem) {
         console.log('Link already saved:', linkData.url);
-        return;
+        return false;
       }
 
       let improvedData: ImprovedLinkData | LinkData = linkData;
@@ -475,6 +475,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       if (postId && platform && shouldRefetch) {
         startCommentFetch(newItem.id, linkData.url, platform, postId, totalCount);
       }
+      return true;
     },
 
     removeSavedItem: (id) => {
