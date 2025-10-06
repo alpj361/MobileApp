@@ -8,6 +8,7 @@ import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { saveLinkToCodex } from '../services/codexService';
 import InstagramCommentsModal from './InstagramCommentsModal';
 import InstagramAnalysisModal from './InstagramAnalysisModal';
+import XCommentsModal from './XCommentsModal';
 import { useSavedStore } from '../state/savedStore';
 
 interface SavedItemCardProps {
@@ -26,6 +27,7 @@ export default function SavedItemCard({
   const { isConnected, connectedUser } = usePulseConnectionStore();
   const [isCheckingCodex, setIsCheckingCodex] = useState(false);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showXCommentsModal, setShowXCommentsModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
   const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
@@ -285,6 +287,33 @@ export default function SavedItemCard({
                     </Pressable>
                   </View>
                 )}
+                {/* Retweets for X/Twitter */}
+                {platformEff === 'x' && item.engagement?.shares !== undefined && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="repeat-outline" size={14} color="#10B981" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement?.shares}
+                    </Text>
+                  </View>
+                )}
+                {/* Views for X/Twitter */}
+                {platformEff === 'x' && item.engagement?.views !== undefined && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="eye-outline" size={14} color="#6B7280" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement?.views}
+                    </Text>
+                  </View>
+                )}
+                {/* Views for Instagram */}
+                {platformEff === 'instagram' && item.engagement?.views !== undefined && item.engagement.views > 0 && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="eye-outline" size={14} color="#6B7280" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement?.views}
+                    </Text>
+                  </View>
+                )}
               </View>
 
               {/* Comments Button for Instagram posts */}
@@ -329,6 +358,33 @@ export default function SavedItemCard({
                         <Ionicons name="document-text-outline" size={12} color="#7C3AED" />
                         <Text className={`${textStyles.helper} text-purple-600 ml-1 font-medium`}>
                           {analysisInfo?.summary || analysisInfo?.transcript ? 'Ver análisis' : 'Analizar post'}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
+              )}
+
+              {/* Comments Button for X/Twitter posts */}
+              {platformEff === 'x' && (
+                <View className="flex-row items-center gap-2">
+                  <Pressable
+                    onPress={() => setShowXCommentsModal(true)}
+                    className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
+                      }
+                    ]}
+                    disabled={commentsBusy}
+                  >
+                    {commentsBusy ? (
+                      <ActivityIndicator size="small" color="#1DA1F2" />
+                    ) : (
+                      <>
+                        <Ionicons name="chatbubbles-outline" size={12} color="#1DA1F2" />
+                        <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
+                          Ver comentarios
                         </Text>
                       </>
                     )}
@@ -470,6 +526,20 @@ export default function SavedItemCard({
           onRefresh={() => refreshInstagramAnalysis(item.id)}
           platform={item.platform}
           url={item.url}
+        />
+      )}
+
+      {/* X Comments Modal */}
+      {(item.platform === 'twitter' || platformEff === 'x') && (
+        <XCommentsModal
+          visible={showXCommentsModal}
+          onClose={() => setShowXCommentsModal(false)}
+          url={item.url}
+          postId={postId}
+          commentCount={totalComments}
+          isLoading={commentsLoading}
+          initialComments={item.comments ?? []}
+          onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
         />
       )}
     </Pressable>
