@@ -730,28 +730,53 @@ function extractTwitterDescription(html: string): string {
   return '';
 }
 
+function extractNumberFromHtml(html: string, patterns: RegExp[]): number | undefined {
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      const cleaned = match[1].replace(/[,\s]/g, '');
+      const parsed = Number.parseInt(cleaned, 10);
+      if (!Number.isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return undefined;
+}
+
 function extractTwitterEngagement(html: string): { likes?: number; comments?: number; shares?: number; views?: number } {
   const engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
 
-  const replyMatch = html.match(/"reply_count":\s*(\d+)/) || html.match(/"replyCount":\s*(\d+)/);
-  if (replyMatch) {
-    engagement.comments = parseInt(replyMatch[1], 10);
-  }
+  engagement.comments = extractNumberFromHtml(html, [
+    /"reply_count":\s*"?(\d+)"?/i,
+    /"replyCount":\s*"?(\d+)"?/i,
+    /"reply_count_str":\s*"(\d+)"/i,
+    /"reply_count_withheld":\s*"?(\d+)"?/i,
+  ]);
 
-  const likeMatch = html.match(/"favorite_count":\s*(\d+)/) || html.match(/"favoriteCount":\s*(\d+)/) || html.match(/"like_count":\s*(\d+)/);
-  if (likeMatch) {
-    engagement.likes = parseInt(likeMatch[1], 10);
-  }
+  engagement.likes = extractNumberFromHtml(html, [
+    /"favorite_count":\s*"?(\d+)"?/i,
+    /"favoriteCount":\s*"?(\d+)"?/i,
+    /"like_count":\s*"?(\d+)"?/i,
+    /"favorite_count_str":\s*"(\d+)"/i,
+    /"like_count_str":\s*"(\d+)"/i,
+  ]);
 
-  const retweetMatch = html.match(/"retweet_count":\s*(\d+)/) || html.match(/"retweetCount":\s*(\d+)/);
-  if (retweetMatch) {
-    engagement.shares = parseInt(retweetMatch[1], 10);
-  }
+  engagement.shares = extractNumberFromHtml(html, [
+    /"retweet_count":\s*"?(\d+)"?/i,
+    /"retweetCount":\s*"?(\d+)"?/i,
+    /"retweet_count_str":\s*"(\d+)"/i,
+    /"quote_count":\s*"?(\d+)"?/i,
+    /"quote_count_str":\s*"(\d+)"/i,
+  ]);
 
-  const viewMatch = html.match(/"view_count":\s*(\d+)/) || html.match(/"viewCount":\s*(\d+)/);
-  if (viewMatch) {
-    engagement.views = parseInt(viewMatch[1], 10);
-  }
+  engagement.views = extractNumberFromHtml(html, [
+    /"view_count":\s*"?(\d+)"?/i,
+    /"viewCount":\s*"?(\d+)"?/i,
+    /"impression_count":\s*"?(\d+)"?/i,
+    /"view_count_str":\s*"(\d+)"/i,
+    /"impression_count_str":\s*"(\d+)"/i,
+  ]);
 
   return engagement;
 }

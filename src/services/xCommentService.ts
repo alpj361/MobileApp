@@ -100,9 +100,7 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
     body: JSON.stringify({
       url,
       maxComments: replyLimit,
-      reply_limit: replyLimit,
       includeReplies: options.includeReplies ?? true,
-      include_replies: options.includeReplies ?? true,
     }),
   });
 
