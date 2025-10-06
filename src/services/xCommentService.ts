@@ -24,11 +24,27 @@ interface RawXComment {
   replies?: RawXComment[];
 }
 
+interface XCommentsStats {
+  likes?: number | string;
+  favorites?: number | string;
+  retweets?: number | string;
+  quotes?: number | string;
+  bookmarks?: number | string;
+  views?: number | string;
+  comments?: number | string;
+  replies?: number | string;
+}
+
+interface XCommentsMetadata {
+  stats?: XCommentsStats | null;
+  [key: string]: unknown;
+}
+
 interface XCommentsApiResponse {
   success?: boolean;
   comments?: RawXComment[];
   totalCount?: number;
-  metadata?: Record<string, any>;
+  metadata?: XCommentsMetadata | Record<string, any>;
   error?: { message?: string } | string;
 }
 
@@ -58,6 +74,19 @@ function createId(postId: string, parentId: string | undefined, index: number, t
     hash |= 0; // eslint-disable-line no-bitwise
   }
   return `${base}-${Math.abs(hash)}`;
+}
+
+function normalizeCount(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.replace(/[,\s]/g, ''), 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
 }
 
 function mapRawComment(raw: RawXComment, postId: string, index: number, parentId?: string): XComment {
@@ -120,6 +149,16 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
   const rawComments: RawXComment[] = Array.isArray(data.comments) ? data.comments : [];
   const mapped = rawComments.map((comment, index) => mapRawComment(comment, postId, index));
 
+  const metadata = (data.metadata as XCommentsMetadata) ?? {};
+  const stats = metadata?.stats ?? {};
+
+  const likes = normalizeCount(stats.likes ?? stats.favorites);
+  const retweets = normalizeCount(stats.retweets);
+  const quotes = normalizeCount(stats.quotes);
+  const bookmarks = normalizeCount(stats.bookmarks);
+  const views = normalizeCount(stats.views);
+  const commentsTotal = normalizeCount(stats.comments ?? stats.replies);
+
   const stored: StoredXComments = {
     url,
     postId,
@@ -127,6 +166,14 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
     extractedCount: mapped.length,
     totalCount: typeof data.totalCount === 'number' ? data.totalCount : mapped.length,
     savedAt: Date.now(),
+    engagement: {
+      likes,
+      shares: retweets,
+      quotes,
+      bookmarks,
+      views,
+      comments: commentsTotal ?? (typeof data.totalCount === 'number' ? data.totalCount : mapped.length),
+    },
   };
 
   await saveXComments(stored);

@@ -8,6 +8,14 @@ export interface StoredXComments {
   extractedCount: number;
   comments: InstagramComment[];
   savedAt: number;
+  engagement?: {
+    likes?: number;
+    shares?: number;
+    quotes?: number;
+    views?: number;
+    bookmarks?: number;
+    comments?: number;
+  };
 }
 
 const STORAGE_PREFIX = 'x-comments:';
@@ -38,4 +46,3 @@ export async function countStoredXComments(postId: string): Promise<number> {
   const stored = await loadXComments(postId);
   return stored?.extractedCount ?? 0;
 }
-

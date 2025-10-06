@@ -164,6 +164,16 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
             return previousTotal ?? payloadTotal;
           })();
 
+          const nextEngagement = platform === 'x' && (payload as StoredXComments).engagement
+            ? {
+                ...item.engagement,
+                ...(payload as StoredXComments).engagement,
+                comments: stableTotal ??
+                  (payload as StoredXComments).engagement?.comments ??
+                  item.engagement?.comments,
+              }
+            : item.engagement;
+
           return {
             ...item,
             comments: previewComments,
@@ -178,6 +188,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
               error: null,
               refreshing: false,
             },
+            engagement: nextEngagement,
           };
         }),
       }));
@@ -228,6 +239,56 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     }));
 
     try {
+      if (platform === 'x') {
+        const payload = await fetchXComments(url, {
+          includeReplies: true,
+          limit: 120,
+          force: true,
+        });
+
+        const total = payload.totalCount ?? payload.extractedCount;
+
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  engagement: payload.engagement
+                    ? {
+                        ...item.engagement,
+                        ...payload.engagement,
+                        comments: total ?? payload.engagement.comments ?? item.engagement?.comments,
+                      }
+                    : item.engagement,
+                  commentsInfo: item.commentsInfo
+                    ? {
+                        ...item.commentsInfo,
+                        platform,
+                        totalCount: total ?? item.commentsInfo.totalCount ?? 0,
+                        loadedCount: payload.extractedCount,
+                        lastUpdated: Date.now(),
+                        refreshing: false,
+                        error: null,
+                      }
+                    : {
+                        platform,
+                        postId,
+                        totalCount: total,
+                        loadedCount: payload.extractedCount,
+                        loading: false,
+                        lastUpdated: Date.now(),
+                        error: null,
+                        refreshing: false,
+                      },
+                  comments: payload.comments.slice(0, 3),
+                  commentsLoaded: payload.extractedCount > 0,
+                }
+              : item,
+          ),
+        }));
+        return;
+      }
+
       const refreshed = await processImprovedLink(url);
       const refreshedCount = refreshed.engagement?.comments ?? 0;
 
@@ -412,8 +473,19 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         }
       }
 
-      const engagement = baseData.engagement ?? linkData.engagement;
-      const engagementComments = engagement?.comments;
+      const candidateEngagement: SavedItem['engagement'] = {
+        ...linkData.engagement,
+        ...baseData.engagement,
+      };
+      if (cachedComments && 'engagement' in cachedComments && cachedComments.engagement) {
+        Object.assign(candidateEngagement, cachedComments.engagement);
+      }
+      const engagementComments = candidateEngagement?.comments;
+      if (typeof engagementComments !== 'number' && typeof cachedComments?.totalCount === 'number') {
+        candidateEngagement.comments = cachedComments.totalCount;
+      }
+      const hasEngagement = Object.values(candidateEngagement ?? {}).some((value) => typeof value === 'number' && !Number.isNaN(value));
+      const engagement = hasEngagement ? candidateEngagement : undefined;
       const cachedTotal = cachedComments?.totalCount ?? cachedComments?.extractedCount;
       const totalCount = postId
         ? (engagementComments ?? cachedTotal)
@@ -445,6 +517,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
 
       const newItem: SavedItem = {
         ...baseData,
+        engagement,
         comments: previewComments,
         commentsLoaded: cachedComments ? cachedComments.extractedCount > 0 : baseData.commentsLoaded ?? false,
         id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
