@@ -39,6 +39,7 @@ export default function SavedItemCard({
   const commentsRefreshing = commentsInfo?.refreshing ?? false;
   const commentsBusy = commentsLoading || commentsRefreshing;
   const commentsError = commentsInfo?.error ?? null;
+  const platformEff = commentsInfo?.platform ?? (item.platform === 'twitter' ? 'x' : item.platform);
 
   const analysisInfo = item.analysisInfo;
   const analysisLoading = analysisInfo?.loading ?? false;
@@ -251,10 +252,10 @@ export default function SavedItemCard({
             </View>
           )}
           
-          {(item.engagement || item.platform === 'instagram') && (
+          {(item.engagement || platformEff === 'instagram' || platformEff === 'x') && (
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center space-x-3">
-                {item.engagement?.likes && (
+                {item.engagement?.likes !== undefined && (
                   <View className="flex-row items-center">
                     <Ionicons name="heart-outline" size={14} color="#EF4444" />
                     <Text className="text-gray-500 text-xs ml-1">
@@ -262,7 +263,7 @@ export default function SavedItemCard({
                     </Text>
                   </View>
                 )}
-                {item.platform === 'instagram' && (
+                {(platformEff === 'instagram' || platformEff === 'x') && (
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
                     <Text className="text-gray-500 text-xs ml-1">
@@ -287,7 +288,7 @@ export default function SavedItemCard({
               </View>
 
               {/* Comments Button for Instagram posts */}
-              {item.platform === 'instagram' && (
+              {platformEff === 'instagram' && (
                 <View className="flex-row items-center gap-2">
                   <Pressable
                     onPress={() => setShowCommentsModal(true)}
