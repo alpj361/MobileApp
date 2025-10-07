@@ -821,10 +821,76 @@ async function fetchTwitterWidgetData(postId: string): Promise<TwitterWidgetData
     return null;
   }
 
-  const widgetUrl = `https://cdn.syndication.twimg.com/widgets/tweet?id=${encodeURIComponent(postId)}&lang=es`;
+  const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
 
   try {
-    const response = await fetch(widgetUrl, {
+    // Try ExtractorW first
+    const url = `https://x.com/i/status/${postId}`;
+    const response = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      console.log('[X Title] ExtractorW response:', JSON.stringify(data).substring(0, 500));
+      
+      if (data.success) {
+        // Try different possible response structures
+        const content = data.content || data;
+        const engagement = {
+          likes: parseNumericValue(
+            content.engagement?.likes ?? 
+            content.engagement?.favorites ?? 
+            data.engagement?.likes ?? 
+            data.likes
+          ),
+          comments: parseNumericValue(
+            content.engagement?.comments ?? 
+            content.engagement?.replies ?? 
+            data.engagement?.comments ?? 
+            data.comments
+          ),
+          shares: parseNumericValue(
+            content.engagement?.shares ?? 
+            content.engagement?.retweets ?? 
+            data.engagement?.shares ?? 
+            data.shares
+          ),
+          views: parseNumericValue(
+            content.engagement?.views ?? 
+            content.engagement?.impressions ?? 
+            data.engagement?.views ?? 
+            data.views
+          ),
+        };
+
+        const textValue = content.text || content.caption || data.text || data.caption;
+        const cleanedText = textValue
+          ? cleanHtmlContent(decodeHtmlEntities(textValue)).replace(/\s+/g, ' ').trim()
+          : undefined;
+
+        const username = content.author?.username || content.username || data.author?.username || data.username;
+        const name = content.author?.name || content.authorName || data.author?.name || data.name;
+        const profileImage = content.author?.avatar || content.authorAvatar || data.author?.avatar || data.avatar;
+
+        if (cleanedText) {
+          console.log('[X Title] Successfully extracted text:', cleanedText.substring(0, 100));
+          return {
+            text: cleanedText,
+            username,
+            name,
+            profileImage,
+            engagement,
+          };
+        }
+      }
+    }
+
+    // Fallback to old widget (might not work)
+    const widgetUrl = `https://cdn.syndication.twimg.com/widgets/tweet?id=${encodeURIComponent(postId)}&lang=es`;
+    const fallbackResponse = await fetch(widgetUrl, {
       method: 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
@@ -833,11 +899,11 @@ async function fetchTwitterWidgetData(postId: string): Promise<TwitterWidgetData
       },
     });
 
-    if (!response.ok) {
+    if (!fallbackResponse.ok) {
       return null;
     }
 
-    const raw = await response.json();
+    const raw = await fallbackResponse.json();
     if (!raw || typeof raw !== 'object') {
       return null;
     }
