@@ -17,23 +17,23 @@ import BulletRow from './BulletRow';
 import InfoCard from './InfoCard';
 import { parseSummary } from '../utils/parseSummary';
 
-interface InstagramAnalysisModalProps {
+interface SocialAnalysisModalProps {
   visible: boolean;
   onClose: () => void;
-  analysis?: SavedItem['analysisInfo'];
+  analysis?: SavedItem['analysisInfo'] | SavedItem['xAnalysisInfo'];
   onRefresh?: () => void;
-  platform?: string;
+  platform?: 'instagram' | 'twitter' | 'x' | 'tiktok' | 'youtube';
   url?: string;
 }
 
-export default function InstagramAnalysisModal({
+export default function SocialAnalysisModal({
   visible,
   onClose,
   analysis,
   onRefresh,
   platform = 'instagram',
   url,
-}: InstagramAnalysisModalProps) {
+}: SocialAnalysisModalProps) {
   const isLoading = analysis?.loading;
   const hasError = !!analysis?.error && !analysis?.loading;
   const hasData = !isLoading && !hasError && (analysis?.summary || analysis?.transcript || analysis?.images?.length);
@@ -47,11 +47,12 @@ export default function InstagramAnalysisModal({
   };
 
   const getPlatformInfo = () => {
-    switch (platform) {
+    const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
+    switch (normalizedPlatform) {
       case 'instagram':
         return { name: 'Instagram', icon: 'logo-instagram', color: '#E4405F', emoji: '📷' };
       case 'twitter':
-        return { name: 'Twitter', icon: 'logo-twitter', color: '#1DA1F2', emoji: '🐦' };
+        return { name: 'X', icon: 'logo-twitter', color: '#1DA1F2', emoji: '𝕏' };
       case 'tiktok':
         return { name: 'TikTok', icon: 'musical-notes', color: '#000000', emoji: '🎵' };
       case 'youtube':
@@ -71,7 +72,6 @@ export default function InstagramAnalysisModal({
     }
   };
 
-  // Mock data for new info cards (backend will provide real data later)
   const topicData = {
     icon: '📁',
     label: 'Tema',
@@ -119,7 +119,7 @@ export default function InstagramAnalysisModal({
   const postTypeData = {
     icon: analysis?.type === 'video' ? '🎥' : analysis?.type === 'carousel' ? '🔄' : '📸',
     label: 'Tipo',
-    value: analysis?.type === 'video' ? 'Video' : analysis?.type === 'carousel' ? 'Carrusel' : 'Foto',
+    value: analysis?.type === 'video' ? 'Video' : analysis?.type === 'carousel' ? 'Carrusel' : analysis?.type === 'image' ? 'Imagen' : 'Texto',
     backgroundColor: '#F5F3FF',
     borderColor: '#DDD6FE',
     iconColor: '#7C3AED'
@@ -128,7 +128,7 @@ export default function InstagramAnalysisModal({
   const getReadingTime = (text?: string) => {
     if (!text) return '';
     const words = text.split(/\s+/).length;
-    const minutes = Math.ceil(words / 200); // Average reading speed
+    const minutes = Math.ceil(words / 200);
     return `~${minutes} min lectura`;
   };
 
@@ -375,3 +375,4 @@ export default function InstagramAnalysisModal({
     </Modal>
   );
 }
+

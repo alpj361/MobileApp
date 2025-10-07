@@ -5,6 +5,7 @@
 
 import { LinkData, InstagramComment } from './link-processor';
 import { generateInstagramTitleAI } from '../services/instagramTitleService';
+import { generateXTitleAI } from '../services/xTitleService';
 import { extractXPostId } from '../utils/x';
 
 // Enhanced LinkData interface with quality scoring
@@ -1374,9 +1375,29 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
 
           const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
           if (lacksTitle) {
-            const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
-            if (tweetTitle) {
-              title = tweetTitle;
+            // Try AI-generated title first
+            try {
+              const aiTitle = await generateXTitleAI({
+                text: widgetData.text,
+                author: widgetData.username,
+                url,
+              });
+              if (aiTitle) {
+                title = aiTitle;
+              } else {
+                // Fallback to manual title
+                const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
+                if (tweetTitle) {
+                  title = tweetTitle;
+                }
+              }
+            } catch (error) {
+              console.log('X title AI error:', error);
+              // Fallback to manual title on error
+              const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
+              if (tweetTitle) {
+                title = tweetTitle;
+              }
             }
           }
         }

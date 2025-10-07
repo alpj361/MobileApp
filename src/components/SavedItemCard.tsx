@@ -7,7 +7,7 @@ import { textStyles } from '../utils/typography';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { saveLinkToCodex } from '../services/codexService';
 import InstagramCommentsModal from './InstagramCommentsModal';
-import InstagramAnalysisModal from './InstagramAnalysisModal';
+import SocialAnalysisModal from './SocialAnalysisModal';
 import XCommentsModal from './XCommentsModal';
 import { useSavedStore } from '../state/savedStore';
 
@@ -29,10 +29,13 @@ export default function SavedItemCard({
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showXCommentsModal, setShowXCommentsModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
   const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
   const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
   const analyzeInstagramPost = useSavedStore((state) => state.analyzeInstagramPost);
   const refreshInstagramAnalysis = useSavedStore((state) => state.refreshInstagramAnalysis);
+  const analyzeXPost = useSavedStore((state) => state.analyzeXPost);
+  const refreshXAnalysis = useSavedStore((state) => state.refreshXAnalysis);
 
   const commentsInfo = item.commentsInfo;
   const postId = commentsInfo?.postId;
@@ -45,6 +48,9 @@ export default function SavedItemCard({
 
   const analysisInfo = item.analysisInfo;
   const analysisLoading = analysisInfo?.loading ?? false;
+  
+  const xAnalysisInfo = item.xAnalysisInfo;
+  const xAnalysisLoading = xAnalysisInfo?.loading ?? false;
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -63,6 +69,16 @@ export default function SavedItemCard({
     setShowAnalysisModal(true);
     if (!analysisInfo || (!analysisInfo.summary && !analysisInfo.transcript && !analysisInfo.loading)) {
       analyzeInstagramPost(item.id);
+    }
+  };
+
+  const handleOpenXAnalysis = () => {
+    if (item.platform !== 'twitter' && platformEff !== 'x') {
+      return;
+    }
+    setShowXAnalysisModal(true);
+    if (!xAnalysisInfo || (!xAnalysisInfo.summary && !xAnalysisInfo.transcript && !xAnalysisInfo.loading)) {
+      analyzeXPost(item.id);
     }
   };
 
@@ -380,6 +396,28 @@ export default function SavedItemCard({
                       </>
                     )}
                   </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenXAnalysis}
+                    className="flex-row items-center bg-purple-50 px-2 py-1 rounded-full border border-purple-200 active:bg-purple-100"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed ? 0.95 : 1 }],
+                      }
+                    ]}
+                    disabled={xAnalysisLoading}
+                  >
+                    {xAnalysisLoading ? (
+                      <ActivityIndicator size="small" color="#7C3AED" />
+                    ) : (
+                      <>
+                        <Ionicons name="document-text-outline" size={12} color="#7C3AED" />
+                        <Text className={`${textStyles.helper} text-purple-600 ml-1 font-medium`}>
+                          {xAnalysisInfo?.summary || xAnalysisInfo?.transcript ? 'Ver análisis' : 'Analizar post'}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
                 </View>
               )}
             </View>
@@ -510,12 +548,12 @@ export default function SavedItemCard({
         />
       )}
       {item.platform === 'instagram' && (
-        <InstagramAnalysisModal
+        <SocialAnalysisModal
           visible={showAnalysisModal}
           onClose={() => setShowAnalysisModal(false)}
           analysis={analysisInfo}
           onRefresh={() => refreshInstagramAnalysis(item.id)}
-          platform={item.platform}
+          platform="instagram"
           url={item.url}
         />
       )}
@@ -531,6 +569,18 @@ export default function SavedItemCard({
           isLoading={commentsLoading}
           initialComments={item.comments ?? []}
           onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
+        />
+      )}
+
+      {/* X Analysis Modal */}
+      {(item.platform === 'twitter' || platformEff === 'x') && (
+        <SocialAnalysisModal
+          visible={showXAnalysisModal}
+          onClose={() => setShowXAnalysisModal(false)}
+          analysis={xAnalysisInfo}
+          onRefresh={() => refreshXAnalysis(item.id)}
+          platform="x"
+          url={item.url}
         />
       )}
     </Pressable>

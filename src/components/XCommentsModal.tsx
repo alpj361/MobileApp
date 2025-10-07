@@ -56,34 +56,17 @@ export default function XCommentsModal({
       setComments(initialComments);
     }
     const postId = postIdProp ?? extractXPostId(url);
-    
-    // Debug logging
-    console.log('[XCommentsModal] Opening modal for:');
-    console.log('  URL:', url);
-    console.log('  Extracted PostID:', postId);
-    console.log('  PostID from prop:', postIdProp);
-    
-    if (!postId) {
-      console.warn('[XCommentsModal] No postId found for URL:', url);
-      return;
-    }
+    if (!postId) return;
     (async () => {
       try {
         const cached = await loadXComments(postId);
         if (cached) {
-          console.log('[XCommentsModal] Loaded from cache:', {
-            postId: cached.postId,
-            commentsCount: cached.comments.length,
-            url: cached.url
-          });
           setComments((prev) => (prev.length >= cached.comments.length ? prev : cached.comments));
           setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
           if (onCommentsLoaded) onCommentsLoaded(cached.comments);
-        } else {
-          console.log('[XCommentsModal] No cache found for postId:', postId);
         }
       } catch (e) {
-        console.error('[XCommentsModal] Error loading cache:', e);
+        // ignore cache errors in modal; UI has retry
       }
     })();
   }, [visible, url, postIdProp]);
@@ -123,26 +106,21 @@ export default function XCommentsModal({
   }, [visible, loading, url, postIdProp]);
 
   const handleRetry = async () => {
-    console.log('[XCommentsModal] Retry triggered for URL:', url);
     if (onRetry) onRetry();
     setLoading(true);
     const postId = postIdProp ?? extractXPostId(url);
-    console.log('[XCommentsModal] Retrying with postId:', postId);
     if (!postId) return;
     setTimeout(async () => {
       try {
         const cached = await loadXComments(postId);
         if (cached) {
-          console.log('[XCommentsModal] Retry loaded:', cached.comments.length, 'comments');
           setComments(cached.comments);
           setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
           if (onCommentsLoaded) onCommentsLoaded(cached.comments);
         } else {
-          console.warn('[XCommentsModal] No cache after retry');
           Alert.alert('Sin datos', 'Aún no hay comentarios nuevos en la caché.');
         }
       } catch (e) {
-        console.error('[XCommentsModal] Retry error:', e);
         Alert.alert('Error', 'No se pudieron cargar los comentarios locales.');
       } finally {
         setLoading(false);
@@ -189,10 +167,24 @@ export default function XCommentsModal({
     return date.toLocaleDateString();
   };
 
+  // Limpiar texto de comentario eliminando "Replying to @usuario" repetitivo
+  const cleanCommentText = (text: string): string => {
+    if (!text) return '';
+    
+    // Eliminar "Replying to @usuario(s)" al inicio del comentario
+    let cleaned = text.replace(/^Replying to (@\w+\s*)+/i, '').trim();
+    
+    // Eliminar saltos de línea múltiples al inicio
+    cleaned = cleaned.replace(/^\n+/, '');
+    
+    return cleaned;
+  };
+
   const renderComment = ({ item: comment }: { item: XComment }) => {
     const isExpanded = expandedComments.has(comment.id);
     const hasReplies = comment.replies && comment.replies.length > 0;
-    const textPreview = comment.text.length > 150 ? comment.text.substring(0, 150) + '...' : comment.text;
+    const cleanedText = cleanCommentText(comment.text);
+    const textPreview = cleanedText.length > 150 ? cleanedText.substring(0, 150) + '...' : cleanedText;
 
     return (
       <View className="bg-white px-4 py-3 border-b border-gray-100">
@@ -219,8 +211,8 @@ export default function XCommentsModal({
 
             <Pressable onPress={() => toggleExpanded(comment.id)}>
               <Text className={`${textStyles.bodyText} text-gray-800 mb-2`}>
-                {isExpanded ? comment.text : textPreview}
-                {comment.text.length > 150 && (
+                {isExpanded ? cleanedText : textPreview}
+                {cleanedText.length > 150 && (
                   <Text className="text-blue-500"> {isExpanded ? ' Ver menos' : ' Ver más'}</Text>
                 )}
               </Text>
@@ -278,7 +270,7 @@ export default function XCommentsModal({
                     </Text>
                   </View>
                   <Text className={`${textStyles.description} text-gray-700`}>
-                    {reply.text}
+                    {cleanCommentText(reply.text)}
                   </Text>
                   {reply.likes && reply.likes > 0 && (
                     <View className="flex-row items-center mt-1">

@@ -11,6 +11,8 @@ import { analyzeInstagramPost as runInstagramAnalysis } from '../services/instag
 import { loadInstagramAnalysis } from '../storage/instagramAnalysisRepo';
 import { loadXComments, StoredXComments } from '../storage/xCommentsRepo';
 import { fetchXComments } from '../services/xCommentService';
+import { analyzeXPost as runXAnalysis } from '../services/xAnalysisService';
+import { loadXAnalysis } from '../storage/xAnalysisRepo';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -48,6 +50,19 @@ export interface SavedItem extends LinkData {
     error?: string | null;
     lastUpdated?: number;
   };
+  xAnalysisInfo?: {
+    postId: string;
+    type: 'video' | 'image' | 'text';
+    summary?: string;
+    transcript?: string;
+    images?: Array<{ url: string; description: string }>;
+    text?: string;
+    topic?: string;
+    sentiment?: 'positive' | 'negative' | 'neutral';
+    loading: boolean;
+    error?: string | null;
+    lastUpdated?: number;
+  };
 }
 
 interface SavedState {
@@ -69,6 +84,8 @@ interface SavedState {
   refreshCommentsCount: (id: string) => Promise<void>;
   analyzeInstagramPost: (id: string) => Promise<void>;
   refreshInstagramAnalysis: (id: string) => Promise<void>;
+  analyzeXPost: (id: string) => Promise<void>;
+  refreshXAnalysis: (id: string) => Promise<void>;
 }
 
 const runningCommentFetches = new Set<string>();
@@ -423,6 +440,88 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     }
   };
 
+  const runXAnalysisForItem = async (itemId: string, url: string, text?: string, force = false) => {
+    set((state) => ({
+      items: state.items.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              xAnalysisInfo: item.xAnalysisInfo
+                ? { ...item.xAnalysisInfo, loading: true, error: null }
+                : {
+                    postId: extractXPostId(url) ?? '',
+                    type: 'text',
+                    loading: true,
+                    summary: undefined,
+                    transcript: undefined,
+                    images: undefined,
+                    text,
+                    topic: undefined,
+                    sentiment: 'neutral',
+                    lastUpdated: undefined,
+                    error: null,
+                  },
+            }
+          : item,
+      ),
+    }));
+
+    try {
+      const analysis = await runXAnalysis(url, text, { force });
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                xAnalysisInfo: {
+                  postId: analysis.postId,
+                  type: analysis.type,
+                  summary: analysis.summary,
+                  transcript: analysis.transcript,
+                  images: analysis.images,
+                  text: analysis.text,
+                  topic: analysis.topic,
+                  sentiment: analysis.sentiment,
+                  loading: false,
+                  error: null,
+                  lastUpdated: analysis.createdAt,
+                },
+              }
+            : item,
+        ),
+      }));
+    } catch (error) {
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                xAnalysisInfo: item.xAnalysisInfo
+                  ? {
+                      ...item.xAnalysisInfo,
+                      loading: false,
+                      error: error instanceof Error ? error.message : 'No se pudo analizar el post de X',
+                    }
+                  : {
+                      postId: extractXPostId(url) ?? '',
+                      type: 'text',
+                      summary: undefined,
+                      transcript: undefined,
+                      images: undefined,
+                      text,
+                      topic: undefined,
+                      sentiment: 'neutral',
+                      loading: false,
+                      error: error instanceof Error ? error.message : 'No se pudo analizar el post de X',
+                      lastUpdated: undefined,
+                    },
+              }
+            : item,
+        ),
+      }));
+    }
+  };
+
   return {
     items: [],
     isLoading: false,
@@ -446,6 +545,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       let postId = '';
       let cachedComments: StoredInstagramComments | StoredXComments | null = null;
       let cachedAnalysis = null;
+      let cachedXAnalysis = null;
 
       if (platform === 'instagram') {
         postId = extractInstagramPostId(linkData.url) ?? '';
@@ -469,6 +569,12 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
             cachedComments = await loadXComments(postId);
           } catch (error) {
             console.log('Failed to load cached X comments:', error);
+          }
+
+          try {
+            cachedXAnalysis = await loadXAnalysis(postId);
+          } catch (error) {
+            console.log('Failed to load cached X analysis:', error);
           }
         }
       }
@@ -537,6 +643,21 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
               loading: false,
               error: null,
               lastUpdated: cachedAnalysis.createdAt,
+            }
+          : undefined,
+        xAnalysisInfo: cachedXAnalysis
+          ? {
+              postId: cachedXAnalysis.postId,
+              type: cachedXAnalysis.type,
+              summary: cachedXAnalysis.summary,
+              transcript: cachedXAnalysis.transcript,
+              images: cachedXAnalysis.images,
+              text: cachedXAnalysis.text,
+              topic: cachedXAnalysis.topic,
+              sentiment: cachedXAnalysis.sentiment,
+              loading: false,
+              error: null,
+              lastUpdated: cachedXAnalysis.createdAt,
             }
           : undefined,
       };
@@ -691,6 +812,22 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       }
 
       await runAnalysisForItem(item.id, item.url, item.description, true);
+    },
+    analyzeXPost: async (id: string) => {
+      const item = get().items.find((saved) => saved.id === id);
+      if (!item) {
+        return;
+      }
+
+      await runXAnalysisForItem(item.id, item.url, item.description);
+    },
+    refreshXAnalysis: async (id: string) => {
+      const item = get().items.find((saved) => saved.id === id);
+      if (!item) {
+        return;
+      }
+
+      await runXAnalysisForItem(item.id, item.url, item.description, true);
     },
   };
 };

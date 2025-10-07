@@ -1,70 +1,97 @@
-import { extractXPostId } from '../utils/x';
-
 const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
-const X_MEDIA_ENDPOINT = `${BASE_URL.replace(/\/$/, '')}/api/x/media`;
 
-export type XMediaType = 'video' | 'image' | 'carousel' | 'unknown';
+export type XMediaType = 'video' | 'image' | 'text';
 
 export interface XMedia {
-  postId: string;
   type: XMediaType;
-  videoUrl?: string;
-  audioUrl?: string;
-  images?: string[];
+  url?: string;
+  urls?: string[]; // Multiple images
   thumbnail?: string;
   duration?: number;
-  caption?: string;
+  size?: number;
+  width?: number;
+  height?: number;
+  format?: string;
 }
 
-interface RawMediaResponse {
-  type?: string;
-  post_id?: string;
-  video_url?: string;
-  audio_url?: string;
-  images?: string[];
-  thumbnail_url?: string;
-  duration?: number;
-  caption?: string;
-  success?: boolean;
+interface XMediaApiResponse {
+  success: boolean;
+  type?: XMediaType;
+  media?: {
+    type: string;
+    url?: string;
+    urls?: string[];
+    thumbnail?: string;
+    metadata?: Record<string, any>;
+  };
+  content?: {
+    text?: string;
+    media?: any[];
+  };
+  transcription?: string;
+  error?: { message?: string } | string;
 }
 
 export async function fetchXMedia(url: string): Promise<XMedia> {
+  if (!url) {
+    throw new Error('URL is required');
+  }
+
+  if (!url.includes('twitter.com') && !url.includes('x.com')) {
+    throw new Error('Invalid X URL');
+  }
+
   try {
-    const response = await fetch(X_MEDIA_ENDPOINT, {
+    const response = await fetch(`${BASE_URL}/api/x/media`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
 
     if (!response.ok) {
-      throw new Error(`X media endpoint responded with ${response.status}`);
+      let errorMessage = `X media endpoint responded with ${response.status}`;
+      try {
+        const payload = await response.json();
+        errorMessage = payload?.error?.message || errorMessage;
+      } catch (_) {
+        // ignore JSON parse errors
+      }
+      console.error('[X Media] Request failed:', errorMessage);
+      throw new Error(errorMessage);
     }
 
-    const data: RawMediaResponse = await response.json();
-    const postId = data.post_id || extractXPostId(url) || '';
-    const type = (data.type as XMediaType) || inferMediaType(data);
+    const data: XMediaApiResponse = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error?.toString() || 'Failed to fetch X media');
+    }
+
+    // Parse response
+    const mediaData = data.media || data.content?.media?.[0];
+    
+    if (!mediaData) {
+      // Text-only tweet
+      return {
+        type: 'text',
+      };
+    }
+
+    const type: XMediaType = mediaData.type === 'video' ? 'video' : 
+                             mediaData.type === 'image' ? 'image' : 'text';
 
     return {
-      postId,
       type,
-      videoUrl: data.video_url ?? undefined,
-      audioUrl: data.audio_url ?? undefined,
-      images: Array.isArray(data.images) ? data.images : undefined,
-      thumbnail: data.thumbnail_url ?? undefined,
-      duration: data.duration,
-      caption: data.caption,
+      url: mediaData.url,
+      urls: mediaData.urls,
+      thumbnail: mediaData.thumbnail,
+      duration: mediaData.metadata?.duration,
+      size: mediaData.metadata?.size,
+      width: mediaData.metadata?.width,
+      height: mediaData.metadata?.height,
+      format: mediaData.metadata?.format,
     };
   } catch (error) {
-    console.error('[X] Failed to fetch media:', error);
+    console.error('[X Media] Error fetching media:', error);
     throw error;
   }
 }
-
-function inferMediaType(data: RawMediaResponse): XMediaType {
-  if (data.video_url || data.audio_url) return 'video';
-  if (Array.isArray(data.images)) {
-    return data.images.length > 1 ? 'carousel' : 'image';
-  }
-  return 'unknown';
-}
-
