@@ -296,16 +296,7 @@ export default function SavedItemCard({
                     </Text>
                   </View>
                 )}
-                {/* Views for X/Twitter */}
-                {platformEff === 'x' && item.engagement?.views !== undefined && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="eye-outline" size={14} color="#6B7280" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement?.views}
-                    </Text>
-                  </View>
-                )}
-                {/* Views for Instagram */}
+                {/* Views for Instagram only */}
                 {platformEff === 'instagram' && item.engagement?.views !== undefined && item.engagement.views > 0 && (
                   <View className="flex-row items-center">
                     <Ionicons name="eye-outline" size={14} color="#6B7280" />

@@ -56,17 +56,34 @@ export default function XCommentsModal({
       setComments(initialComments);
     }
     const postId = postIdProp ?? extractXPostId(url);
-    if (!postId) return;
+    
+    // Debug logging
+    console.log('[XCommentsModal] Opening modal for:');
+    console.log('  URL:', url);
+    console.log('  Extracted PostID:', postId);
+    console.log('  PostID from prop:', postIdProp);
+    
+    if (!postId) {
+      console.warn('[XCommentsModal] No postId found for URL:', url);
+      return;
+    }
     (async () => {
       try {
         const cached = await loadXComments(postId);
         if (cached) {
+          console.log('[XCommentsModal] Loaded from cache:', {
+            postId: cached.postId,
+            commentsCount: cached.comments.length,
+            url: cached.url
+          });
           setComments((prev) => (prev.length >= cached.comments.length ? prev : cached.comments));
           setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
           if (onCommentsLoaded) onCommentsLoaded(cached.comments);
+        } else {
+          console.log('[XCommentsModal] No cache found for postId:', postId);
         }
       } catch (e) {
-        // ignore cache errors in modal; UI has retry
+        console.error('[XCommentsModal] Error loading cache:', e);
       }
     })();
   }, [visible, url, postIdProp]);
@@ -106,21 +123,26 @@ export default function XCommentsModal({
   }, [visible, loading, url, postIdProp]);
 
   const handleRetry = async () => {
+    console.log('[XCommentsModal] Retry triggered for URL:', url);
     if (onRetry) onRetry();
     setLoading(true);
     const postId = postIdProp ?? extractXPostId(url);
+    console.log('[XCommentsModal] Retrying with postId:', postId);
     if (!postId) return;
     setTimeout(async () => {
       try {
         const cached = await loadXComments(postId);
         if (cached) {
+          console.log('[XCommentsModal] Retry loaded:', cached.comments.length, 'comments');
           setComments(cached.comments);
           setTotalCount(cached.totalCount ?? cached.extractedCount ?? totalCount);
           if (onCommentsLoaded) onCommentsLoaded(cached.comments);
         } else {
+          console.warn('[XCommentsModal] No cache after retry');
           Alert.alert('Sin datos', 'Aún no hay comentarios nuevos en la caché.');
         }
       } catch (e) {
+        console.error('[XCommentsModal] Retry error:', e);
         Alert.alert('Error', 'No se pudieron cargar los comentarios locales.');
       } finally {
         setLoading(false);
