@@ -1428,49 +1428,61 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     } else if (platform === 'twitter') {
       engagement = extractTwitterEngagement(html);
 
+      // Extract tweet text directly from HTML
+      const tweetText = extractTwitterDescription(html);
+      console.log('[X] Extracted tweet text from HTML:', tweetText?.substring(0, 100));
+
       const postId = extractXPostId(url);
       const widgetData = await fetchTwitterWidgetData(postId);
       if (widgetData) {
         engagement = mergeEngagement(engagement, widgetData.engagement);
+      }
 
-        if (widgetData.text) {
-          const lacksDescription = !description || description === 'No description available' || description.length < 20;
-          if (lacksDescription) {
-            description = widgetData.text;
-          }
+      // Use extracted text from HTML or fallback to widgetData
+      const finalText = tweetText || widgetData?.text;
+      
+      if (finalText) {
+        const lacksDescription = !description || description === 'No description available' || description.length < 20;
+        if (lacksDescription) {
+          description = finalText;
+        }
 
-          const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
-          if (lacksTitle) {
-            // Try AI-generated title first
-            try {
-              const aiTitle = await generateXTitleAI({
-                text: widgetData.text,
-                author: widgetData.username,
-                url,
-              });
-              if (aiTitle) {
-                title = aiTitle;
-              } else {
-                // Fallback to manual title
-                const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
-                if (tweetTitle) {
-                  title = tweetTitle;
-                }
-              }
-            } catch (error) {
-              console.log('X title AI error:', error);
-              // Fallback to manual title on error
-              const tweetTitle = buildTweetTitle(widgetData.text, widgetData.username, widgetData.name);
+        const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
+        if (lacksTitle) {
+          // Try AI-generated title first
+          try {
+            console.log('[X] Attempting to generate AI title with text:', finalText.substring(0, 100));
+            const aiTitle = await generateXTitleAI({
+              text: finalText,
+              author: widgetData?.username,
+              url,
+            });
+            if (aiTitle) {
+              console.log('[X] AI title generated:', aiTitle);
+              title = aiTitle;
+            } else {
+              console.log('[X] AI title returned null, using fallback');
+              // Fallback to manual title
+              const tweetTitle = buildTweetTitle(finalText, widgetData?.username, widgetData?.name);
               if (tweetTitle) {
                 title = tweetTitle;
               }
             }
+          } catch (error) {
+            console.log('[X] Title AI error:', error);
+            // Fallback to manual title on error
+            const tweetTitle = buildTweetTitle(finalText, widgetData?.username, widgetData?.name);
+            if (tweetTitle) {
+              title = tweetTitle;
+            }
           }
         }
+      } else {
+        console.log('[X] No tweet text found - HTML extraction and widget both failed');
+      }
 
-        if (!imageData.url && widgetData.profileImage) {
-          imageData = { url: widgetData.profileImage, quality: 'low' };
-        }
+      if (!imageData.url && widgetData?.profileImage) {
+        imageData = { url: widgetData.profileImage, quality: 'low' };
       }
     }
     
