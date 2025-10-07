@@ -731,6 +731,101 @@ function extractTwitterDescription(html: string): string {
   return '';
 }
 
+
+function decodeJsonLikeString(value: string): string {
+  try {
+    const sanitized = value
+      .replace(/\/g, '\\')
+      .replace(/"/g, '\"');
+    return JSON.parse(`"${sanitized}"`);
+  } catch (_error) {
+    return value
+      .replace(/\u([0-9a-fA-F]{4})/g, (_match, hex) => {
+        try {
+          return String.fromCharCode(parseInt(hex, 16));
+        } catch {
+          return _match;
+        }
+      })
+      .replace(/\n|\r|\t/g, ' ')
+      .replace(/\"/g, '"')
+      .replace(/\\\//g, '/')
+      .replace(/\\/g, '\');
+  }
+}
+
+function normalizeTweetTextCandidate(raw: string): string {
+  const decoded = decodeJsonLikeString(raw)
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/\s+/g, ' ');
+
+  const cleaned = cleanHtmlContent(decoded);
+  return decodeHtmlEntities(cleaned).replace(/\s+/g, ' ').trim();
+}
+
+function extractTwitterTextFromHtml(html: string): string {
+  const jsonPatterns: RegExp[] = [
+    /"full_text"\s*:\s*"((?:\\\\.|[^"\\\\]){5,})"/i,
+    /"text"\s*:\s*"((?:\\\\.|[^"\\\\]){5,})"/i,
+    /"rawText"\s*:\s*"((?:\\\\.|[^"\\\\]){5,})"/i,
+    /"articleBody"\s*:\s*"((?:\\\\.|[^"\\\\]){5,})"/i,
+    /"note_tweet"[^}]*"text"\s*:\s*"((?:\\\\.|[^"\\\\]){5,})"/i,
+  ];
+
+  for (const pattern of jsonPatterns) {
+    const match = pattern.exec(html);
+    if (match && match[1]) {
+      const candidate = normalizeTweetTextCandidate(match[1]);
+      if (candidate && candidate.length >= 5) {
+        return candidate;
+      }
+    }
+  }
+
+  const domMatch = html.match(/data-testid=['\"]tweetText['\"][^>]*>([\s\S]{10,2000})<\\/div>/i);
+  if (domMatch && domMatch[1]) {
+    const candidate = normalizeTweetTextCandidate(domMatch[1]);
+    if (candidate && candidate.length >= 5) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
+async function fetchTweetTextFromStatus(postId: string): Promise<string> {
+  if (!postId) {
+    return '';
+  }
+
+  const statusUrl = `https://x.com/i/status/${postId}`;
+  try {
+    const response = await fetch(statusUrl, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Cache-Control': 'no-cache',
+      },
+    });
+
+    if (!response.ok) {
+      return '';
+    }
+
+    const statusHtml = await response.text();
+    const fromDescription = extractTwitterDescription(statusHtml);
+    if (fromDescription) {
+      return fromDescription;
+    }
+    return extractTwitterTextFromHtml(statusHtml);
+  } catch (error) {
+    console.warn('[X] Failed to fetch fallback tweet text:', error);
+    return '';
+  }
+}
+
 function extractNumberFromHtml(html: string, patterns: RegExp[]): number | undefined {
   for (const pattern of patterns) {
     const match = html.match(pattern);
@@ -1428,9 +1523,12 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     } else if (platform === 'twitter') {
       engagement = extractTwitterEngagement(html);
 
-      // Extract tweet text directly from HTML
-      const tweetText = extractTwitterDescription(html);
-      console.log('[X] Extracted tweet text from HTML:', tweetText?.substring(0, 100));
+      // Extract tweet text directly from HTML or embedded data
+      let tweetText = extractTwitterDescription(html);
+      if (!tweetText) {
+        tweetText = extractTwitterTextFromHtml(html);
+      }
+      console.log('[X] Tweet text candidate from HTML:', tweetText ? tweetText.substring(0, 100) : 'none');
 
       const postId = extractXPostId(url);
       const widgetData = await fetchTwitterWidgetData(postId);
@@ -1438,22 +1536,28 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
         engagement = mergeEngagement(engagement, widgetData.engagement);
       }
 
-      // Use extracted text from HTML or fallback to widgetData
-      const finalText = tweetText || widgetData?.text;
-      
+      let finalText = tweetText || widgetData?.text;
+      if (!finalText) {
+        const fetchedText = await fetchTweetTextFromStatus(postId);
+        if (fetchedText) {
+          finalText = fetchedText;
+        }
+      }
+
       if (finalText) {
+        const normalizedText = finalText.replace(/\s+/g, ' ').trim();
         const lacksDescription = !description || description === 'No description available' || description.length < 20;
         if (lacksDescription) {
-          description = finalText;
+          description = normalizedText;
         }
 
         const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
         if (lacksTitle) {
           // Try AI-generated title first
           try {
-            console.log('[X] Attempting to generate AI title with text:', finalText.substring(0, 100));
+            console.log('[X] Attempting to generate AI title with text:', normalizedText.substring(0, 100));
             const aiTitle = await generateXTitleAI({
-              text: finalText,
+              text: normalizedText,
               author: widgetData?.username,
               url,
             });
@@ -1462,23 +1566,21 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
               title = aiTitle;
             } else {
               console.log('[X] AI title returned null, using fallback');
-              // Fallback to manual title
-              const tweetTitle = buildTweetTitle(finalText, widgetData?.username, widgetData?.name);
+              const tweetTitle = buildTweetTitle(normalizedText, widgetData?.username, widgetData?.name);
               if (tweetTitle) {
                 title = tweetTitle;
               }
             }
           } catch (error) {
             console.log('[X] Title AI error:', error);
-            // Fallback to manual title on error
-            const tweetTitle = buildTweetTitle(finalText, widgetData?.username, widgetData?.name);
+            const tweetTitle = buildTweetTitle(normalizedText, widgetData?.username, widgetData?.name);
             if (tweetTitle) {
               title = tweetTitle;
             }
           }
         }
       } else {
-        console.log('[X] No tweet text found - HTML extraction and widget both failed');
+        console.log('[X] No tweet text found after all extraction attempts');
       }
 
       if (!imageData.url && widgetData?.profileImage) {
