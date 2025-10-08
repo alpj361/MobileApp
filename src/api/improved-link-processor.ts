@@ -6,6 +6,7 @@
 import { LinkData, InstagramComment } from './link-processor';
 import { generateInstagramTitleAI } from '../services/instagramTitleService';
 import { generateXTitleAI } from '../services/xTitleService';
+import { fetchTweetDetailsGraphQL } from '../services/xGraphQLService';
 import { extractXPostId } from '../utils/x';
 
 // Enhanced LinkData interface with quality scoring
@@ -1484,7 +1485,7 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     const platform = detectPlatform(url);
     let title = extractPlatformSpecificTitle(html, url, platform);
     let description = extractPlatformSpecificDescription(html, platform);
-    const author = extractAuthor(html);
+    let author = extractAuthor(html);
     let imageData = extractPlatformSpecificImage(html, url, platform);
     
     // Special handling for Instagram posts
@@ -1537,6 +1538,36 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       }
 
       let finalText = tweetText || widgetData?.text;
+      const hasEngagementData = typeof engagement.likes === 'number'
+        || typeof engagement.comments === 'number'
+        || typeof engagement.shares === 'number'
+        || typeof engagement.views === 'number';
+      const needsText = !finalText || finalText.trim().length < 5;
+      if ((needsText || !hasEngagementData) && postId) {
+        const graphqlDetails = await fetchTweetDetailsGraphQL(postId);
+        if (graphqlDetails?.text && needsText) {
+          finalText = graphqlDetails.text;
+        }
+        if (graphqlDetails?.metrics) {
+          const { likes, replies, reposts, views } = graphqlDetails.metrics;
+          if (typeof likes === 'number' && (typeof engagement.likes !== 'number' || engagement.likes < likes)) {
+            engagement.likes = likes;
+          }
+          if (typeof replies === 'number' && (typeof engagement.comments !== 'number' || engagement.comments < replies)) {
+            engagement.comments = replies;
+          }
+          if (typeof reposts === 'number' && (typeof engagement.shares !== 'number' || engagement.shares < reposts)) {
+            engagement.shares = reposts;
+          }
+          if (typeof views === 'number' && (typeof engagement.views !== 'number' || engagement.views < views)) {
+            engagement.views = views;
+          }
+        }
+        if (graphqlDetails?.authorHandle && (!author || author.length === 0)) {
+          author = graphqlDetails.authorHandle;
+        }
+      }
+
       if (!finalText) {
         const fetchedText = await fetchTweetTextFromStatus(postId);
         if (fetchedText) {

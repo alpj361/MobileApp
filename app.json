@@ -9,7 +9,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vibecode.app"
+      "bundleIdentifier": "com.vibecode.app",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Vibecode uses your calendar to show and manage the events you create.",
+        "NSRemindersUsageDescription": "Vibecode uses reminders to notify you about upcoming events you save."
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
