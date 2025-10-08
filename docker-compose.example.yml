@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  vibecode-app:
+    build: .
+    ports:
+      - "19000:19000"  # Expo Metro Bundler
+      - "19001:19001"  # Expo DevTools
+      - "19002:19002"  # Expo Web
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      # Sobrescribe valores del .env con variables de entorno del sistema
+      # En producción, define estas en el servidor VPS
+      - EXPO_PUBLIC_VIBECODE_PROJECT_ID=${VIBECODE_PROJECT_ID:-default_project_id}
+      - EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY=${OPENAI_API_KEY}
+      - EXPO_PUBLIC_VIBECODE_GROK_API_KEY=${GROK_API_KEY}
+      - EXPO_PUBLIC_VIBECODE_ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      
+      # Valores que se pueden commitear
+      - SUPABASE_URL=https://qqshdccpmypelhmyqnut.supabase.co
+      - SUPABASE_PROJECT_ID=qqshdccpmypelhmyqnut
+      - EXPO_PUBLIC_EXTRACTORW_URL=https://server.standatpd.com
+    command: bun start
+    restart: unless-stopped
+
+  # Ejemplo para NewsCron (si lo ejecutas en Docker)
+  news-cron:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - SUPABASE_URL=https://qqshdccpmypelhmyqnut.supabase.co
+      - SUPABASE_PROJECT_ID=qqshdccpmypelhmyqnut
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    command: node pulse-politics-updater.js
+    restart: unless-stopped
+    depends_on:
+      - vibecode-app
+

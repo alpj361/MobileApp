@@ -735,12 +735,12 @@ function extractTwitterDescription(html: string): string {
 function decodeJsonLikeString(value: string): string {
   try {
     const sanitized = value
-      .replace(/\/g, '\\')
-      .replace(/"/g, '\"');
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"');
     return JSON.parse(`"${sanitized}"`);
   } catch (_error) {
     return value
-      .replace(/\u([0-9a-fA-F]{4})/g, (_match, hex) => {
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex) => {
         try {
           return String.fromCharCode(parseInt(hex, 16));
         } catch {
@@ -748,9 +748,9 @@ function decodeJsonLikeString(value: string): string {
         }
       })
       .replace(/\n|\r|\t/g, ' ')
-      .replace(/\"/g, '"')
+      .replace(/\\"/g, '"')
       .replace(/\\\//g, '/')
-      .replace(/\\/g, '\');
+      .replace(/\\/g, '\\');
   }
 }
 
@@ -782,7 +782,7 @@ function extractTwitterTextFromHtml(html: string): string {
     }
   }
 
-  const domMatch = html.match(/data-testid=['\"]tweetText['\"][^>]*>([\s\S]{10,2000})<\\/div>/i);
+  const domMatch = html.match(/data-testid=['\"]tweetText['\"][^>]*>([\s\S]{10,2000})<\/div>/i);
   if (domMatch && domMatch[1]) {
     const candidate = normalizeTweetTextCandidate(domMatch[1]);
     if (candidate && candidate.length >= 5) {
