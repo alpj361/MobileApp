@@ -835,38 +835,114 @@ async function extractXEngagementAndContent(url: string): Promise<{
 }> {
   const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
   
+  console.log('[X] Starting X extraction for:', url);
+  console.log('[X] ExtractorW URL:', EXTRACTORW_URL);
+  
   try {
-    const response = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
+    // First, get engagement metrics from comments endpoint (includes tweet stats)
+    console.log('[X] Step 1: Getting engagement from comments endpoint');
+    const commentsResponse = await fetch(`${EXTRACTORW_URL}/api/x/comments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer extractorw-auth-token'
+      },
+      body: JSON.stringify({ url, maxComments: 1 }), // Only need metadata, not actual comments
+    });
+
+    let engagement = {};
+    let text: string | undefined;
+    let author: string | undefined;
+    
+    if (commentsResponse.ok) {
+      const commentsData = await commentsResponse.json();
+      console.log('[X] Comments endpoint response:', JSON.stringify(commentsData, null, 2));
+      
+      if (commentsData.success && commentsData.metadata?.stats) {
+        const stats = commentsData.metadata.stats;
+        engagement = {
+          likes: parseNumericValue(stats.likes),
+          comments: parseNumericValue(stats.comments),
+          shares: parseNumericValue(stats.retweets),
+          views: parseNumericValue(stats.views),
+        };
+        console.log('[X] Extracted engagement from comments:', engagement);
+      }
+    } else {
+      console.warn('[X] Comments endpoint failed:', commentsResponse.status);
+    }
+
+    // Second, get media (thumbnail/video)
+    console.log('[X] Step 2: Getting media from /api/x/media');
+    const mediaResponse = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer extractorw-auth-token'
+      },
       body: JSON.stringify({ url }),
     });
 
-    if (!response.ok) {
-      console.warn('[X] ExtractorW responded with:', response.status);
-      return { engagement: {} };
-    }
-    
-    const data = await response.json();
-    if (!data.success) {
-      console.warn('[X] ExtractorW returned success: false');
-      return { engagement: {} };
+    let media: { url: string; type: string } | undefined;
+
+    if (mediaResponse.ok) {
+      const mediaData = await mediaResponse.json();
+      console.log('[X] Media endpoint response:', JSON.stringify(mediaData, null, 2));
+      
+      if (mediaData.success) {
+        // Get caption/text from media response (ExtractorW doesn't provide this yet)
+        text = mediaData.caption;
+        
+        // Get thumbnail or first image/video - prioritize thumbnail_url for display
+        if (mediaData.thumbnail_url) {
+          media = { url: mediaData.thumbnail_url, type: 'image' };
+        } else if (mediaData.images && mediaData.images.length > 0) {
+          media = { url: mediaData.images[0], type: 'image' };
+        } else if (mediaData.video_url) {
+          media = { url: mediaData.video_url, type: 'video' };
+        }
+        
+        console.log('[X] Extracted media:', media);
+      }
+    } else {
+      console.warn('[X] Media endpoint failed:', mediaResponse.status);
     }
 
-    const content = data.content || data;
-    console.log('[X] ExtractorW response:', JSON.stringify(data).substring(0, 500));
+    // Fallback: If we didn't get text, try to get it from ExtractorT directly
+    if (!text) {
+      console.log('[X] No text from ExtractorW, trying ExtractorT fallback...');
+      try {
+        const EXTRACTORT_URL = 'https://api.standatpd.com';
+        const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer extractort-auth-token'
+          },
+          body: JSON.stringify({ url }),
+        });
+
+        if (extractorTResponse.ok) {
+          const extractorTData = await extractorTResponse.json();
+          if (extractorTData.success && extractorTData.content?.tweet_text) {
+            text = extractorTData.content.tweet_text;
+            console.log('[X] Got text from ExtractorT fallback:', text?.substring(0, 100));
+          }
+        }
+      } catch (error) {
+        console.warn('[X] ExtractorT fallback failed:', error);
+      }
+    }
     
-    return {
-      text: content.text || content.caption,
-      author: content.author?.username || content.username,
-      engagement: {
-        likes: parseNumericValue(content.engagement?.likes),
-        comments: parseNumericValue(content.engagement?.replies),
-        shares: parseNumericValue(content.engagement?.retweets),
-        views: parseNumericValue(content.engagement?.views),
-      },
-      media: content.media?.[0] || (content.thumbnail ? { url: content.thumbnail, type: 'image' } : undefined),
+    const result = {
+      text,
+      author,
+      engagement,
+      media,
     };
+    
+    console.log('[X] Final result:', JSON.stringify(result, null, 2));
+    return result;
   } catch (error) {
     console.error('[X] ExtractorW failed:', error);
     return { engagement: {} };
@@ -1320,6 +1396,8 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
     
     // Extract metadata using platform-specific functions
     const platform = detectPlatform(url);
+    console.log('[X] Detected platform:', platform, 'for URL:', url);
+    
     let title = extractPlatformSpecificTitle(html, url, platform);
     let description = extractPlatformSpecificDescription(html, platform);
     let author = extractAuthor(html);
@@ -1359,30 +1437,39 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
 
       commentsLoaded = false;
     } else if (platform === 'twitter') {
+      console.log('[X] Processing Twitter URL:', url);
+      
       // Usar ExtractorW como única fuente (similar a Instagram)
       const xData = await extractXEngagementAndContent(url);
       
+      console.log('[X] xData received:', JSON.stringify(xData, null, 2));
+      
       if (xData) {
         engagement = xData.engagement;
+        console.log('[X] Engagement set:', engagement);
         
         // Establecer descripción con el texto del tweet
         if (xData.text) {
           description = xData.text;
+          console.log('[X] Description set:', description.substring(0, 100));
         }
         
         // Establecer autor
         if (xData.author) {
           author = xData.author;
+          console.log('[X] Author set:', author);
         }
         
         // Establecer miniatura
         if (xData.media?.url && !imageData.url) {
           imageData = { url: xData.media.url, quality: 'high' };
+          console.log('[X] Image set:', xData.media.url);
         }
         
         // Generar título con IA (igual que Instagram)
         if (description) {
           try {
+            console.log('[X] Generating AI title for:', description.substring(0, 50));
             const aiTitle = await generateXTitleAI({
               text: description,
               author: xData.author,
@@ -1390,15 +1477,22 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
             });
             if (aiTitle) {
               title = aiTitle;
+              console.log('[X] AI title generated:', aiTitle);
             } else {
               // Fallback: primer línea del tweet
               title = description.split('\n')[0].substring(0, 80);
+              console.log('[X] Using fallback title:', title);
             }
           } catch (error) {
             console.log('[X] Title AI error:', error);
             title = description.split('\n')[0].substring(0, 80);
+            console.log('[X] Using fallback title after error:', title);
           }
+        } else {
+          console.log('[X] No description available for title generation');
         }
+      } else {
+        console.log('[X] No xData received from ExtractorW');
       }
     }
     

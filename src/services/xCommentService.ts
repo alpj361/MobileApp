@@ -6,8 +6,10 @@ import {
   StoredXComments,
 } from '../storage/xCommentsRepo';
 
-const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
-const X_COMMENTS_ENDPOINT = `${BASE_URL.replace(/\/$/, '')}/api/x/comments`;
+const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
+const EXTRACTORT_URL = 'https://api.standatpd.com';
+const X_COMMENTS_ENDPOINT = `${EXTRACTORW_URL.replace(/\/$/, '')}/api/x/comments`;
+const X_COMMENTS_EXTRACTORT_ENDPOINT = `${EXTRACTORT_URL}/api/x_comment/`;
 
 export type XComment = InstagramComment;
 
@@ -108,6 +110,55 @@ function mapRawComment(raw: RawXComment, postId: string, index: number, parentId
   };
 }
 
+/**
+ * Fallback function to get basic comment count from main ExtractorW endpoint
+ */
+async function getFallbackCommentCount(url: string): Promise<number | undefined> {
+  try {
+    // Use ExtractorW as primary source
+    console.log('[X] Trying ExtractorW for fallback comment count...');
+    const response = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer extractorw-auth-token'
+      },
+      body: JSON.stringify({ url }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        const content = data.content || data;
+        const count = parseNumericValue(
+          content.engagement?.replies || 
+          content.engagement?.comments ||
+          content.replies ||
+          content.comments
+        );
+        console.log('[X] ExtractorW fallback comment count:', count);
+        return count;
+      }
+    }
+  } catch (error) {
+    console.warn('[X] Fallback comment count failed:', error);
+  }
+  return undefined;
+}
+
+function parseNumericValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value.replace(/[,\s]/g, ''), 10);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return undefined;
+}
+
 export async function fetchXComments(url: string, options: FetchXCommentsOptions = {}): Promise<StoredXComments> {
   const postId = extractXPostId(url);
   if (!postId) {
@@ -141,22 +192,28 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
     } catch (_) {
       // ignore JSON parse errors
     }
-    console.error('[X] Comments request failed:', errorMessage);
     
-    // Si es un error del servidor (500+), retornar datos vacíos en lugar de fallar
-    if (response.status >= 500) {
-      console.warn('[X] Server error, returning empty comments');
+    // Para errores 502 (Bad Gateway) y otros errores del servidor, usar fallback
+    if (response.status >= 500 || response.status === 502) {
+      console.warn('[X] Server error (502/Bad Gateway), trying fallback for comment count');
+      
+      // Intentar obtener el conteo de comentarios del endpoint principal
+      const fallbackCount = await getFallbackCommentCount(url);
+      
       return {
         url,
         postId,
         comments: [],
         extractedCount: 0,
-        totalCount: 0,
+        totalCount: fallbackCount || 0,
         savedAt: Date.now(),
-        engagement: {},
+        engagement: {
+          comments: fallbackCount,
+        },
       };
     }
     
+    console.error('[X] Comments request failed:', errorMessage);
     throw new Error(errorMessage);
   }
 

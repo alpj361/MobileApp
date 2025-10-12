@@ -386,14 +386,21 @@ export default function XCommentsModal({
               <Ionicons name="chatbubble-outline" size={24} color="#1DA1F2" />
             </View>
             <Text className={`${textStyles.cardTitle} text-gray-900 mb-2`}>
-              {searchQuery ? 'No se encontraron comentarios' : 'Sin comentarios'}
+              {searchQuery ? 'No se encontraron comentarios' : 'Sin comentarios disponibles'}
             </Text>
             <Text className={`${textStyles.description} text-gray-500 text-center`}>
               {searchQuery
                 ? 'Intenta con otros términos de búsqueda'
-                : 'Este post no tiene comentarios disponibles'
+                : totalCount > 0 
+                  ? `Este post tiene ${totalCount} comentarios, pero el servicio de comentarios no está disponible temporalmente`
+                  : 'Este post no tiene comentarios disponibles'
               }
             </Text>
+            {totalCount > 0 && (
+              <Text className={`${textStyles.description} text-blue-600 text-center mt-2`}>
+                El conteo de comentarios se muestra en la tarjeta principal
+              </Text>
+            )}
           </View>
         ) : (
           <FlatList
