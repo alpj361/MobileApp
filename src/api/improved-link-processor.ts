@@ -6,7 +6,6 @@
 import { LinkData, InstagramComment } from './link-processor';
 import { generateInstagramTitleAI } from '../services/instagramTitleService';
 import { generateXTitleAI } from '../services/xTitleService';
-import { fetchTweetDetailsGraphQL } from '../services/xGraphQLService';
 import { extractXPostId } from '../utils/x';
 
 // Enhanced LinkData interface with quality scoring
@@ -794,38 +793,6 @@ function extractTwitterTextFromHtml(html: string): string {
   return '';
 }
 
-async function fetchTweetTextFromStatus(postId: string): Promise<string> {
-  if (!postId) {
-    return '';
-  }
-
-  const statusUrl = `https://x.com/i/status/${postId}`;
-  try {
-    const response = await fetch(statusUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Cache-Control': 'no-cache',
-      },
-    });
-
-    if (!response.ok) {
-      return '';
-    }
-
-    const statusHtml = await response.text();
-    const fromDescription = extractTwitterDescription(statusHtml);
-    if (fromDescription) {
-      return fromDescription;
-    }
-    return extractTwitterTextFromHtml(statusHtml);
-  } catch (error) {
-    console.warn('[X] Failed to fetch fallback tweet text:', error);
-    return '';
-  }
-}
 
 function extractNumberFromHtml(html: string, patterns: RegExp[]): number | undefined {
   for (const pattern of patterns) {
@@ -841,50 +808,6 @@ function extractNumberFromHtml(html: string, patterns: RegExp[]): number | undef
   return undefined;
 }
 
-function extractTwitterEngagement(html: string): { likes?: number; comments?: number; shares?: number; views?: number } {
-  const engagement: { likes?: number; comments?: number; shares?: number; views?: number } = {};
-
-  engagement.comments = extractNumberFromHtml(html, [
-    /"reply_count":\s*"?(\d+)"?/i,
-    /"replyCount":\s*"?(\d+)"?/i,
-    /"reply_count_str":\s*"(\d+)"/i,
-    /"reply_count_withheld":\s*"?(\d+)"?/i,
-  ]);
-
-  engagement.likes = extractNumberFromHtml(html, [
-    /"favorite_count":\s*"?(\d+)"?/i,
-    /"favoriteCount":\s*"?(\d+)"?/i,
-    /"like_count":\s*"?(\d+)"?/i,
-    /"favorite_count_str":\s*"(\d+)"/i,
-    /"like_count_str":\s*"(\d+)"/i,
-  ]);
-
-  engagement.shares = extractNumberFromHtml(html, [
-    /"retweet_count":\s*"?(\d+)"?/i,
-    /"retweetCount":\s*"?(\d+)"?/i,
-    /"retweet_count_str":\s*"(\d+)"/i,
-    /"quote_count":\s*"?(\d+)"?/i,
-    /"quote_count_str":\s*"(\d+)"/i,
-  ]);
-
-  engagement.views = extractNumberFromHtml(html, [
-    /"view_count":\s*"?(\d+)"?/i,
-    /"viewCount":\s*"?(\d+)"?/i,
-    /"impression_count":\s*"?(\d+)"?/i,
-    /"view_count_str":\s*"(\d+)"/i,
-    /"impression_count_str":\s*"(\d+)"/i,
-  ]);
-
-  return engagement;
-}
-
-interface TwitterWidgetData {
-  text?: string;
-  username?: string;
-  name?: string;
-  profileImage?: string;
-  engagement: { likes?: number; comments?: number; shares?: number; views?: number };
-}
 
 function parseNumericValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -900,142 +823,56 @@ function parseNumericValue(value: unknown): number | undefined {
   return undefined;
 }
 
-function mergeEngagement(base: { likes?: number; comments?: number; shares?: number; views?: number }, addition: { likes?: number; comments?: number; shares?: number; views?: number }): { likes?: number; comments?: number; shares?: number; views?: number } {
-  const result = { ...base };
-  (['likes', 'comments', 'shares', 'views'] as const).forEach((key) => {
-    const nextValue = addition[key];
-    if (typeof nextValue === 'number' && nextValue >= 0) {
-      const existing = result[key];
-      result[key] = typeof existing === 'number' ? Math.max(existing, nextValue) : nextValue;
-    }
-  });
-  return result;
-}
-
-async function fetchTwitterWidgetData(postId: string): Promise<TwitterWidgetData | null> {
-  if (!postId) {
-    return null;
-  }
-
+/**
+ * Extract X/Twitter engagement metrics and content using ExtractorW
+ * Similar to Instagram's clean architecture
+ */
+async function extractXEngagementAndContent(url: string): Promise<{
+  text?: string;
+  author?: string;
+  engagement: { likes?: number; comments?: number; shares?: number; views?: number };
+  media?: { url: string; type: string };
+}> {
   const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
-
+  
   try {
-    // Try ExtractorW first
-    const url = `https://x.com/i/status/${postId}`;
     const response = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      console.log('[X Title] ExtractorW response:', JSON.stringify(data).substring(0, 500));
-      
-      if (data.success) {
-        // Try different possible response structures
-        const content = data.content || data;
-        const engagement = {
-          likes: parseNumericValue(
-            content.engagement?.likes ?? 
-            content.engagement?.favorites ?? 
-            data.engagement?.likes ?? 
-            data.likes
-          ),
-          comments: parseNumericValue(
-            content.engagement?.comments ?? 
-            content.engagement?.replies ?? 
-            data.engagement?.comments ?? 
-            data.comments
-          ),
-          shares: parseNumericValue(
-            content.engagement?.shares ?? 
-            content.engagement?.retweets ?? 
-            data.engagement?.shares ?? 
-            data.shares
-          ),
-          views: parseNumericValue(
-            content.engagement?.views ?? 
-            content.engagement?.impressions ?? 
-            data.engagement?.views ?? 
-            data.views
-          ),
-        };
-
-        const textValue = content.text || content.caption || data.text || data.caption;
-        const cleanedText = textValue
-          ? cleanHtmlContent(decodeHtmlEntities(textValue)).replace(/\s+/g, ' ').trim()
-          : undefined;
-
-        const username = content.author?.username || content.username || data.author?.username || data.username;
-        const name = content.author?.name || content.authorName || data.author?.name || data.name;
-        const profileImage = content.author?.avatar || content.authorAvatar || data.author?.avatar || data.avatar;
-
-        if (cleanedText) {
-          console.log('[X Title] Successfully extracted text:', cleanedText.substring(0, 100));
-          return {
-            text: cleanedText,
-            username,
-            name,
-            profileImage,
-            engagement,
-          };
-        }
-      }
+    if (!response.ok) {
+      console.warn('[X] ExtractorW responded with:', response.status);
+      return { engagement: {} };
+    }
+    
+    const data = await response.json();
+    if (!data.success) {
+      console.warn('[X] ExtractorW returned success: false');
+      return { engagement: {} };
     }
 
-    // Fallback to old widget (might not work)
-    const widgetUrl = `https://cdn.syndication.twimg.com/widgets/tweet?id=${encodeURIComponent(postId)}&lang=es`;
-    const fallbackResponse = await fetch(widgetUrl, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148',
-        Accept: 'application/json,text/plain,*/*',
-        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
-      },
-    });
-
-    if (!fallbackResponse.ok) {
-      return null;
-    }
-
-    const raw = await fallbackResponse.json();
-    if (!raw || typeof raw !== 'object') {
-      return null;
-    }
-
-    const counts = (raw.counts ?? raw) as Record<string, unknown>;
-    const engagement = {
-      likes: parseNumericValue(raw.favorite_count ?? raw.like_count ?? counts.favorites ?? counts.likes),
-      comments: parseNumericValue(raw.reply_count ?? counts.replies ?? counts.reply_count),
-      shares: parseNumericValue(raw.retweet_count ?? counts.retweets ?? counts.retweet_count ?? raw.quote_count ?? counts.quotes),
-      views: parseNumericValue(raw.impression_count ?? raw.view_count ?? counts.impressions ?? counts.views),
-    };
-
-    const user = (raw.user ?? {}) as Record<string, unknown>;
-    const profileImage = typeof user.profile_image_url_https === 'string'
-      ? user.profile_image_url_https
-      : typeof user.profile_image_url === 'string'
-        ? user.profile_image_url
-        : undefined;
-
-    const textValue = typeof raw.text === 'string' ? raw.text : typeof raw.full_text === 'string' ? raw.full_text : undefined;
-    const cleanedText = textValue
-      ? cleanHtmlContent(decodeHtmlEntities(textValue)).replace(/\s+/g, ' ').trim()
-      : undefined;
-
+    const content = data.content || data;
+    console.log('[X] ExtractorW response:', JSON.stringify(data).substring(0, 500));
+    
     return {
-      text: cleanedText,
-      username: typeof user.screen_name === 'string' ? user.screen_name : undefined,
-      name: typeof user.name === 'string' ? user.name : undefined,
-      profileImage,
-      engagement,
+      text: content.text || content.caption,
+      author: content.author?.username || content.username,
+      engagement: {
+        likes: parseNumericValue(content.engagement?.likes),
+        comments: parseNumericValue(content.engagement?.replies),
+        shares: parseNumericValue(content.engagement?.retweets),
+        views: parseNumericValue(content.engagement?.views),
+      },
+      media: content.media?.[0] || (content.thumbnail ? { url: content.thumbnail, type: 'image' } : undefined),
     };
   } catch (error) {
-    console.warn('[X] Failed to load twitter widget data:', error);
-    return null;
+    console.error('[X] ExtractorW failed:', error);
+    return { engagement: {} };
   }
 }
+
 
 function buildTweetTitle(text: string | undefined, username?: string, name?: string): string | null {
   if (!text || text.length < 3) {
@@ -1522,100 +1359,46 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
 
       commentsLoaded = false;
     } else if (platform === 'twitter') {
-      engagement = extractTwitterEngagement(html);
-
-      // Extract tweet text directly from HTML or embedded data
-      let tweetText = extractTwitterDescription(html);
-      if (!tweetText) {
-        tweetText = extractTwitterTextFromHtml(html);
-      }
-      console.log('[X] Tweet text candidate from HTML:', tweetText ? tweetText.substring(0, 100) : 'none');
-
-      const postId = extractXPostId(url);
-      const widgetData = await fetchTwitterWidgetData(postId);
-      if (widgetData) {
-        engagement = mergeEngagement(engagement, widgetData.engagement);
-      }
-
-      let finalText = tweetText || widgetData?.text;
-      const hasEngagementData = typeof engagement.likes === 'number'
-        || typeof engagement.comments === 'number'
-        || typeof engagement.shares === 'number'
-        || typeof engagement.views === 'number';
-      const needsText = !finalText || finalText.trim().length < 5;
-      if ((needsText || !hasEngagementData) && postId) {
-        const graphqlDetails = await fetchTweetDetailsGraphQL(postId);
-        if (graphqlDetails?.text && needsText) {
-          finalText = graphqlDetails.text;
+      // Usar ExtractorW como única fuente (similar a Instagram)
+      const xData = await extractXEngagementAndContent(url);
+      
+      if (xData) {
+        engagement = xData.engagement;
+        
+        // Establecer descripción con el texto del tweet
+        if (xData.text) {
+          description = xData.text;
         }
-        if (graphqlDetails?.metrics) {
-          const { likes, replies, reposts, views } = graphqlDetails.metrics;
-          if (typeof likes === 'number' && (typeof engagement.likes !== 'number' || engagement.likes < likes)) {
-            engagement.likes = likes;
-          }
-          if (typeof replies === 'number' && (typeof engagement.comments !== 'number' || engagement.comments < replies)) {
-            engagement.comments = replies;
-          }
-          if (typeof reposts === 'number' && (typeof engagement.shares !== 'number' || engagement.shares < reposts)) {
-            engagement.shares = reposts;
-          }
-          if (typeof views === 'number' && (typeof engagement.views !== 'number' || engagement.views < views)) {
-            engagement.views = views;
-          }
+        
+        // Establecer autor
+        if (xData.author) {
+          author = xData.author;
         }
-        if (graphqlDetails?.authorHandle && (!author || author.length === 0)) {
-          author = graphqlDetails.authorHandle;
+        
+        // Establecer miniatura
+        if (xData.media?.url && !imageData.url) {
+          imageData = { url: xData.media.url, quality: 'high' };
         }
-      }
-
-      if (!finalText) {
-        const fetchedText = await fetchTweetTextFromStatus(postId);
-        if (fetchedText) {
-          finalText = fetchedText;
-        }
-      }
-
-      if (finalText) {
-        const normalizedText = finalText.replace(/\s+/g, ' ').trim();
-        const lacksDescription = !description || description === 'No description available' || description.length < 20;
-        if (lacksDescription) {
-          description = normalizedText;
-        }
-
-        const lacksTitle = !title || title.length < 4 || title.toLowerCase().includes('twitter') || title === description;
-        if (lacksTitle) {
-          // Try AI-generated title first
+        
+        // Generar título con IA (igual que Instagram)
+        if (description) {
           try {
-            console.log('[X] Attempting to generate AI title with text:', normalizedText.substring(0, 100));
             const aiTitle = await generateXTitleAI({
-              text: normalizedText,
-              author: widgetData?.username,
+              text: description,
+              author: xData.author,
               url,
             });
             if (aiTitle) {
-              console.log('[X] AI title generated:', aiTitle);
               title = aiTitle;
             } else {
-              console.log('[X] AI title returned null, using fallback');
-              const tweetTitle = buildTweetTitle(normalizedText, widgetData?.username, widgetData?.name);
-              if (tweetTitle) {
-                title = tweetTitle;
-              }
+              // Fallback: primer línea del tweet
+              title = description.split('\n')[0].substring(0, 80);
             }
           } catch (error) {
             console.log('[X] Title AI error:', error);
-            const tweetTitle = buildTweetTitle(normalizedText, widgetData?.username, widgetData?.name);
-            if (tweetTitle) {
-              title = tweetTitle;
-            }
+            title = description.split('\n')[0].substring(0, 80);
           }
         }
-      } else {
-        console.log('[X] No tweet text found after all extraction attempts');
-      }
-
-      if (!imageData.url && widgetData?.profileImage) {
-        imageData = { url: widgetData.profileImage, quality: 'low' };
       }
     }
     

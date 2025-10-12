@@ -142,6 +142,21 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
       // ignore JSON parse errors
     }
     console.error('[X] Comments request failed:', errorMessage);
+    
+    // Si es un error del servidor (500+), retornar datos vacíos en lugar de fallar
+    if (response.status >= 500) {
+      console.warn('[X] Server error, returning empty comments');
+      return {
+        url,
+        postId,
+        comments: [],
+        extractedCount: 0,
+        totalCount: 0,
+        savedAt: Date.now(),
+        engagement: {},
+      };
+    }
+    
     throw new Error(errorMessage);
   }
 
