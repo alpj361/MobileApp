@@ -49,61 +49,28 @@ export interface ViztaRequestOptions {
  * @param useGenerativeUI - Whether to enable generative UI (charts, visualizations)
  * @returns Vizta's response with message and optional sources
  */
-/**
- * Try to connect to a URL with timeout
- */
-const tryConnection = async (url: string, timeout: number = 3000): Promise<boolean> => {
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
-    
-    const response = await fetch(`${url}/api/vizta-chat/health`, {
-      method: 'GET',
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
 
 export const getViztaChatResponse = async (
   message: string,
   sessionId?: string,
   useGenerativeUI: boolean = false
 ): Promise<ViztaResponse> => {
-  const envVars = getEnvVars();
-  const { EXTRACTORW_URL, BEARER_TOKEN } = envVars;
-  const FALLBACK_URL = 'https://server.standatpd.com';
+  const { EXTRACTORW_URL, BEARER_TOKEN } = getEnvVars();
   
+  if (!EXTRACTORW_URL) {
+    throw new Error('EXTRACTORW_URL no configurada en variables de entorno');
+  }
+
   if (!BEARER_TOKEN) {
     throw new Error('BEARER_TOKEN no configurado en variables de entorno');
   }
 
-  // Determine which URL to use (with fallback logic)
-  let activeUrl = EXTRACTORW_URL;
-  
-  // If using local URL, test connection first
-  if (EXTRACTORW_URL?.includes('192.168.1')) {
-    console.log('🔍 Verificando conexión a servidor local...');
-    const isLocalAvailable = await tryConnection(EXTRACTORW_URL, 2000);
-    
-    if (!isLocalAvailable) {
-      console.log('⚠️ Servidor local no disponible, usando producción');
-      activeUrl = FALLBACK_URL;
-    } else {
-      console.log('✅ Conectado a servidor local');
-    }
-  }
-
   try {
-    console.log(`🤖 Enviando mensaje a Vizta (${activeUrl}): "${message.substring(0, 50)}..."`);
+    console.log(`🤖 Enviando mensaje a Vizta (${EXTRACTORW_URL}): "${message.substring(0, 50)}..."`);
     
     const finalSessionId = sessionId || `mobile_chat_${Date.now()}`;
     
-    const response = await fetch(`${activeUrl}/api/vizta-chat/query`, {
+    const response = await fetch(`${EXTRACTORW_URL}/api/vizta-chat/query`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -119,13 +86,6 @@ export const getViztaChatResponse = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`❌ Vizta error ${response.status}:`, errorText);
-      
-      // If local failed and we haven't tried production yet, try fallback
-      if (activeUrl !== FALLBACK_URL) {
-        console.log('🔄 Reintentando con servidor de producción...');
-        return getViztaChatResponse(message, sessionId, useGenerativeUI);
-      }
-      
       throw new Error(`Vizta respondió con error ${response.status}: ${errorText}`);
     }
 

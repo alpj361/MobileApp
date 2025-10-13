@@ -28,16 +28,8 @@ export const ENV = {
 } as const;
 
 // ExtractorW Configuration (Backend Services)
-// Strategy: Try local first (if in same network), fallback to production
-const LOCAL_URL = 'http://192.168.1.20:8081';
-const PRODUCTION_URL = 'https://server.standatpd.com';
-
-// Use env var if explicitly set, otherwise use local in dev, production in release
-const isDev = __DEV__;
-const defaultExtractorUrl = isDev ? LOCAL_URL : PRODUCTION_URL;
-
-export const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL || defaultExtractorUrl;
-export const EXTRACTORW_FALLBACK_URL = PRODUCTION_URL; // Always available as fallback
+// Uses EXPO_PUBLIC_EXTRACTORW_URL from .env file
+export const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL;
 export const BEARER_TOKEN = process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
 
 // Function to check if Supabase is enabled (compatibility)
