@@ -12,8 +12,10 @@ export interface ChatMessage {
 interface ChatState {
   messages: ChatMessage[];
   isLoading: boolean;
+  conversationId: string | null;
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   setLoading: (loading: boolean) => void;
+  setConversationId: (id: string | null) => void;
   clearMessages: () => void;
 }
 
@@ -22,6 +24,7 @@ export const useChatStore = create<ChatState>()(
     (set) => ({
       messages: [],
       isLoading: false,
+      conversationId: null,
       addMessage: (message) => {
         const newMessage: ChatMessage = {
           ...message,
@@ -33,12 +36,13 @@ export const useChatStore = create<ChatState>()(
         }));
       },
       setLoading: (loading) => set({ isLoading: loading }),
-      clearMessages: () => set({ messages: [] }),
+      setConversationId: (id) => set({ conversationId: id }),
+      clearMessages: () => set({ messages: [], conversationId: null }),
     }),
     {
       name: 'chat-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ messages: state.messages }),
+      partialize: (state) => ({ messages: state.messages, conversationId: state.conversationId }),
     }
   )
 );

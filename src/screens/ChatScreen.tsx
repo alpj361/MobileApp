@@ -15,7 +15,7 @@ import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../state/chatStore';
 import { useSavedStore } from '../state/savedStore';
-import { getOpenAIChatResponse } from '../api/chat-service';
+import { getViztaChatResponse } from '../api/vizta-service';
 import { extractLinksFromText, processLinks, detectSocialPlatform } from '../api/link-processor';
 import CustomHeader from '../components/CustomHeader';
 import AnimatedCircle from '../components/AnimatedCircle';
@@ -31,7 +31,7 @@ export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   
-  const { messages, isLoading, addMessage, setLoading } = useChatStore();
+  const { messages, isLoading, conversationId, addMessage, setLoading, setConversationId } = useChatStore();
   const { addSavedItem } = useSavedStore();
 
   const sendMessage = async () => {
@@ -71,18 +71,36 @@ export default function ChatScreen() {
     setLoading(true);
 
     try {
-      // Get AI response
-      const response = await getOpenAIChatResponse(userMessage);
+      // Get Vizta AI response with full toolset
+      const viztaResponse = await getViztaChatResponse(
+        userMessage,
+        conversationId || undefined,
+        false // useGenerativeUI - can enable later for charts/visualizations
+      );
       
-      // Add AI response
-      addMessage({
-        content: response.content,
-        role: 'assistant',
-      });
+      if (viztaResponse.success) {
+        // Update conversation ID for continuity
+        if (viztaResponse.conversationId && viztaResponse.conversationId !== conversationId) {
+          setConversationId(viztaResponse.conversationId);
+        }
+
+        // Add Vizta's response
+        addMessage({
+          content: viztaResponse.response.message,
+          role: 'assistant',
+        });
+
+        // Log sources if available (can be displayed in UI later)
+        if (viztaResponse.response.sources && viztaResponse.response.sources.length > 0) {
+          console.log('📚 Fuentes:', viztaResponse.response.sources);
+        }
+      } else {
+        throw new Error(viztaResponse.error || 'Error desconocido de Vizta');
+      }
     } catch (error) {
-      console.error('Chat error:', error);
+      console.error('Vizta chat error:', error);
       addMessage({
-        content: "Sorry, I'm having trouble responding right now. Please try again.",
+        content: "Lo siento, tengo problemas para responder en este momento. Por favor intenta de nuevo.",
         role: 'assistant',
       });
     } finally {

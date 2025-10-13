@@ -27,7 +27,27 @@ export const ENV = {
   SUPABASE_REGION
 } as const;
 
+// ExtractorW Configuration (Backend Services)
+// Auto-detect: use local IP if in dev mode and on same network, otherwise use production
+const isDev = __DEV__;
+const defaultExtractorUrl = isDev 
+  ? 'http://192.168.1.20:8081'  // Development - local network
+  : 'https://server.standatpd.com';  // Production - internet
+
+export const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL || defaultExtractorUrl;
+export const BEARER_TOKEN = process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
+
 // Function to check if Supabase is enabled (compatibility)
 export const isSupabaseEnabled = (): boolean => {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
 };
+
+// Function to get all environment variables
+export const getEnvVars = () => ({
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY,
+  SUPABASE_PROJECT_ID,
+  SUPABASE_REGION,
+  EXTRACTORW_URL,
+  BEARER_TOKEN
+});

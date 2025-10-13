@@ -6,7 +6,11 @@
     "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "ios:device": "expo run:ios --device",
+    "ios:select": "expo run:ios --device --select-device",
+    "web": "expo start --web",
+    "prebuild": "expo prebuild --clean",
+    "prebuild:ios": "expo prebuild --platform ios --clean"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

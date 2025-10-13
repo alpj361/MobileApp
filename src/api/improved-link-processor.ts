@@ -923,7 +923,7 @@ async function extractXEngagementAndContent(url: string): Promise<{
         const EXTRACTORT_URL = 'http://192.168.1.20:8000';
         const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
           method: 'POST',
-          headers: { 
+      headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer extractort-auth-token'
           },
@@ -1503,7 +1503,7 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
             console.log('[X] Title AI error:', error);
             title = description.split('\n')[0].substring(0, 80);
             console.log('[X] Using fallback title after error:', title);
-          }
+            }
         } else {
           console.log('[X] No description available for title generation');
         }
