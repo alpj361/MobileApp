@@ -167,17 +167,61 @@ export default function XCommentsModal({
     return date.toLocaleDateString();
   };
 
-  // Limpiar texto de comentario eliminando "Replying to @usuario" repetitivo
+  // Limpiar texto de comentario eliminando información duplicada y desordenada
   const cleanCommentText = (text: string): string => {
     if (!text) return '';
     
-    // Eliminar "Replying to @usuario(s)" al inicio del comentario
-    let cleaned = text.replace(/^Replying to (@\w+\s*)+/i, '').trim();
+    // Dividir por líneas y filtrar información útil
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line.length > 0);
     
-    // Eliminar saltos de línea múltiples al inicio
-    cleaned = cleaned.replace(/^\n+/, '');
+    // Buscar el contenido real del comentario (después de metadatos)
+    let contentStartIndex = -1;
     
-    return cleaned;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Si encontramos "Replying to", el contenido real está después
+      if (line.startsWith('Replying to')) {
+        contentStartIndex = i + 1;
+        break;
+      }
+      
+      // Si encontramos una línea que no es metadatos (no empieza con @, no es solo números, no es tiempo), puede ser contenido
+      if (!line.startsWith('@') && 
+          !/^\d+[hm]?$/.test(line) && 
+          !/^hace \d+[hm]?$/.test(line) &&
+          line.length > 3 &&
+          !/^\d+$/.test(line)) {
+        contentStartIndex = i;
+        break;
+      }
+    }
+    
+    // Si no encontramos un punto de inicio claro, usar las últimas líneas que no sean solo números
+    if (contentStartIndex === -1) {
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        if (line.length > 3 && !/^\d+$/.test(line) && !line.startsWith('@')) {
+          contentStartIndex = i;
+          break;
+        }
+      }
+    }
+    
+    // Extraer el contenido real
+    if (contentStartIndex !== -1 && contentStartIndex < lines.length) {
+      const contentLines = lines.slice(contentStartIndex);
+      // Filtrar líneas que son solo números (likes, etc.)
+      const filteredLines = contentLines.filter(line => 
+        line.length > 3 && 
+        !/^\d+$/.test(line) &&
+        !line.includes('... Ver más')
+      );
+      return filteredLines.join(' ').trim();
+    }
+    
+    // Fallback: devolver el texto original limpiado
+    return text.replace(/^Replying to (@\w+\s*)+/i, '').trim();
   };
 
   const renderComment = ({ item: comment }: { item: XComment }) => {
@@ -187,42 +231,52 @@ export default function XCommentsModal({
     const textPreview = cleanedText.length > 150 ? cleanedText.substring(0, 150) + '...' : cleanedText;
 
     return (
-      <View className="bg-white px-4 py-3 border-b border-gray-100">
+      <View className="bg-white px-4 py-4 border-b border-gray-100">
         {/* Main Comment */}
         <View className="flex-row">
-          <View className="w-8 h-8 rounded-full bg-blue-100 items-center justify-center mr-3">
-            <Text className="text-xs font-semibold text-blue-700">
+          <View className="w-10 h-10 rounded-full bg-blue-100 items-center justify-center mr-3 flex-shrink-0">
+            <Text className="text-sm font-semibold text-blue-700">
               {comment.author.charAt(0).toUpperCase()}
             </Text>
           </View>
 
-          <View className="flex-1">
-            <View className="flex-row items-center mb-1">
+          <View className="flex-1 min-w-0">
+            {/* Header con nombre y timestamp */}
+            <View className="flex-row items-center mb-2">
               <Text className={`${textStyles.badge} font-semibold text-gray-900`}>
                 @{comment.author}
               </Text>
               {comment.verified && (
-                <Ionicons name="checkmark-circle" size={14} color="#1DA1F2" style={{ marginLeft: 4 }} />
+                <Ionicons name="checkmark-circle" size={16} color="#1DA1F2" style={{ marginLeft: 6 }} />
               )}
-              <Text className={`${textStyles.helper} text-gray-400 ml-2`}>
+              <Text className={`${textStyles.helper} text-gray-500 ml-2`}>
+                •
+              </Text>
+              <Text className={`${textStyles.helper} text-gray-500 ml-2`}>
                 {formatTimestamp(comment.timestamp)}
               </Text>
             </View>
 
-            <Pressable onPress={() => toggleExpanded(comment.id)}>
-              <Text className={`${textStyles.bodyText} text-gray-800 mb-2`}>
+            {/* Contenido del comentario */}
+            <View className="mb-3">
+              <Text className={`${textStyles.bodyText} text-gray-900 leading-5`}>
                 {isExpanded ? cleanedText : textPreview}
                 {cleanedText.length > 150 && (
-                  <Text className="text-blue-500"> {isExpanded ? ' Ver menos' : ' Ver más'}</Text>
+                  <Pressable onPress={() => toggleExpanded(comment.id)}>
+                    <Text className="text-blue-500 font-medium">
+                      {' '}{isExpanded ? 'Ver menos' : 'Ver más'}
+                    </Text>
+                  </Pressable>
                 )}
               </Text>
-            </Pressable>
+            </View>
 
+            {/* Acciones del comentario */}
             <View className="flex-row items-center">
               {comment.likes && comment.likes > 0 && (
-                <View className="flex-row items-center mr-4">
-                  <Ionicons name="heart-outline" size={14} color="#EF4444" />
-                  <Text className={`${textStyles.helper} text-gray-500 ml-1`}>
+                <View className="flex-row items-center mr-6">
+                  <Ionicons name="heart" size={16} color="#EF4444" />
+                  <Text className={`${textStyles.helper} text-gray-600 ml-1`}>
                     {comment.likes}
                   </Text>
                 </View>
@@ -235,10 +289,10 @@ export default function XCommentsModal({
                 >
                   <Ionicons
                     name={isExpanded ? "chevron-up" : "chevron-down"}
-                    size={14}
+                    size={16}
                     color="#6B7280"
                   />
-                  <Text className={`${textStyles.helper} text-gray-500 ml-1`}>
+                  <Text className={`${textStyles.helper} text-gray-600 ml-1`}>
                     {comment.replies?.length} respuesta{comment.replies?.length !== 1 ? 's' : ''}
                   </Text>
                 </Pressable>
@@ -249,33 +303,36 @@ export default function XCommentsModal({
 
         {/* Replies */}
         {isExpanded && hasReplies && (
-          <View className="ml-11 mt-3 space-y-3">
+          <View className="ml-13 mt-4 border-l-2 border-gray-100 pl-4">
             {comment.replies?.map((reply) => (
-              <View key={reply.id} className="flex-row">
-                <View className="w-6 h-6 rounded-full bg-blue-50 items-center justify-center mr-2">
-                  <Text className="text-xs text-blue-700">
+              <View key={reply.id} className="flex-row mb-4 last:mb-0">
+                <View className="w-8 h-8 rounded-full bg-blue-50 items-center justify-center mr-3 flex-shrink-0">
+                  <Text className="text-xs font-medium text-blue-700">
                     {reply.author.charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View className="flex-1">
+                <View className="flex-1 min-w-0">
                   <View className="flex-row items-center mb-1">
                     <Text className={`${textStyles.badge} font-medium text-gray-800`}>
                       @{reply.author}
                     </Text>
                     {reply.verified && (
-                      <Ionicons name="checkmark-circle" size={12} color="#1DA1F2" style={{ marginLeft: 4 }} />
+                      <Ionicons name="checkmark-circle" size={14} color="#1DA1F2" style={{ marginLeft: 6 }} />
                     )}
-                    <Text className={`${textStyles.helper} text-gray-400 ml-2`}>
+                    <Text className={`${textStyles.helper} text-gray-500 ml-2`}>
+                      •
+                    </Text>
+                    <Text className={`${textStyles.helper} text-gray-500 ml-2`}>
                       {formatTimestamp(reply.timestamp)}
                     </Text>
                   </View>
-                  <Text className={`${textStyles.description} text-gray-700`}>
+                  <Text className={`${textStyles.description} text-gray-700 leading-4 mb-2`}>
                     {cleanCommentText(reply.text)}
                   </Text>
                   {reply.likes && reply.likes > 0 && (
-                    <View className="flex-row items-center mt-1">
-                      <Ionicons name="heart-outline" size={12} color="#EF4444" />
-                      <Text className={`${textStyles.helper} text-gray-500 ml-1`}>
+                    <View className="flex-row items-center">
+                      <Ionicons name="heart" size={14} color="#EF4444" />
+                      <Text className={`${textStyles.helper} text-gray-600 ml-1`}>
                         {reply.likes}
                       </Text>
                     </View>

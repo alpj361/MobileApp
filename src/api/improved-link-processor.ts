@@ -893,16 +893,24 @@ async function extractXEngagementAndContent(url: string): Promise<{
         // Get caption/text from media response (ExtractorW doesn't provide this yet)
         text = mediaData.caption;
         
-        // Get thumbnail or first image/video - prioritize thumbnail_url for display
-        if (mediaData.thumbnail_url) {
-          media = { url: mediaData.thumbnail_url, type: 'image' };
-        } else if (mediaData.images && mediaData.images.length > 0) {
+        // Get thumbnail or first image/video - prioritize images over video URLs
+        console.log('[X] DEBUG: mediaData.thumbnail_url:', mediaData.thumbnail_url);
+        console.log('[X] DEBUG: mediaData.images:', mediaData.images);
+        console.log('[X] DEBUG: mediaData.video_url:', mediaData.video_url);
+        
+        // Prioritize actual images over video URLs for display
+        if (mediaData.images && mediaData.images.length > 0) {
           media = { url: mediaData.images[0], type: 'image' };
-        } else if (mediaData.video_url) {
+          console.log('[X] DEBUG: Using first image:', mediaData.images[0]);
+        } else if (mediaData.thumbnail_url && !mediaData.thumbnail_url.includes('anniversary-theme.mp4')) {
+          media = { url: mediaData.thumbnail_url, type: 'image' };
+          console.log('[X] DEBUG: Using thumbnail_url:', mediaData.thumbnail_url);
+        } else if (mediaData.video_url && !mediaData.video_url.includes('anniversary-theme.mp4')) {
           media = { url: mediaData.video_url, type: 'video' };
+          console.log('[X] DEBUG: Using video_url:', mediaData.video_url);
         }
         
-        console.log('[X] Extracted media:', media);
+        console.log('[X] DEBUG: Final media object:', media);
       }
     } else {
       console.warn('[X] Media endpoint failed:', mediaResponse.status);
@@ -912,7 +920,7 @@ async function extractXEngagementAndContent(url: string): Promise<{
     if (!text) {
       console.log('[X] No text from ExtractorW, trying ExtractorT fallback...');
       try {
-        const EXTRACTORT_URL = 'https://api.standatpd.com';
+        const EXTRACTORT_URL = 'http://192.168.1.20:8000';
         const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
           method: 'POST',
           headers: { 
@@ -922,12 +930,16 @@ async function extractXEngagementAndContent(url: string): Promise<{
           body: JSON.stringify({ url }),
         });
 
+        console.log('[X] DEBUG: ExtractorT response status:', extractorTResponse.status);
         if (extractorTResponse.ok) {
           const extractorTData = await extractorTResponse.json();
+          console.log('[X] DEBUG: ExtractorT response:', JSON.stringify(extractorTData, null, 2));
           if (extractorTData.success && extractorTData.content?.tweet_text) {
             text = extractorTData.content.tweet_text;
             console.log('[X] Got text from ExtractorT fallback:', text?.substring(0, 100));
           }
+        } else {
+          console.log('[X] DEBUG: ExtractorT fallback failed with status:', extractorTResponse.status);
         }
       } catch (error) {
         console.warn('[X] ExtractorT fallback failed:', error);
@@ -1461,9 +1473,13 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
         }
         
         // Establecer miniatura
+        console.log('[X] DEBUG: xData.media:', xData.media);
+        console.log('[X] DEBUG: imageData.url before:', imageData.url);
         if (xData.media?.url && !imageData.url) {
           imageData = { url: xData.media.url, quality: 'high' };
-          console.log('[X] Image set:', xData.media.url);
+          console.log('[X] DEBUG: Image set successfully:', xData.media.url);
+        } else {
+          console.log('[X] DEBUG: Image NOT set - xData.media?.url:', xData.media?.url, 'imageData.url:', imageData.url);
         }
         
         // Generar título con IA (igual que Instagram)
