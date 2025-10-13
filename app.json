@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.vibecode.app",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Vibecode uses your calendar to show and manage the events you create.",
-        "NSRemindersUsageDescription": "Vibecode uses reminders to notify you about upcoming events you save."
+        "NSRemindersUsageDescription": "Vibecode uses reminders to notify you about upcoming events you save.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -27,6 +28,11 @@
       "expo-sqlite",
       "expo-video",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "e055c204-0d79-46a3-bbf5-b35d45e0bb17"
+      }
+    }
   }
 }
