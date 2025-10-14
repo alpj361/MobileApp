@@ -920,10 +920,10 @@ async function extractXEngagementAndContent(url: string): Promise<{
     if (!text) {
       console.log('[X] No text from ExtractorW, trying ExtractorT fallback...');
       try {
-        const EXTRACTORT_URL = 'http://192.168.1.20:8000';
+        const EXTRACTORT_URL = 'https://api.standatpd.com';
         const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
           method: 'POST',
-      headers: {
+          headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer extractort-auth-token'
           },
