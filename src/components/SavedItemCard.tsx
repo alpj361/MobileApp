@@ -273,11 +273,23 @@ export default function SavedItemCard({
           {(item.engagement || platformEff === 'instagram' || platformEff === 'x') && (
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center space-x-3">
-                {item.engagement?.likes !== undefined && (
+                {/* DEBUG: Log engagement data */}
+                {console.log('[DEBUG] SavedItemCard engagement:', JSON.stringify(item.engagement))}
+                
+                {/* PROTECCIÓN: Mostrar métricas solo si tienen valores válidos */}
+                {item.engagement?.likes !== undefined && item.engagement.likes > 0 && (
                   <View className="flex-row items-center">
                     <Ionicons name="heart-outline" size={14} color="#EF4444" />
                     <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement?.likes}
+                      {item.engagement.likes}
+                    </Text>
+                  </View>
+                )}
+                {item.engagement?.shares !== undefined && item.engagement.shares > 0 && (
+                  <View className="flex-row items-center">
+                    <Ionicons name="repeat-outline" size={14} color="#10B981" />
+                    <Text className="text-gray-500 text-xs ml-1">
+                      {item.engagement.shares}
                     </Text>
                   </View>
                 )}
@@ -301,15 +313,6 @@ export default function SavedItemCard({
                         <Ionicons name="refresh-outline" size={14} color="#3B82F6" />
                       )}
                     </Pressable>
-                  </View>
-                )}
-                {/* Retweets for X/Twitter */}
-                {platformEff === 'x' && item.engagement?.shares !== undefined && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="repeat-outline" size={14} color="#10B981" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement?.shares}
-                    </Text>
                   </View>
                 )}
                 {/* Views for Instagram only */}

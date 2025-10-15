@@ -270,13 +270,10 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
             item.id === itemId
               ? {
                   ...item,
-                  engagement: payload.engagement
-                    ? {
-                        ...item.engagement,
-                        ...payload.engagement,
-                        comments: total ?? payload.engagement.comments ?? item.engagement?.comments,
-                      }
-                    : item.engagement,
+                  engagement: {
+                    ...item.engagement,
+                    comments: total ?? payload.engagement?.comments ?? item.engagement?.comments,
+                  },
                   commentsInfo: item.commentsInfo
                     ? {
                         ...item.commentsInfo,
@@ -284,7 +281,6 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                         totalCount: total ?? item.commentsInfo.totalCount ?? 0,
                         loadedCount: payload.extractedCount,
                         lastUpdated: Date.now(),
-                        refreshing: false,
                         error: null,
                       }
                     : {
@@ -583,8 +579,21 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         ...linkData.engagement,
         ...baseData.engagement,
       };
+      console.log('[DEBUG] linkData.engagement:', linkData.engagement);
+      console.log('[DEBUG] baseData.engagement:', baseData.engagement);
+      console.log('[DEBUG] cachedComments?.engagement:', cachedComments?.engagement);
+      
       if (cachedComments && 'engagement' in cachedComments && cachedComments.engagement) {
+        console.log('[DEBUG] BEFORE Object.assign - candidateEngagement:', candidateEngagement);
         Object.assign(candidateEngagement, cachedComments.engagement);
+        console.log('[DEBUG] AFTER Object.assign - candidateEngagement:', candidateEngagement);
+      }
+      
+      // PROTECCIÓN: Si linkData tiene métricas válidas, priorizarlas
+      if (linkData.engagement && Object.values(linkData.engagement).some(v => typeof v === 'number' && v > 0)) {
+        console.log('[DEBUG] PROTECTING linkData.engagement - overriding candidateEngagement');
+        Object.assign(candidateEngagement, linkData.engagement);
+        console.log('[DEBUG] FINAL PROTECTED candidateEngagement:', candidateEngagement);
       }
       const engagementComments = candidateEngagement?.comments;
       if (typeof engagementComments !== 'number' && typeof cachedComments?.totalCount === 'number') {

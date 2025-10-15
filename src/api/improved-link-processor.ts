@@ -854,6 +854,8 @@ async function extractXEngagementAndContent(url: string): Promise<{
     let text: string | undefined;
     let author: string | undefined;
     
+    console.log('[X] DEBUG: Initial engagement:', engagement);
+    
     if (commentsResponse.ok) {
       const commentsData = await commentsResponse.json();
       console.log('[X] Comments endpoint response:', JSON.stringify(commentsData, null, 2));
@@ -916,6 +918,8 @@ async function extractXEngagementAndContent(url: string): Promise<{
       console.warn('[X] Media endpoint failed:', mediaResponse.status);
     }
 
+    console.log('[X] DEBUG: Engagement after ExtractorW:', engagement);
+    
     // Fallback: If we didn't get text, try to get it from ExtractorT directly
     if (!text) {
       console.log('[X] No text from ExtractorW, trying ExtractorT fallback...');
@@ -937,6 +941,18 @@ async function extractXEngagementAndContent(url: string): Promise<{
           if (extractorTData.success && extractorTData.content?.tweet_text) {
             text = extractorTData.content.tweet_text;
             console.log('[X] Got text from ExtractorT fallback:', text?.substring(0, 100));
+            
+            // Extract metrics from ExtractorT fallback
+            if (extractorTData.content?.tweet_metrics) {
+              const metrics = extractorTData.content.tweet_metrics;
+              engagement = {
+                likes: metrics.likes || 0,
+                comments: metrics.replies || 0,
+                shares: metrics.reposts || 0,
+                views: metrics.views || 0,
+              };
+              console.log('[X] Got engagement from ExtractorT fallback:', engagement);
+            }
           }
         } else {
           console.log('[X] DEBUG: ExtractorT fallback failed with status:', extractorTResponse.status);
@@ -945,6 +961,8 @@ async function extractXEngagementAndContent(url: string): Promise<{
         console.warn('[X] ExtractorT fallback failed:', error);
       }
     }
+    
+    console.log('[X] DEBUG: Final engagement before return:', engagement);
     
     const result = {
       text,
