@@ -1,6 +1,14 @@
 import { supabase } from '../config/supabase';
 import type { SavedItem } from '../state/savedStore';
 import type { Recording } from '../state/recordingStore';
+import { 
+  CodexCategory, 
+  CodexSubcategory, 
+  CodexItemMetadata, 
+  CodexSaveRequest, 
+  CodexSaveResult as CodexSaveResultType,
+  detectCodexCategory 
+} from '../types/codexTypes';
 
 export interface CodexSaveResult {
   success: boolean;
@@ -239,9 +247,15 @@ export async function checkAllSavedItemsCodexStatus(items: SavedItem[]): Promise
 
 /**
  * Save a saved link into Pulse Journal Codex (codex_items)
- * Updated to work with new Google OAuth flow and check for duplicates
+ * Updated to work with new Google OAuth flow, check for duplicates, and new categorization structure
  */
-export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<CodexSaveResult> {
+export async function saveLinkToCodex(
+  userId: string, 
+  item: SavedItem, 
+  category?: CodexCategory, 
+  subcategory?: CodexSubcategory,
+  metadata?: CodexItemMetadata
+): Promise<CodexSaveResult> {
   try {
     // First check if the link already exists
     const { exists, id } = await checkLinkExists(userId, item.url);
@@ -252,6 +266,35 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
         error: 'Este enlace ya está guardado en tu Codex.' 
       };
     }
+
+    // ✨ NUEVO: Detectar categoría automáticamente si no se proporciona
+    const detectedCategory = category && subcategory 
+      ? { category, subcategory }
+      : detectCodexCategory(item);
+    
+    // ✨ NUEVO: Construir metadata completa
+    const fullMetadata: CodexItemMetadata = {
+      source_type: item.type,
+      platform: item.platform,
+      author: item.author,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      ...metadata,
+      // Metadata específica por tipo
+      ...(item.engagement && {
+        engagement_metrics: {
+          likes: item.engagement.likes,
+          comments: item.engagement.comments,
+          shares: item.engagement.shares,
+          views: item.engagement.views,
+        }
+      }),
+      // Metadata específica para posts de redes sociales
+      ...(detectedCategory.subcategory === 'post' && {
+        post_id: item.url.split('/').pop(),
+        engagement_metrics: item.engagement,
+      }),
+    };
 
     // Check if user has a valid Supabase session
     const { session, error: sessionError } = await checkSupabaseSession();
@@ -272,7 +315,7 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
         };
       }
       
-      // Use the alternative endpoint that doesn't require Supabase session
+      // ✨ NUEVO: Usar endpoint con nueva estructura
       response = await fetch('https://server.standatpd.com/api/codex/save-link-pulse', {
         method: 'POST',
         headers: {
@@ -281,10 +324,13 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
         body: JSON.stringify({
           user_id: userId,
           pulse_user_email: pulseUser.email,
-          link_data: {
+          item_data: {
             url: item.url,
             title: item.title,
             description: item.description,
+            category: detectedCategory.category,
+            subcategory: detectedCategory.subcategory,
+            metadata: fullMetadata,
             platform: item.platform,
             image: item.image,
             author: item.author,
@@ -296,7 +342,7 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
         }),
       });
     } else {
-      // Use the standard endpoint with Supabase authentication
+      // ✨ NUEVO: Usar endpoint con nueva estructura
       response = await fetch('https://server.standatpd.com/api/codex/save-link', {
         method: 'POST',
         headers: {
@@ -305,10 +351,13 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
         },
         body: JSON.stringify({
           user_id: userId,
-          link_data: {
+          item_data: {
             url: item.url,
             title: item.title,
             description: item.description,
+            category: detectedCategory.category,
+            subcategory: detectedCategory.subcategory,
+            metadata: fullMetadata,
             platform: item.platform,
             image: item.image,
             author: item.author,
@@ -349,10 +398,34 @@ export async function saveLinkToCodex(userId: string, item: SavedItem): Promise<
 
 /**
  * Save an audio recording to Pulse Journal Codex
- * This function uploads the audio file and creates a codex item
+ * This function uploads the audio file and creates a codex item with new categorization
  */
-export async function saveRecordingToCodex(userId: string, recording: Recording): Promise<CodexSaveResult> {
+export async function saveRecordingToCodex(
+  userId: string, 
+  recording: Recording, 
+  category?: CodexCategory, 
+  subcategory?: CodexSubcategory,
+  metadata?: CodexItemMetadata
+): Promise<CodexSaveResult> {
   try {
+    // ✨ NUEVO: Detectar categoría para audio (por defecto: general/audio)
+    const detectedCategory = category && subcategory 
+      ? { category, subcategory }
+      : { category: 'general' as CodexCategory, subcategory: 'audio' as CodexSubcategory };
+    
+    // ✨ NUEVO: Construir metadata específica para audio
+    const fullMetadata: CodexItemMetadata = {
+      source_type: 'audio',
+      platform: 'audio',
+      author: 'Usuario',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      duration: recording.duration,
+      audio_format: 'm4a', // Formato por defecto de React Native
+      transcription: recording.transcription,
+      ...metadata,
+    };
+
     // Get Pulse user data for authentication
     const pulseConnectionStore = require('../state/pulseConnectionStore').usePulseConnectionStore.getState();
     const pulseUser = pulseConnectionStore.connectedUser;
@@ -372,7 +445,7 @@ export async function saveRecordingToCodex(userId: string, recording: Recording)
     if (sessionError || !session) {
       console.log('No Supabase session available, using Pulse authentication...');
       
-      // Use the alternative endpoint that doesn't require Supabase session
+      // ✨ NUEVO: Usar endpoint con nueva estructura
       response = await fetch('https://server.standatpd.com/api/codex/save-recording-pulse', {
         method: 'POST',
         headers: {
@@ -381,17 +454,21 @@ export async function saveRecordingToCodex(userId: string, recording: Recording)
         body: JSON.stringify({
           user_id: userId,
           pulse_user_email: pulseUser.email,
-          recording_data: {
+          item_data: {
+            url: recording.uri,
             title: recording.title,
-            duration: recording.duration,
-            transcription: recording.transcription,
+            description: recording.transcription || 'Grabación de audio',
+            category: detectedCategory.category,
+            subcategory: detectedCategory.subcategory,
+            metadata: fullMetadata,
+            platform: 'audio',
+            type: 'audio',
             timestamp: recording.timestamp,
-            audio_uri: recording.uri,
           },
         }),
       });
     } else {
-      // Use the standard endpoint with Supabase authentication
+      // ✨ NUEVO: Usar endpoint con nueva estructura
       response = await fetch('https://server.standatpd.com/api/codex/save-recording', {
         method: 'POST',
         headers: {
@@ -400,12 +477,16 @@ export async function saveRecordingToCodex(userId: string, recording: Recording)
         },
         body: JSON.stringify({
           user_id: userId,
-          recording_data: {
+          item_data: {
+            url: recording.uri,
             title: recording.title,
-            duration: recording.duration,
-            transcription: recording.transcription,
+            description: recording.transcription || 'Grabación de audio',
+            category: detectedCategory.category,
+            subcategory: detectedCategory.subcategory,
+            metadata: fullMetadata,
+            platform: 'audio',
+            type: 'audio',
             timestamp: recording.timestamp,
-            audio_uri: recording.uri,
           },
         }),
       });

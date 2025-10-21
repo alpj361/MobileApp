@@ -853,6 +853,7 @@ async function extractXEngagementAndContent(url: string): Promise<{
     let engagement = {};
     let text: string | undefined;
     let author: string | undefined;
+    let imageData: { url?: string; type?: string; quality?: string } = {};
     
     console.log('[X] DEBUG: Initial engagement:', engagement);
     
@@ -885,8 +886,6 @@ async function extractXEngagementAndContent(url: string): Promise<{
       body: JSON.stringify({ url }),
     });
 
-    let media: { url: string; type: string } | undefined;
-
     if (mediaResponse.ok) {
       const mediaData = await mediaResponse.json();
       console.log('[X] Media endpoint response:', JSON.stringify(mediaData, null, 2));
@@ -902,17 +901,17 @@ async function extractXEngagementAndContent(url: string): Promise<{
         
         // Prioritize actual images over video URLs for display
         if (mediaData.images && mediaData.images.length > 0) {
-          media = { url: mediaData.images[0], type: 'image' };
+          imageData = { url: mediaData.images[0], type: 'image' };
           console.log('[X] DEBUG: Using first image:', mediaData.images[0]);
         } else if (mediaData.thumbnail_url && !mediaData.thumbnail_url.includes('anniversary-theme.mp4')) {
-          media = { url: mediaData.thumbnail_url, type: 'image' };
+          imageData = { url: mediaData.thumbnail_url, type: 'image' };
           console.log('[X] DEBUG: Using thumbnail_url:', mediaData.thumbnail_url);
         } else if (mediaData.video_url && !mediaData.video_url.includes('anniversary-theme.mp4')) {
-          media = { url: mediaData.video_url, type: 'video' };
+          imageData = { url: mediaData.video_url, type: 'video' };
           console.log('[X] DEBUG: Using video_url:', mediaData.video_url);
         }
         
-        console.log('[X] DEBUG: Final media object:', media);
+        console.log('[X] DEBUG: Final media object:', imageData);
       }
     } else {
       console.warn('[X] Media endpoint failed:', mediaResponse.status);
@@ -974,7 +973,7 @@ async function extractXEngagementAndContent(url: string): Promise<{
       text,
       author,
       engagement,
-      media,
+      media: imageData.url ? { url: imageData.url, type: imageData.type || 'image' } : undefined,
     };
     
     console.log('[X] Final result:', JSON.stringify(result, null, 2));

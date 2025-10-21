@@ -20,6 +20,10 @@ export interface SavedItem extends LinkData {
   isFavorite?: boolean;
   // Codex relationship
   codex_id?: string; // ID from codex_items table when saved to codex
+  // ✨ NUEVO: Categorización para nueva estructura de Codex
+  codex_category?: 'general' | 'monitoring' | 'wiki';
+  codex_subcategory?: string;
+  codex_metadata?: Record<string, any>;
   // Improved metadata fields
   quality?: 'excellent' | 'good' | 'fair' | 'poor';
   contentScore?: number;
@@ -182,13 +186,26 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
           })();
 
           const nextEngagement = platform === 'x' && (payload as StoredXComments).engagement
-            ? {
-                ...item.engagement,
-                ...(payload as StoredXComments).engagement,
-                comments: stableTotal ??
-                  (payload as StoredXComments).engagement?.comments ??
-                  item.engagement?.comments,
-              }
+            ? (() => {
+                const base = { ...item.engagement };
+                const payloadEng = (payload as StoredXComments).engagement;
+                
+                // Solo actualizar si el nuevo valor es > 0 Y mayor que el actual
+                Object.keys(payloadEng).forEach(key => {
+                  const newVal = payloadEng[key];
+                  const oldVal = base[key] || 0;
+                  if (newVal > 0 && newVal > oldVal) {
+                    base[key] = newVal;
+                  }
+                });
+                
+                return {
+                  ...base,
+                  comments: stableTotal ??
+                    payloadEng?.comments ??
+                    item.engagement?.comments,
+                };
+              })()
             : item.engagement;
 
           return {
@@ -583,10 +600,23 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       console.log('[DEBUG] baseData.engagement:', baseData.engagement);
       console.log('[DEBUG] cachedComments?.engagement:', cachedComments?.engagement);
       
+      // BLOQUEAR: No permitir que cachedComments sobrescriba métricas válidas
       if (cachedComments && 'engagement' in cachedComments && cachedComments.engagement) {
-        console.log('[DEBUG] BEFORE Object.assign - candidateEngagement:', candidateEngagement);
-        Object.assign(candidateEngagement, cachedComments.engagement);
-        console.log('[DEBUG] AFTER Object.assign - candidateEngagement:', candidateEngagement);
+        console.log('[DEBUG] cachedComments.engagement detected:', cachedComments.engagement);
+        
+        // Verificar si cachedComments tiene métricas válidas (no todas en 0)
+        const cachedHasValidMetrics = Object.values(cachedComments.engagement).some(v => typeof v === 'number' && v > 0);
+        const currentHasValidMetrics = Object.values(candidateEngagement).some(v => typeof v === 'number' && v > 0);
+        
+        if (cachedHasValidMetrics && !currentHasValidMetrics) {
+          console.log('[DEBUG] Using cachedComments metrics (current has no valid metrics)');
+          Object.assign(candidateEngagement, cachedComments.engagement);
+        } else if (currentHasValidMetrics) {
+          console.log('[DEBUG] BLOCKING cachedComments - current metrics are valid');
+          // NO hacer nada - mantener las métricas actuales
+        } else {
+          console.log('[DEBUG] Both sources have no valid metrics - keeping current');
+        }
       }
       
       // PROTECCIÓN: Si linkData tiene métricas válidas, priorizarlas
@@ -594,6 +624,14 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         console.log('[DEBUG] PROTECTING linkData.engagement - overriding candidateEngagement');
         Object.assign(candidateEngagement, linkData.engagement);
         console.log('[DEBUG] FINAL PROTECTED candidateEngagement:', candidateEngagement);
+      }
+      
+      // FORZAR: Si tenemos métricas válidas, NO permitir que se sobrescriban
+      const hasValidMetrics = Object.values(candidateEngagement).some(v => typeof v === 'number' && v > 0);
+      if (hasValidMetrics) {
+        console.log('[DEBUG] FORCING valid metrics - blocking any overwrites');
+        // Marcar como protegido para evitar sobrescritura posterior
+        candidateEngagement._protected = true;
       }
       const engagementComments = candidateEngagement?.comments;
       if (typeof engagementComments !== 'number' && typeof cachedComments?.totalCount === 'number') {
