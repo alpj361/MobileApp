@@ -953,6 +953,12 @@ async function extractXEngagementAndContent(url: string): Promise<{
               };
               console.log('[X] Got engagement from ExtractorT fallback:', engagement);
             }
+            
+            // Extract image from ExtractorT fallback
+            if (extractorTData.content?.image_url) {
+              imageData.url = extractorTData.content.image_url;
+              console.log('[X] Got image from ExtractorT fallback:', imageData.url);
+            }
           }
         } else {
           console.log('[X] DEBUG: ExtractorT fallback failed with status:', extractorTResponse.status);

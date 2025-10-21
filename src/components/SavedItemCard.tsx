@@ -275,6 +275,9 @@ export default function SavedItemCard({
               <View className="flex-row items-center space-x-3">
                 {/* DEBUG: Log engagement data */}
                 {console.log('[DEBUG] SavedItemCard engagement:', JSON.stringify(item.engagement))}
+                {console.log('[DEBUG] Likes condition:', item.engagement?.likes !== undefined && item.engagement.likes > 0)}
+                {console.log('[DEBUG] Shares condition:', item.engagement?.shares !== undefined && item.engagement.shares > 0)}
+                {console.log('[DEBUG] Comments condition:', item.engagement?.comments !== undefined && item.engagement.comments > 0)}
                 
                 {/* PROTECCIÓN: Mostrar métricas solo si tienen valores válidos */}
                 {item.engagement?.likes !== undefined && item.engagement.likes > 0 && (
@@ -297,7 +300,7 @@ export default function SavedItemCard({
                   <View className="flex-row items-center">
                     <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
                     <Text className="text-gray-500 text-xs ml-1">
-                      {totalComments && totalComments > 0 ? `${totalComments}` : '—'}
+                      {item.engagement?.comments !== undefined && item.engagement.comments > 0 ? `${item.engagement.comments}` : (totalComments && totalComments > 0 ? `${totalComments}` : '—')}
                     </Text>
                     {commentsError && !commentsBusy && (
                       <Ionicons name="warning-outline" size={12} color="#F59E0B" style={{ marginLeft: 6 }} />
@@ -315,8 +318,8 @@ export default function SavedItemCard({
                     </Pressable>
                   </View>
                 )}
-                {/* Views for Instagram only */}
-                {platformEff === 'instagram' && item.engagement?.views !== undefined && item.engagement.views > 0 && (
+                {/* Views for Instagram and Twitter */}
+                {(platformEff === 'instagram' || platformEff === 'x') && item.engagement?.views !== undefined && item.engagement.views > 0 && (
                   <View className="flex-row items-center">
                     <Ionicons name="eye-outline" size={14} color="#6B7280" />
                     <Text className="text-gray-500 text-xs ml-1">
