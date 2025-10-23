@@ -16,6 +16,7 @@ import { useSavedStore } from '../state/savedStore';
 import { processImprovedLinks, extractLinksFromText } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import SavedItemCard from '../components/SavedItemCard';
+import LoadingItemCard from '../components/LoadingItemCard';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
 
@@ -74,12 +75,24 @@ export default function SavedScreen() {
         return;
       }
 
-      // Use improved processing
-      const linkDataArray = await processImprovedLinks(links);
-      
+      // Process each link individually to show loading modal
       let addedCount = 0;
-      for (const linkData of linkDataArray) {
-        const inserted = await addSavedItem(linkData, 'clipboard');
+      for (const link of links) {
+        // Create a basic LinkData object first to show loading modal
+        const basicLinkData = {
+          url: link,
+          title: '',
+          description: '',
+          domain: new URL(link).hostname.replace('www.', ''),
+          type: 'article' as const,
+          platform: null,
+          imageData: { url: '', quality: 'none' as const },
+          engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
+          timestamp: Date.now(),
+        };
+        
+        // This will show the loading modal immediately
+        const inserted = await addSavedItem(basicLinkData, 'clipboard');
         if (inserted) {
           addedCount += 1;
         }
@@ -111,13 +124,20 @@ export default function SavedScreen() {
 
   // Filter button UI removed
 
-  const renderSavedItem = ({ item }: { item: SavedItem }) => (
-    <SavedItemCard
-      item={item}
-      onToggleFavorite={() => toggleFavorite(item.id)}
-      onDelete={() => removeSavedItem(item.id)}
-    />
-  );
+  const renderSavedItem = ({ item }: { item: SavedItem }) => {
+    // Show loading placeholder for pending items
+    if (item.isPending) {
+      return <LoadingItemCard url={item.url} />;
+    }
+    
+    return (
+      <SavedItemCard
+        item={item}
+        onToggleFavorite={() => toggleFavorite(item.id)}
+        onDelete={() => removeSavedItem(item.id)}
+      />
+    );
+  };
 
   const renderEmptyState = () => (
     <View className="flex-1 items-center justify-center px-8">

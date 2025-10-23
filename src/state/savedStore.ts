@@ -18,6 +18,7 @@ export interface SavedItem extends LinkData {
   id: string;
   source: 'chat' | 'clipboard' | 'manual';
   isFavorite?: boolean;
+  isPending?: boolean; // Item is being processed
   // Codex relationship
   codex_id?: string; // ID from codex_items table when saved to codex
   // ✨ NUEVO: Categorización para nueva estructura de Codex
@@ -546,11 +547,38 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         return false;
       }
 
+      // Create a pending placeholder item to show loading state
+      const pendingId = `pending-${Date.now()}-${Math.random()}`;
+      const pendingItem: SavedItem = {
+        id: pendingId,
+        url: linkData.url,
+        title: 'Procesando...',
+        description: '',
+        domain: new URL(linkData.url).hostname.replace('www.', ''),
+        type: 'article',
+        platform: null,
+        imageData: { url: '', quality: 'none' },
+        engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
+        source,
+        isPending: true, // Mark as pending
+        timestamp: Date.now(),
+      };
+
+      // Add pending item immediately for instant UI feedback
+      set((state) => ({
+        items: [pendingItem, ...state.items],
+      }));
+
       let improvedData: ImprovedLinkData | LinkData = linkData;
       try {
         improvedData = await processImprovedLink(linkData.url);
       } catch (error) {
         console.log('Improved processing failed, using original data:', error);
+        // Remove pending item on error
+        set((state) => ({
+          items: state.items.filter((item) => item.id !== pendingId),
+        }));
+        return false;
       }
 
       const baseData = improvedData as LinkData;
@@ -709,13 +737,34 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
           : undefined,
       };
 
+      // Replace pending item with actual processed item
       set((state) => ({
-        items: [newItem, ...state.items],
+        items: state.items.map((item) => 
+          item.id === pendingId ? newItem : item
+        ),
       }));
 
       if (postId && platform && shouldRefetch) {
         startCommentFetch(newItem.id, linkData.url, platform, postId, totalCount);
       }
+
+      // Auto-analyze Instagram posts in background
+      if (platform === 'instagram' && postId && !cachedAnalysis) {
+        console.log('[SavedStore] Auto-analyzing Instagram post:', postId);
+        runAnalysisForItem(newItem.id, linkData.url, baseData.description).catch((error) => {
+          console.error('[SavedStore] Auto-analysis failed for Instagram post:', error);
+        });
+      }
+
+      // Auto-analyze X posts (same behavior as Instagram)
+      if (platform === 'x' && postId && !cachedXAnalysis) {
+        console.log('[SavedStore] Auto-analyzing X post:', postId);
+        // Run analysis in background without awaiting
+        runXAnalysisForItem(newItem.id, linkData.url, baseData.description).catch((error) => {
+          console.error('[SavedStore] Auto-analysis failed for X post:', error);
+        });
+      }
+
       return true;
     },
 

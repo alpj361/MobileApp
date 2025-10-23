@@ -88,6 +88,12 @@ export default function SavedItemCard({
     } else if (item.platform === 'audio') {
       // For audio items, don't try to open URL - just show a message
       Alert.alert('Grabación de Audio', 'Esta es una grabación de audio guardada en tu Codex.');
+    } else if (item.platform === 'instagram') {
+      // For Instagram posts, open analysis modal instead of URL
+      handleOpenAnalysis();
+    } else if (item.platform === 'twitter' || platformEff === 'x') {
+      // For X/Twitter posts, open analysis modal instead of URL
+      handleOpenXAnalysis();
     } else {
       Linking.openURL(item.url);
     }
@@ -265,7 +271,10 @@ export default function SavedItemCard({
             <View className="flex-row items-center">
               <Ionicons name="person-outline" size={14} color="#6B7280" />
               <Text className="text-gray-500 text-xs ml-1" numberOfLines={1}>
-                {item.author}
+                {typeof item.author === 'string' 
+                  ? item.author 
+                  : item.author.handle ? `@${item.author.handle}` : item.author.name || 'Unknown'
+                }
               </Text>
             </View>
           )}
@@ -353,32 +362,10 @@ export default function SavedItemCard({
                       </>
                     )}
                   </Pressable>
-
-                  <Pressable
-                    onPress={handleOpenAnalysis}
-                    className="flex-row items-center bg-purple-50 px-2 py-1 rounded-full border border-purple-200 active:bg-purple-100"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed ? 0.95 : 1 }],
-                      }
-                    ]}
-                    disabled={analysisLoading}
-                  >
-                    {analysisLoading ? (
-                      <ActivityIndicator size="small" color="#7C3AED" />
-                    ) : (
-                      <>
-                        <Ionicons name="document-text-outline" size={12} color="#7C3AED" />
-                        <Text className={`${textStyles.helper} text-purple-600 ml-1 font-medium`}>
-                          {analysisInfo?.summary || analysisInfo?.transcript ? 'Ver análisis' : 'Analizar post'}
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
                 </View>
               )}
 
-              {/* Comments Button for X/Twitter posts */}
+              {/* Comments Button for X/Twitter posts - Analysis button removed, tap card to view analysis */}
               {platformEff === 'x' && (
                 <View className="flex-row items-center gap-2">
                   <Pressable
@@ -398,28 +385,6 @@ export default function SavedItemCard({
                         <Ionicons name="chatbubbles-outline" size={12} color="#1DA1F2" />
                         <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
                           Ver comentarios
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-
-                  <Pressable
-                    onPress={handleOpenXAnalysis}
-                    className="flex-row items-center bg-purple-50 px-2 py-1 rounded-full border border-purple-200 active:bg-purple-100"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed ? 0.95 : 1 }],
-                      }
-                    ]}
-                    disabled={xAnalysisLoading}
-                  >
-                    {xAnalysisLoading ? (
-                      <ActivityIndicator size="small" color="#7C3AED" />
-                    ) : (
-                      <>
-                        <Ionicons name="document-text-outline" size={12} color="#7C3AED" />
-                        <Text className={`${textStyles.helper} text-purple-600 ml-1 font-medium`}>
-                          {xAnalysisInfo?.summary || xAnalysisInfo?.transcript ? 'Ver análisis' : 'Analizar post'}
                         </Text>
                       </>
                     )}

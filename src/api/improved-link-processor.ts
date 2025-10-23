@@ -839,44 +839,14 @@ async function extractXEngagementAndContent(url: string): Promise<{
   console.log('[X] ExtractorW URL:', EXTRACTORW_URL);
   
   try {
-    // First, get engagement metrics from comments endpoint (includes tweet stats)
-    console.log('[X] Step 1: Getting engagement from comments endpoint');
-    const commentsResponse = await fetch(`${EXTRACTORW_URL}/api/x/comments`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer extractorw-auth-token'
-      },
-      body: JSON.stringify({ url, maxComments: 1 }), // Only need metadata, not actual comments
-    });
-
+    // Use ONLY /api/x/media - it calls ExtractorT which returns EVERYTHING
+    // This avoids duplicate calls and reduces load time
+    console.log('[X] Calling /api/x/media (returns media + engagement + text)');
+    
     let engagement = {};
     let text: string | undefined;
     let author: string | undefined;
     let imageData: { url?: string; type?: string; quality?: string } = {};
-    
-    console.log('[X] DEBUG: Initial engagement:', engagement);
-    
-    if (commentsResponse.ok) {
-      const commentsData = await commentsResponse.json();
-      console.log('[X] Comments endpoint response:', JSON.stringify(commentsData, null, 2));
-      
-      if (commentsData.success && commentsData.metadata?.stats) {
-        const stats = commentsData.metadata.stats;
-        engagement = {
-          likes: parseNumericValue(stats.likes),
-          comments: parseNumericValue(stats.comments),
-          shares: parseNumericValue(stats.retweets),
-          views: parseNumericValue(stats.views),
-        };
-        console.log('[X] Extracted engagement from comments:', engagement);
-      }
-    } else {
-      console.warn('[X] Comments endpoint failed:', commentsResponse.status);
-    }
-
-    // Second, get media (thumbnail/video)
-    console.log('[X] Step 2: Getting media from /api/x/media');
     const mediaResponse = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
       method: 'POST',
       headers: { 
@@ -891,8 +861,29 @@ async function extractXEngagementAndContent(url: string): Promise<{
       console.log('[X] Media endpoint response:', JSON.stringify(mediaData, null, 2));
       
       if (mediaData.success) {
-        // Get caption/text from media response (ExtractorW doesn't provide this yet)
-        text = mediaData.caption;
+        // Extract tweet text
+        text = mediaData.tweet_text || mediaData.caption;
+        if (text) {
+          console.log('[X] Got text:', text.substring(0, 100));
+        }
+        
+        // Extract author
+        if (mediaData.author_handle) {
+          author = `@${mediaData.author_handle}`;
+          console.log('[X] Got author:', author);
+        }
+        
+        // Extract engagement metrics
+        if (mediaData.tweet_metrics) {
+          const metrics = mediaData.tweet_metrics;
+          engagement = {
+            likes: metrics.likes || 0,
+            comments: metrics.replies || 0,
+            shares: metrics.reposts || 0,
+            views: metrics.views || 0,
+          };
+          console.log('[X] Got engagement:', engagement);
+        }
         
         // Get thumbnail or first image/video - prioritize images over video URLs
         console.log('[X] DEBUG: mediaData.thumbnail_url:', mediaData.thumbnail_url);
@@ -917,11 +908,12 @@ async function extractXEngagementAndContent(url: string): Promise<{
       console.warn('[X] Media endpoint failed:', mediaResponse.status);
     }
 
-    console.log('[X] DEBUG: Engagement after ExtractorW:', engagement);
+    console.log('[X] DEBUG: Final engagement before return:', engagement);
     
-    // Fallback: If we didn't get text, try to get it from ExtractorT directly
-    if (!text) {
-      console.log('[X] No text from ExtractorW, trying ExtractorT fallback...');
+    // Fallback: Si ExtractorW no devolvió datos del tweet, intentar ExtractorT directamente
+    // Esto evita el loop porque solo se ejecuta si NO tenemos datos
+    if (!text && Object.keys(engagement).length === 0) {
+      console.log('[X] No data from ExtractorW, trying ExtractorT direct fallback...');
       try {
         const EXTRACTORT_URL = 'https://api.standatpd.com';
         const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
@@ -933,16 +925,19 @@ async function extractXEngagementAndContent(url: string): Promise<{
           body: JSON.stringify({ url }),
         });
 
-        console.log('[X] DEBUG: ExtractorT response status:', extractorTResponse.status);
         if (extractorTResponse.ok) {
           const extractorTData = await extractorTResponse.json();
-          console.log('[X] DEBUG: ExtractorT response:', JSON.stringify(extractorTData, null, 2));
-          if (extractorTData.success && extractorTData.content?.tweet_text) {
-            text = extractorTData.content.tweet_text;
-            console.log('[X] Got text from ExtractorT fallback:', text?.substring(0, 100));
+          console.log('[X] ExtractorT direct response:', JSON.stringify(extractorTData, null, 2));
+          
+          if (extractorTData.success && extractorTData.content) {
+            // Extraer texto del tweet
+            if (extractorTData.content.tweet_text) {
+              text = extractorTData.content.tweet_text;
+              console.log('[X] Got text from ExtractorT:', text?.substring(0, 100));
+            }
             
-            // Extract metrics from ExtractorT fallback
-            if (extractorTData.content?.tweet_metrics) {
+            // Extraer métricas
+            if (extractorTData.content.tweet_metrics) {
               const metrics = extractorTData.content.tweet_metrics;
               engagement = {
                 likes: metrics.likes || 0,
@@ -950,24 +945,29 @@ async function extractXEngagementAndContent(url: string): Promise<{
                 shares: metrics.reposts || 0,
                 views: metrics.views || 0,
               };
-              console.log('[X] Got engagement from ExtractorT fallback:', engagement);
+              console.log('[X] Got engagement from ExtractorT:', engagement);
             }
             
-            // Extract image from ExtractorT fallback
-            if (extractorTData.content?.image_url) {
+            // Extraer autor si está disponible
+            if (extractorTData.content.author || extractorTData.content.username) {
+              author = extractorTData.content.author || `@${extractorTData.content.username}`;
+              console.log('[X] Got author from ExtractorT:', author);
+            }
+            
+            // Si no tenemos imagen/video aún, intentar extraerlo de ExtractorT
+            if (!imageData.url && extractorTData.content.image_url) {
               imageData.url = extractorTData.content.image_url;
-              console.log('[X] Got image from ExtractorT fallback:', imageData.url);
+              imageData.type = extractorTData.content.media_type || 'image';
+              console.log('[X] Got media from ExtractorT:', imageData.url);
             }
           }
         } else {
-          console.log('[X] DEBUG: ExtractorT fallback failed with status:', extractorTResponse.status);
+          console.log('[X] ExtractorT direct failed with status:', extractorTResponse.status);
         }
       } catch (error) {
-        console.warn('[X] ExtractorT fallback failed:', error);
+        console.warn('[X] ExtractorT direct fallback error:', error);
       }
     }
-    
-    console.log('[X] DEBUG: Final engagement before return:', engagement);
     
     const result = {
       text,

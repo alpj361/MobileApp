@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useChatStore } from '../state/chatStore';
 import { useSavedStore } from '../state/savedStore';
 import { getViztaChatResponse } from '../api/vizta-service';
-import { extractLinksFromText, processLinks, detectSocialPlatform } from '../api/link-processor';
+import { extractLinksFromText, processImprovedLinks, detectSocialPlatform } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import AnimatedCircle from '../components/AnimatedCircle';
 import LinkProcessingIndicator from '../components/LinkProcessingIndicator';
@@ -57,13 +57,13 @@ export default function ChatScreen() {
         setProcessingPlatform(platform || 'generic');
       }
       
-      processLinks(links).then((linkDataArray) => {
+      processImprovedLinks(links).then((linkDataArray) => {
         linkDataArray.forEach((linkData) => {
           addSavedItem(linkData, 'chat');
         });
         setIsProcessingLinks(false);
       }).catch((error) => {
-        console.error('Failed to process links:', error);
+        console.error('[ChatScreen] Failed to process links:', error);
         setIsProcessingLinks(false);
       });
     }
