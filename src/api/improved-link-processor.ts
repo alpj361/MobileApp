@@ -890,13 +890,21 @@ async function extractXEngagementAndContent(url: string): Promise<{
         console.log('[X] DEBUG: mediaData.images:', mediaData.images);
         console.log('[X] DEBUG: mediaData.video_url:', mediaData.video_url);
         
+        // Helper function to detect media type from URL
+        const getMediaTypeFromUrl = (url: string): 'image' | 'video' => {
+          const videoExtensions = ['.mp4', '.webm', '.mov', '.avi', '.m4v'];
+          const lowerUrl = url.toLowerCase();
+          return videoExtensions.some(ext => lowerUrl.includes(ext)) ? 'video' : 'image';
+        };
+
         // Prioritize actual images over video URLs for display
         if (mediaData.images && mediaData.images.length > 0) {
           imageData = { url: mediaData.images[0], type: 'image' };
           console.log('[X] DEBUG: Using first image:', mediaData.images[0]);
         } else if (mediaData.thumbnail_url && !mediaData.thumbnail_url.includes('anniversary-theme.mp4')) {
-          imageData = { url: mediaData.thumbnail_url, type: 'image' };
-          console.log('[X] DEBUG: Using thumbnail_url:', mediaData.thumbnail_url);
+          const mediaType = getMediaTypeFromUrl(mediaData.thumbnail_url);
+          imageData = { url: mediaData.thumbnail_url, type: mediaType };
+          console.log('[X] DEBUG: Using thumbnail_url:', mediaData.thumbnail_url, 'detected type:', mediaType);
         } else if (mediaData.video_url && !mediaData.video_url.includes('anniversary-theme.mp4')) {
           imageData = { url: mediaData.video_url, type: 'video' };
           console.log('[X] DEBUG: Using video_url:', mediaData.video_url);
@@ -909,65 +917,6 @@ async function extractXEngagementAndContent(url: string): Promise<{
     }
 
     console.log('[X] DEBUG: Final engagement before return:', engagement);
-    
-    // Fallback: Si ExtractorW no devolvió datos del tweet, intentar ExtractorT directamente
-    // Esto evita el loop porque solo se ejecuta si NO tenemos datos
-    if (!text && Object.keys(engagement).length === 0) {
-      console.log('[X] No data from ExtractorW, trying ExtractorT direct fallback...');
-      try {
-        const EXTRACTORT_URL = 'https://api.standatpd.com';
-        const extractorTResponse = await fetch(`${EXTRACTORT_URL}/enhanced-media/twitter/process`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer extractort-auth-token'
-          },
-          body: JSON.stringify({ url }),
-        });
-
-        if (extractorTResponse.ok) {
-          const extractorTData = await extractorTResponse.json();
-          console.log('[X] ExtractorT direct response:', JSON.stringify(extractorTData, null, 2));
-          
-          if (extractorTData.success && extractorTData.content) {
-            // Extraer texto del tweet
-            if (extractorTData.content.tweet_text) {
-              text = extractorTData.content.tweet_text;
-              console.log('[X] Got text from ExtractorT:', text?.substring(0, 100));
-            }
-            
-            // Extraer métricas
-            if (extractorTData.content.tweet_metrics) {
-              const metrics = extractorTData.content.tweet_metrics;
-              engagement = {
-                likes: metrics.likes || 0,
-                comments: metrics.replies || 0,
-                shares: metrics.reposts || 0,
-                views: metrics.views || 0,
-              };
-              console.log('[X] Got engagement from ExtractorT:', engagement);
-            }
-            
-            // Extraer autor si está disponible
-            if (extractorTData.content.author || extractorTData.content.username) {
-              author = extractorTData.content.author || `@${extractorTData.content.username}`;
-              console.log('[X] Got author from ExtractorT:', author);
-            }
-            
-            // Si no tenemos imagen/video aún, intentar extraerlo de ExtractorT
-            if (!imageData.url && extractorTData.content.image_url) {
-              imageData.url = extractorTData.content.image_url;
-              imageData.type = extractorTData.content.media_type || 'image';
-              console.log('[X] Got media from ExtractorT:', imageData.url);
-            }
-          }
-        } else {
-          console.log('[X] ExtractorT direct failed with status:', extractorTResponse.status);
-        }
-      } catch (error) {
-        console.warn('[X] ExtractorT direct fallback error:', error);
-      }
-    }
     
     const result = {
       text,

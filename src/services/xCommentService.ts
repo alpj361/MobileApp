@@ -54,6 +54,7 @@ export interface FetchXCommentsOptions {
   limit?: number;
   includeReplies?: boolean;
   force?: boolean;
+  fallbackCommentCount?: number; // Use this if server fails
 }
 
 function resolveTimestamp(value: RawXComment['timestamp']): number {
@@ -198,7 +199,13 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
       console.warn('[X] Server error (502/Bad Gateway), trying fallback for comment count');
       
       // Intentar obtener el conteo de comentarios del endpoint principal
-      const fallbackCount = await getFallbackCommentCount(url);
+      let fallbackCount = await getFallbackCommentCount(url);
+      
+      // Si el fallback también falla, usar el valor original si está disponible
+      if (fallbackCount === undefined && options.fallbackCommentCount !== undefined) {
+        console.log('[X] Using original comment count from link data:', options.fallbackCommentCount);
+        fallbackCount = options.fallbackCommentCount;
+      }
       
       return {
         url,

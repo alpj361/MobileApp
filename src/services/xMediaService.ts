@@ -1,5 +1,8 @@
 const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
 
+// Deduplication: Track URLs currently being fetched
+const runningMediaFetches = new Set<string>();
+
 export type XMediaType = 'video' | 'image' | 'text';
 
 export interface XMedia {
@@ -40,6 +43,21 @@ export async function fetchXMedia(url: string): Promise<XMedia> {
   if (!url.includes('twitter.com') && !url.includes('x.com')) {
     throw new Error('Invalid X URL');
   }
+
+  // Check if this URL is already being fetched
+  if (runningMediaFetches.has(url)) {
+    console.log('[X Media] URL is already being fetched, waiting...:', url);
+    // Wait a bit and retry (simple backoff)
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Check again after waiting
+    if (runningMediaFetches.has(url)) {
+      throw new Error('Media fetch already in progress for this URL');
+    }
+  }
+
+  // Mark as being fetched
+  runningMediaFetches.add(url);
 
   try {
     const response = await fetch(`${BASE_URL}/api/x/media`, {
@@ -93,5 +111,8 @@ export async function fetchXMedia(url: string): Promise<XMedia> {
   } catch (error) {
     console.error('[X Media] Error fetching media:', error);
     throw error;
+  } finally {
+    // Always remove from running set when done
+    runningMediaFetches.delete(url);
   }
 }

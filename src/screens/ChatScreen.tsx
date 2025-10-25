@@ -57,15 +57,31 @@ export default function ChatScreen() {
         setProcessingPlatform(platform || 'generic');
       }
       
-      processImprovedLinks(links).then((linkDataArray) => {
-        linkDataArray.forEach((linkData) => {
-          addSavedItem(linkData, 'chat');
-        });
+      // Process each link individually to show loading modal (same as SavedScreen)
+      (async () => {
+        for (const link of links) {
+          try {
+            // Create a basic LinkData object first to show loading modal
+            const basicLinkData = {
+              url: link,
+              title: '',
+              description: '',
+              domain: new URL(link).hostname.replace('www.', ''),
+              type: 'article' as const,
+              platform: null,
+              imageData: { url: '', quality: 'none' as const },
+              engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
+              timestamp: Date.now(),
+            };
+            
+            // This will show the loading modal immediately
+            await addSavedItem(basicLinkData, 'chat');
+          } catch (error) {
+            console.error('[ChatScreen] Failed to add link:', link, error);
+          }
+        }
         setIsProcessingLinks(false);
-      }).catch((error) => {
-        console.error('[ChatScreen] Failed to process links:', error);
-        setIsProcessingLinks(false);
-      });
+      })();
     }
 
     setLoading(true);

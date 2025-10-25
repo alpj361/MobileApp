@@ -1,4 +1,4 @@
-import { fetchXMedia, XMediaType } from './xMediaService';
+import { fetchXMedia, XMediaType, XMedia } from './xMediaService';
 import { describeImageWithVision } from '../api/vision';
 import { getOpenAITextResponse } from '../api/chat-service';
 import { extractXPostId } from '../utils/x';
@@ -35,44 +35,67 @@ export async function analyzeXPost(
   text: string | undefined,
   options: AnalyzeOptions = {},
 ): Promise<StoredXAnalysis> {
+  console.log('[X Analysis] Starting analysis for:', url);
+  
   const postId = extractXPostId(url);
   if (!postId) {
+    console.error('[X Analysis] Failed to extract post ID from:', url);
     throw new Error('No se pudo determinar el ID del post de X');
   }
+
+  console.log('[X Analysis] Post ID:', postId);
 
   if (!options.force) {
     const cached = await loadXAnalysis(postId);
     if (cached) {
+      console.log('[X Analysis] Using cached analysis for:', postId);
       return cached;
     }
   }
 
   const startTime = Date.now();
+  console.log('[X Analysis] Fetching media info...');
 
-  // Fetch media info
-  const media = await fetchXMedia(url);
+  // Fetch media info with fallback
+  let media: XMedia;
+  try {
+    media = await fetchXMedia(url);
+    console.log('[X Analysis] Media type:', media.type);
+  } catch (error) {
+    console.error('[X Analysis] Failed to fetch media info:', error);
+    console.log('[X Analysis] Continuing with text-only analysis');
+    // Fallback to text-only analysis
+    media = { type: 'text' };
+  }
 
   let transcript: string | undefined;
   let imageDescriptions: Array<{ url: string; description: string }> | undefined;
 
   // 1. TRANSCRIPCIÓN (Prioridad 1)
   if (media.type === 'video') {
+    console.log('[X Analysis] Transcribing video...');
     transcript = await transcribeXVideo(url, media);
+    console.log('[X Analysis] Transcription completed:', transcript?.length || 0, 'chars');
   } 
   // 4. VISION para imágenes (Prioridad 4)
   else if (media.type === 'image') {
+    console.log('[X Analysis] Describing images...');
     imageDescriptions = await describeXImages(media);
+    console.log('[X Analysis] Image descriptions completed:', imageDescriptions?.length || 0, 'images');
   }
 
   // 2. RESUMEN IA (Prioridad 2)
+  console.log('[X Analysis] Generating summary...');
   const summary = await summarizeXPost({
     text,
     transcript,
     images: imageDescriptions,
     type: media.type,
   });
+  console.log('[X Analysis] Summary completed:', summary.length, 'chars');
 
   // 3. TOPIC + SENTIMENT (Prioridad 3)
+  console.log('[X Analysis] Deriving insights...');
   const insights = await deriveXInsights({
     text,
     summary,
@@ -80,8 +103,10 @@ export async function analyzeXPost(
     images: imageDescriptions,
     type: media.type,
   });
+  console.log('[X Analysis] Insights completed - topic:', insights.topic, 'sentiment:', insights.sentiment);
 
   const processingTime = Date.now() - startTime;
+  console.log('[X Analysis] Total processing time:', processingTime, 'ms');
 
   const payload: StoredXAnalysis = {
     postId,
@@ -102,7 +127,10 @@ export async function analyzeXPost(
     },
   };
 
+  console.log('[X Analysis] Saving analysis to cache...');
   await saveXAnalysis(payload);
+
+  console.log('[X Analysis] ✅ Analysis completed successfully for:', postId);
   return payload;
 }
 
@@ -169,10 +197,8 @@ async function describeXImages(media: any): Promise<Array<{ url: string; descrip
 
   for (const imageUrl of limitedUrls) {
     try {
-      const description = await describeImageWithVision(imageUrl, {
-        detail: 'low',
-        language: 'auto',
-      });
+      const prompt = 'Describe esta imagen del tweet en español de forma breve y concisa (máximo 2 oraciones).';
+      const description = await describeImageWithVision(imageUrl, prompt);
       if (description) {
         descriptions.push({ url: imageUrl, description });
       }
@@ -326,4 +352,3 @@ function normalizeTranscript(raw: string): string {
     .filter((line) => line.length > 0)
     .join('\n');
 }
-

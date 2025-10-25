@@ -94,6 +94,7 @@ interface SavedState {
 }
 
 const runningCommentFetches = new Set<string>();
+const runningItemProcessing = new Set<string>(); // Track items being processed to prevent duplicates
 
 type SocialPlatform = 'instagram' | 'x';
 
@@ -166,6 +167,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
             includeReplies: true,
             limit: 120,
             force: true,
+            fallbackCommentCount: hintedTotal,
           });
 
       const previewComments = payload.comments.slice(0, 3);
@@ -541,11 +543,21 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     isLoading: false,
 
     addSavedItem: async (linkData, source = 'manual') => {
+      // Check if already saved
       const existingItem = get().items.find((item) => item.url === linkData.url);
       if (existingItem) {
-        console.log('Link already saved:', linkData.url);
+        console.log('[SavedStore] Link already saved:', linkData.url);
         return false;
       }
+
+      // Check if currently being processed to prevent duplicates
+      if (runningItemProcessing.has(linkData.url)) {
+        console.log('[SavedStore] Link is already being processed:', linkData.url);
+        return false;
+      }
+
+      // Mark as being processed
+      runningItemProcessing.add(linkData.url);
 
       // Create a pending placeholder item to show loading state
       const pendingId = `pending-${Date.now()}-${Math.random()}`;
@@ -573,12 +585,17 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       try {
         improvedData = await processImprovedLink(linkData.url);
       } catch (error) {
-        console.log('Improved processing failed, using original data:', error);
+        console.log('[SavedStore] Improved processing failed, using original data:', error);
         // Remove pending item on error
         set((state) => ({
           items: state.items.filter((item) => item.id !== pendingId),
         }));
+        // Remove from processing set
+        runningItemProcessing.delete(linkData.url);
         return false;
+      } finally {
+        // Always remove from processing set when done
+        runningItemProcessing.delete(linkData.url);
       }
 
       const baseData = improvedData as LinkData;
