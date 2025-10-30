@@ -20,6 +20,10 @@
       "edgeToEdgeEnabled": true,
       "package": "com.vibecode.app"
     },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
     "plugins": [
       "expo-asset",
       "expo-build-properties",

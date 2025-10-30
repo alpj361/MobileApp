@@ -838,6 +838,17 @@ async function extractXEngagementAndContent(url: string): Promise<{
   console.log('[X] Starting X extraction for:', url);
   console.log('[X] ExtractorW URL:', EXTRACTORW_URL);
   
+  // ✅ Importar caché (necesitamos hacerlo dinámicamente para evitar errores de compilación)
+  const { getXDataFromCache, setXDataToCache } = await import('../storage/xDataCache');
+  
+  // ✅ Verificar caché primero (usar key específica para engagement)
+  const cacheKey = `engagement:${url}`;
+  const cached = getXDataFromCache(cacheKey);
+  if (cached) {
+    console.log('[X] 🎯 Cache HIT - using cached data');
+    return cached;
+  }
+  
   try {
     // Use ONLY /api/x/media - it calls ExtractorT which returns EVERYTHING
     // This avoids duplicate calls and reduces load time
@@ -924,6 +935,10 @@ async function extractXEngagementAndContent(url: string): Promise<{
       engagement,
       media: imageData.url ? { url: imageData.url, type: imageData.type || 'image' } : undefined,
     };
+    
+    // ✅ Guardar en caché antes de retornar (usar key específica para engagement)
+    setXDataToCache(cacheKey, result);
+    console.log('[X] 💾 Cached engagement result for:', url);
     
     console.log('[X] Final result:', JSON.stringify(result, null, 2));
     return result;

@@ -9,11 +9,14 @@
     "ios:device": "expo run:ios --device",
     "ios:select": "expo run:ios --device --select-device",
     "web": "expo start --web",
+    "web:build": "expo export:web",
+    "web:serve": "npx serve web-build",
     "prebuild": "expo prebuild --clean",
     "prebuild:ios": "expo prebuild --platform ios --clean"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
+    "@expo/metro-runtime": "~5.0.5",
     "@expo/react-native-action-sheet": "^4.1.1",
     "@expo/vector-icons": "^14.1.0",
     "@gorhom/bottom-sheet": "^5",

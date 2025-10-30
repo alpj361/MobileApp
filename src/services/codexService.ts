@@ -9,6 +9,10 @@ import {
   CodexSaveResult as CodexSaveResultType,
   detectCodexCategory 
 } from '../types/codexTypes';
+import { loadInstagramComments } from '../storage/commentsRepo';
+import { loadXComments } from '../storage/xCommentsRepo';
+import { extractInstagramPostId } from '../utils/instagram';
+import { extractXPostId } from '../utils/x';
 
 export interface CodexSaveResult {
   success: boolean;
@@ -267,6 +271,32 @@ export async function saveLinkToCodex(
       };
     }
 
+    // ✅ Cargar comentarios si existen (Instagram o X)
+    let fullComments: any[] = [];
+    try {
+      if (item.platform === 'instagram') {
+        const postId = extractInstagramPostId(item.url);
+        if (postId) {
+          const storedComments = await loadInstagramComments(postId);
+          if (storedComments?.comments) {
+            fullComments = storedComments.comments;
+            console.log(`[Codex] Cargados ${fullComments.length} comentarios de Instagram para guardar`);
+          }
+        }
+      } else if (item.platform === 'twitter') {
+        const postId = extractXPostId(item.url);
+        if (postId) {
+          const storedComments = await loadXComments(postId);
+          if (storedComments?.comments) {
+            fullComments = storedComments.comments;
+            console.log(`[Codex] Cargados ${fullComments.length} comentarios de X para guardar`);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('[Codex] Error cargando comentarios:', error);
+    }
+
     // ✨ NUEVO: Detectar categoría automáticamente si no se proporciona
     const detectedCategory = category && subcategory 
       ? { category, subcategory }
@@ -293,6 +323,46 @@ export async function saveLinkToCodex(
       ...(detectedCategory.subcategory === 'post' && {
         post_id: item.url.split('/').pop(),
         engagement_metrics: item.engagement,
+      }),
+      // ✅ NUEVO: Incluir análisis de Instagram si existe
+      ...(item.analysisInfo && {
+        instagram_analysis: {
+          type: item.analysisInfo.type,
+          summary: item.analysisInfo.summary,
+          transcript: item.analysisInfo.transcript,
+          images: item.analysisInfo.images,
+          topic: item.analysisInfo.topic,
+          sentiment: item.analysisInfo.sentiment,
+          lastUpdated: item.analysisInfo.lastUpdated,
+        }
+      }),
+      // ✅ NUEVO: Incluir análisis de X/Twitter si existe
+      ...(item.xAnalysisInfo && {
+        x_analysis: {
+          type: item.xAnalysisInfo.type,
+          summary: item.xAnalysisInfo.summary,
+          transcript: item.xAnalysisInfo.transcript,
+          images: item.xAnalysisInfo.images,
+          text: item.xAnalysisInfo.text,
+          topic: item.xAnalysisInfo.topic,
+          sentiment: item.xAnalysisInfo.sentiment,
+          lastUpdated: item.xAnalysisInfo.lastUpdated,
+        }
+      }),
+      // ✅ NUEVO: Incluir información de comentarios si existe
+      ...(item.commentsInfo && {
+        comments_info: {
+          platform: item.commentsInfo.platform,
+          postId: item.commentsInfo.postId,
+          totalCount: item.commentsInfo.totalCount,
+          loadedCount: item.commentsInfo.loadedCount,
+          lastUpdated: item.commentsInfo.lastUpdated,
+        }
+      }),
+      // ✅ NUEVO: Incluir comentarios completos
+      ...(fullComments.length > 0 && {
+        comments: fullComments,
+        comments_count: fullComments.length,
       }),
     };
 

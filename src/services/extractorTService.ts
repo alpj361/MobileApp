@@ -5,6 +5,7 @@ import {
   loadInstagramComments,
   StoredInstagramComments,
 } from '../storage/commentsRepo';
+import { getCommonHeaders } from '../config/api';
 
 // Primary: use the public server wrapper (ExtractorW) which handles auth and routing
 const EXTRACTOR_WRAPPER_URL = 'https://server.standatpd.com/api/instagram/comments';
@@ -100,7 +101,7 @@ async function fetchCommentsFromApi(url: string, postId: string, options?: Fetch
   try {
     const wrapperRes = await fetch(EXTRACTOR_WRAPPER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getCommonHeaders(),
       body: JSON.stringify({ url, limit: options?.commentLimit ?? 120 }),
     });
 

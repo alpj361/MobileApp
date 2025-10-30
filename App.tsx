@@ -3,6 +3,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { NavigationContainer } from "@react-navigation/native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DrawerNavigator from "./src/navigation/TabNavigator";
+import { WebContainer } from "./src/components/WebContainer";
 
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
@@ -29,10 +30,12 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <NavigationContainer>
-          <DrawerNavigator />
-          <StatusBar style="dark" />
-        </NavigationContainer>
+        <WebContainer>
+          <NavigationContainer>
+            <DrawerNavigator />
+            <StatusBar style="dark" />
+          </NavigationContainer>
+        </WebContainer>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

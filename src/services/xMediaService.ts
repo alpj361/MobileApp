@@ -1,3 +1,6 @@
+import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
+import { getCommonHeaders, addPlatformParam } from '../config/api';
+
 const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
 
 // Deduplication: Track URLs currently being fetched
@@ -20,6 +23,19 @@ export interface XMedia {
 interface XMediaApiResponse {
   success: boolean;
   type?: XMediaType;
+  video_url?: string;
+  images?: string[];
+  thumbnail_url?: string;
+  duration?: number;
+  post_id?: string;
+  tweet_text?: string;
+  tweet_metrics?: {
+    likes?: number;
+    replies?: number;
+    reposts?: number;
+    views?: number;
+  };
+  comments_count?: number;
   media?: {
     type: string;
     url?: string;
@@ -35,7 +51,14 @@ interface XMediaApiResponse {
   error?: { message?: string } | string;
 }
 
+/**
+ * ✅ OPTIMIZADO: Obtener media usando el servicio unificado
+ * Ya NO hace llamadas duplicadas - usa fetchXComplete()
+ */
 export async function fetchXMedia(url: string): Promise<XMedia> {
+  console.log('[X Media] ========== START fetchXMedia ==========');
+  console.log('[X Media] URL:', url);
+  
   if (!url) {
     throw new Error('URL is required');
   }
@@ -44,75 +67,19 @@ export async function fetchXMedia(url: string): Promise<XMedia> {
     throw new Error('Invalid X URL');
   }
 
-  // Check if this URL is already being fetched
-  if (runningMediaFetches.has(url)) {
-    console.log('[X Media] URL is already being fetched, waiting...:', url);
-    // Wait a bit and retry (simple backoff)
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Check again after waiting
-    if (runningMediaFetches.has(url)) {
-      throw new Error('Media fetch already in progress for this URL');
-    }
-  }
-
-  // Mark as being fetched
-  runningMediaFetches.add(url);
-
   try {
-    const response = await fetch(`${BASE_URL}/api/x/media`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-
-    if (!response.ok) {
-      let errorMessage = `X media endpoint responded with ${response.status}`;
-      try {
-        const payload = await response.json();
-        errorMessage = payload?.error?.message || errorMessage;
-      } catch (_) {
-        // ignore JSON parse errors
-      }
-      console.error('[X Media] Request failed:', errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    const data: XMediaApiResponse = await response.json();
-
-    if (!data.success) {
-      throw new Error(data.error?.toString() || 'Failed to fetch X media');
-    }
-
-    // Parse response
-    const mediaData = data.media || data.content?.media?.[0];
+    // ✅ Usar servicio unificado que obtiene TODO en una llamada
+    const { fetchXComplete } = await import('./xCompleteService');
+    const completeData = await fetchXComplete(url);
     
-    if (!mediaData) {
-      // Text-only tweet
-      return {
-        type: 'text',
-      };
-    }
-
-    const type: XMediaType = mediaData.type === 'video' ? 'video' : 
-                             mediaData.type === 'image' ? 'image' : 'text';
-
-    return {
-      type,
-      url: mediaData.url,
-      urls: mediaData.urls,
-      thumbnail: mediaData.thumbnail,
-      duration: mediaData.metadata?.duration,
-      size: mediaData.metadata?.size,
-      width: mediaData.metadata?.width,
-      height: mediaData.metadata?.height,
-      format: mediaData.metadata?.format,
-    };
+    console.log('[X Media] ✅ Got media from unified service');
+    console.log('[X Media] Media type:', completeData.media.type);
+    console.log('[X Media] ========== END fetchXMedia (success) ==========');
+    
+    return completeData.media;
   } catch (error) {
+    console.error('[X Media] ========== ERROR in fetchXMedia ==========');
     console.error('[X Media] Error fetching media:', error);
     throw error;
-  } finally {
-    // Always remove from running set when done
-    runningMediaFetches.delete(url);
   }
 }

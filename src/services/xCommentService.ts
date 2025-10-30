@@ -160,6 +160,10 @@ function parseNumericValue(value: unknown): number | undefined {
   return undefined;
 }
 
+/**
+ * ✅ OPTIMIZADO: Obtener comentarios usando el servicio unificado
+ * Ya NO hace llamadas duplicadas - usa fetchXComplete()
+ */
 export async function fetchXComments(url: string, options: FetchXCommentsOptions = {}): Promise<StoredXComments> {
   const postId = extractXPostId(url);
   if (!postId) {
@@ -171,6 +175,71 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
     if (cached) {
       return cached;
     }
+  }
+
+  try {
+    // ✅ Usar servicio unificado que obtiene TODO en una llamada
+    const { fetchXComplete } = await import('./xCompleteService');
+    const completeData = await fetchXComplete(url);
+    
+    console.log('[X Comments] ✅ Got comments from unified service');
+    console.log('[X Comments] Comments count:', completeData.comments.length);
+    
+    // Convertir comentarios al formato esperado
+    const mappedComments = completeData.comments.map((c, index) => ({
+      id: createId(postId, undefined, index, c.text),
+      author: c.user,
+      text: c.text,
+      timestamp: c.timestamp ? (typeof c.timestamp === 'string' ? Date.parse(c.timestamp) : c.timestamp) : Date.now(),
+      likes: c.likes,
+      verified: false,
+      replies: undefined,
+      parentId: undefined,
+    }));
+    
+    // Convertir a formato StoredXComments
+    const stored: StoredXComments = {
+      url,
+      postId,
+      comments: mappedComments,
+      extractedCount: mappedComments.length,
+      totalCount: mappedComments.length,
+      savedAt: Date.now(),
+      engagement: {
+        likes: completeData.metrics.likes,
+        shares: completeData.metrics.reposts,
+        views: completeData.metrics.views,
+        comments: completeData.metrics.replies,
+      },
+    };
+    
+    await saveXComments(stored);
+    return stored;
+  } catch (error) {
+    console.error('[X Comments] Error fetching comments:', error);
+    
+    // Fallback: intentar obtener conteo básico
+    const fallbackCount = await getFallbackCommentCount(url);
+    
+    return {
+      url,
+      postId,
+      comments: [],
+      extractedCount: 0,
+      totalCount: fallbackCount || options.fallbackCommentCount || 0,
+      savedAt: Date.now(),
+      engagement: {
+        comments: fallbackCount || options.fallbackCommentCount,
+      },
+    };
+  }
+}
+
+// Código legacy mantenido para compatibilidad (no se usa más)
+async function fetchXCommentsLegacy(url: string, options: FetchXCommentsOptions = {}): Promise<StoredXComments> {
+  const postId = extractXPostId(url);
+  if (!postId) {
+    throw new Error('Invalid X URL – post id could not be determined');
   }
 
   const replyLimit = Math.min(Math.max(options.limit ?? 100, 1), 100);
@@ -194,9 +263,9 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
       // ignore JSON parse errors
     }
     
-    // Para errores 502 (Bad Gateway) y otros errores del servidor, usar fallback
-    if (response.status >= 500 || response.status === 502) {
-      console.warn('[X] Server error (502/Bad Gateway), trying fallback for comment count');
+    // Para errores 404 (Not Found), 502 (Bad Gateway) y otros errores del servidor, usar fallback
+    if (response.status === 404 || response.status >= 500 || response.status === 502) {
+      console.warn(`[X] Server error (${response.status}), trying fallback for comment count`);
       
       // Intentar obtener el conteo de comentarios del endpoint principal
       let fallbackCount = await getFallbackCommentCount(url);

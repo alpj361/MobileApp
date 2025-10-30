@@ -1,5 +1,5 @@
-import { fetchXMedia, XMediaType, XMedia } from './xMediaService';
-import { describeImageWithVision } from '../api/vision';
+import { fetchXComplete } from './xCompleteService';
+import { XMediaType } from './xMediaService';
 import { getOpenAITextResponse } from '../api/chat-service';
 import { extractXPostId } from '../utils/x';
 import {
@@ -7,11 +7,6 @@ import {
   saveXAnalysis,
   StoredXAnalysis,
 } from '../storage/xAnalysisRepo';
-
-const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
-const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_IMAGES = 4;
-const ANALYSIS_TIMEOUT = 60000; // 60s
 
 interface AnalyzeOptions {
   force?: boolean;
@@ -26,10 +21,13 @@ interface InsightParams {
   text?: string;
   summary?: string;
   transcript?: string;
-  images?: Array<{ url: string; description: string }>;
   type: XMediaType;
 }
 
+/**
+ * ✅ OPTIMIZADO: Analizar post de X usando el servicio unificado
+ * Ya NO hace llamadas duplicadas - todo viene de fetchXComplete()
+ */
 export async function analyzeXPost(
   url: string,
   text: string | undefined,
@@ -54,185 +52,92 @@ export async function analyzeXPost(
   }
 
   const startTime = Date.now();
-  console.log('[X Analysis] Fetching media info...');
-
-  // Fetch media info with fallback
-  let media: XMedia;
-  try {
-    media = await fetchXMedia(url);
-    console.log('[X Analysis] Media type:', media.type);
-  } catch (error) {
-    console.error('[X Analysis] Failed to fetch media info:', error);
-    console.log('[X Analysis] Continuing with text-only analysis');
-    // Fallback to text-only analysis
-    media = { type: 'text' };
-  }
-
-  let transcript: string | undefined;
-  let imageDescriptions: Array<{ url: string; description: string }> | undefined;
-
-  // 1. TRANSCRIPCIÓN (Prioridad 1)
-  if (media.type === 'video') {
-    console.log('[X Analysis] Transcribing video...');
-    transcript = await transcribeXVideo(url, media);
-    console.log('[X Analysis] Transcription completed:', transcript?.length || 0, 'chars');
-  } 
-  // 4. VISION para imágenes (Prioridad 4)
-  else if (media.type === 'image') {
-    console.log('[X Analysis] Describing images...');
-    imageDescriptions = await describeXImages(media);
-    console.log('[X Analysis] Image descriptions completed:', imageDescriptions?.length || 0, 'images');
-  }
-
-  // 2. RESUMEN IA (Prioridad 2)
-  console.log('[X Analysis] Generating summary...');
-  const summary = await summarizeXPost({
-    text,
-    transcript,
-    images: imageDescriptions,
-    type: media.type,
-  });
-  console.log('[X Analysis] Summary completed:', summary.length, 'chars');
-
-  // 3. TOPIC + SENTIMENT (Prioridad 3)
-  console.log('[X Analysis] Deriving insights...');
-  const insights = await deriveXInsights({
-    text,
-    summary,
-    transcript,
-    images: imageDescriptions,
-    type: media.type,
-  });
-  console.log('[X Analysis] Insights completed - topic:', insights.topic, 'sentiment:', insights.sentiment);
-
-  const processingTime = Date.now() - startTime;
-  console.log('[X Analysis] Total processing time:', processingTime, 'ms');
-
-  const payload: StoredXAnalysis = {
-    postId,
-    type: media.type,
-    summary,
-    transcript,
-    images: imageDescriptions,
-    text: text || '',
-    topic: insights.topic,
-    sentiment: insights.sentiment ?? 'neutral',
-    createdAt: Date.now(),
-    metadata: {
-      processingTime,
-      videoSize: media.size,
-      imageCount: media.urls?.length || (media.url ? 1 : 0),
-      media,
-      insights,
-    },
-  };
-
-  console.log('[X Analysis] Saving analysis to cache...');
-  await saveXAnalysis(payload);
-
-  console.log('[X Analysis] ✅ Analysis completed successfully for:', postId);
-  return payload;
-}
-
-// PRIORIDAD 1: Transcripción de video usando /twitter/process
-async function transcribeXVideo(url: string, media: any): Promise<string | undefined> {
-  try {
-    // Check video size limit
-    if (media.size && media.size > MAX_VIDEO_SIZE) {
-      console.warn(`[X Analysis] Video too large: ${media.size} bytes`);
-      return undefined;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT);
-
-    try {
-      const response = await fetch(`${BASE_URL}/api/x/process`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        console.warn(`[X Analysis] Twitter process failed: ${response.status}`);
-        return undefined;
-      }
-
-      const data = await response.json();
-      
-      if (data.transcription) {
-        return normalizeTranscript(data.transcription);
-      }
-
-      return undefined;
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        console.warn('[X Analysis] Transcription timed out');
-      } else {
-        console.error('[X Analysis] Transcription error:', error);
-      }
-      return undefined;
-    }
-  } catch (error) {
-    console.error('[X Analysis] Error in transcribeXVideo:', error);
-    return undefined;
-  }
-}
-
-// PRIORIDAD 4: Vision para imágenes
-async function describeXImages(media: any): Promise<Array<{ url: string; description: string }>> {
-  const imageUrls: string[] = media.urls || (media.url ? [media.url] : []);
   
-  if (imageUrls.length === 0) {
-    return [];
+  try {
+    // ✅ UNA SOLA llamada que obtiene TODO (media, comentarios, transcripción/visión)
+    console.log('[X Analysis] Fetching complete data from unified service...');
+    const completeData = await fetchXComplete(url);
+    
+    console.log('[X Analysis] ✅ Complete data received');
+    console.log('[X Analysis] Media type:', completeData.media.type);
+    console.log('[X Analysis] Has transcription:', !!completeData.transcription);
+    console.log('[X Analysis] Has vision:', !!completeData.vision);
+    console.log('[X Analysis] Comments count:', completeData.comments.length);
+
+    // ✅ Ya tenemos transcripción O visión del backend (ExtractorT ya lo hizo)
+    const transcript = completeData.transcription || completeData.vision || undefined;
+    const tweetText = text || completeData.tweet.text;
+
+    // Solo generar resumen e insights (NO volver a transcribir/analizar)
+    console.log('[X Analysis] Generating summary...');
+    const summary = await summarizeXPost({
+      text: tweetText,
+      transcript,
+      type: completeData.media.type,
+    });
+    console.log('[X Analysis] Summary completed:', summary.length, 'chars');
+
+    console.log('[X Analysis] Deriving insights...');
+    const insights = await deriveXInsights({
+      text: tweetText,
+      summary,
+      transcript,
+      type: completeData.media.type,
+    });
+    console.log('[X Analysis] Insights completed - topic:', insights.topic, 'sentiment:', insights.sentiment);
+
+    const processingTime = Date.now() - startTime;
+    console.log('[X Analysis] Total processing time:', processingTime, 'ms');
+
+    const payload: StoredXAnalysis = {
+      postId,
+      type: completeData.media.type,
+      summary,
+      transcript,
+      images: undefined, // Ya no usamos describeXImages - viene de vision_analysis
+      text: tweetText,
+      topic: insights.topic,
+      sentiment: insights.sentiment ?? 'neutral',
+      createdAt: Date.now(),
+      metadata: {
+        processingTime,
+        videoSize: completeData.media.size,
+        imageCount: completeData.media.urls?.length || (completeData.media.url ? 1 : 0),
+        media: completeData.media,
+        insights,
+        metrics: completeData.metrics,
+        commentsCount: completeData.comments.length,
+      },
+    };
+
+    console.log('[X Analysis] Saving analysis to cache...');
+    await saveXAnalysis(payload);
+
+    console.log('[X Analysis] ✅ Analysis completed successfully for:', postId);
+    return payload;
+    
+  } catch (error) {
+    console.error('[X Analysis] Error analyzing post:', error);
+    throw error;
   }
-
-  // Limit to MAX_IMAGES
-  const limitedUrls = imageUrls.slice(0, MAX_IMAGES);
-  const descriptions: Array<{ url: string; description: string }> = [];
-
-  for (const imageUrl of limitedUrls) {
-    try {
-      const prompt = 'Describe esta imagen del tweet en español de forma breve y concisa (máximo 2 oraciones).';
-      const description = await describeImageWithVision(imageUrl, prompt);
-      if (description) {
-        descriptions.push({ url: imageUrl, description });
-      }
-    } catch (error) {
-      console.warn(`[X Analysis] Failed to describe image ${imageUrl}:`, error);
-    }
-  }
-
-  return descriptions;
 }
 
 interface SummarizeParams {
   text?: string;
   transcript?: string;
-  images?: Array<{ url: string; description: string }>;
   type: XMediaType;
 }
 
-// PRIORIDAD 2: Resumen IA
+// Resumen IA
 async function summarizeXPost(params: SummarizeParams): Promise<string> {
-  const { text, transcript, images, type } = params;
+  const { text, transcript, type } = params;
 
   const pieces: string[] = [];
   if (text) {
     pieces.push(`Tweet original:\n${text}`);
   }
   if (transcript) {
-    pieces.push(`Transcripción del video:\n${transcript}`);
-  }
-  if (images && images.length > 0) {
-    const visionText = images
-      .map((image, idx) => `Imagen ${idx + 1}: ${image.description}`)
-      .join('\n');
-    pieces.push(`Descripción visual:\n${visionText}`);
+    pieces.push(`Contenido analizado:\n${transcript}`);
   }
 
   if (pieces.length === 0) {
@@ -270,22 +175,18 @@ No repitas hashtags ni menciones, no inventes información. Si falta informació
   }
 }
 
-// PRIORIDAD 3: Topic + Sentiment
+// Topic + Sentiment
 async function deriveXInsights(params: InsightParams): Promise<AnalysisInsights> {
-  const { text, summary, transcript, images, type } = params;
+  const { text, summary, transcript, type } = params;
 
-  if (!summary && !text && !transcript && (!images || images.length === 0)) {
+  if (!summary && !text && !transcript) {
     return {};
   }
 
   const pieces: string[] = [];
   if (summary) pieces.push(`Resumen existente:\n${summary}`);
   if (text) pieces.push(`Tweet original:\n${text}`);
-  if (transcript) pieces.push(`Transcripción:\n${transcript}`);
-  if (images && images.length > 0) {
-    const imageText = images.map((image, idx) => `Imagen ${idx + 1}: ${image.description}`).join('\n');
-    pieces.push(`Descripción visual:\n${imageText}`);
-  }
+  if (transcript) pieces.push(`Contenido analizado:\n${transcript}`);
 
   const prompt = `Analiza el siguiente tweet de ${type} y responde únicamente con un JSON válido.
 El JSON debe tener esta forma:
@@ -343,12 +244,4 @@ function normalizeInsights(parsed: Partial<AnalysisInsights> | null): AnalysisIn
     result.sentiment = parsed.sentiment;
   }
   return result;
-}
-
-function normalizeTranscript(raw: string): string {
-  return raw
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .join('\n');
 }
