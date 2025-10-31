@@ -7,4 +7,15 @@ const config = getDefaultConfig(__dirname);
 
 config.resolver.useWatchman = false;
 
+// Polyfill for import.meta in web (doesn't affect native iOS/Android)
+config.transformer = {
+  ...config.transformer,
+  getTransformOptions: async () => ({
+    transform: {
+      experimentalImportSupport: false,
+      inlineRequires: true,
+    },
+  }),
+};
+
 module.exports = withNativeWind(config, { input: './global.css' });

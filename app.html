@@ -102,6 +102,21 @@
     </div>
     
     <script>
+      // Polyfill for import.meta (must run before any modules load)
+      (function() {
+        if (typeof window !== 'undefined') {
+          // Polyfill import.meta
+          window.__importMetaUrl = window.location.href;
+          
+          // Ensure process.env exists
+          if (typeof process === 'undefined') {
+            window.process = { env: {} };
+          }
+          
+          console.log('[Polyfill] import.meta polyfill loaded');
+        }
+      })();
+      
       // Remove splash screen once app loads
       window.addEventListener('load', () => {
         setTimeout(() => {
