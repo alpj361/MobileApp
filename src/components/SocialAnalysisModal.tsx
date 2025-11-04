@@ -9,6 +9,7 @@ import {
   View,
   Alert,
   Platform,
+  Dimensions,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -18,6 +19,7 @@ import { textStyles } from '../utils/typography';
 import { SavedItem } from '../state/savedStore';
 import { parseSummary } from '../utils/parseSummary';
 import { EntityPanel } from './EntityPanel';
+import { getCurrentSpacing } from '../utils/responsive';
 
 interface SocialAnalysisModalProps {
   visible: boolean;
@@ -42,6 +44,8 @@ export default function SocialAnalysisModal({
   const parsedSummary = parseSummary(analysis?.summary);
   const [transcriptExpanded, setTranscriptExpanded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const responsiveSpacing = getCurrentSpacing();
+  const screenWidth = Dimensions.get('window').width;
 
   const handleCopy = async (text?: string) => {
     if (!text) return;
@@ -161,7 +165,7 @@ export default function SocialAnalysisModal({
       animationType="slide"
       onRequestClose={onClose}
       transparent={false}
-      {...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {})}
+      {...(Platform.OS === 'ios' ? { presentationStyle: 'pageSheet' } : {})}
     >
       <LinearGradient
         colors={['#FFFFFF', '#F9FAFB']}
@@ -170,9 +174,9 @@ export default function SocialAnalysisModal({
         style={styles.fullScreenContainer}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingHorizontal: responsiveSpacing.horizontal }]}>
           <View style={styles.headerTop}>
-            <Text style={styles.title}>Análisis del post</Text>
+            <Text style={[styles.title, { fontSize: screenWidth < 375 ? 20 : 24 }]}>Análisis del post</Text>
             <View style={styles.headerButtons}>
               {onRefresh && (
                 <Pressable
@@ -270,7 +274,10 @@ export default function SocialAnalysisModal({
         ) : hasData ? (
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              { paddingHorizontal: responsiveSpacing.horizontal },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {/* Info Cards Section */}
@@ -463,10 +470,9 @@ export default function SocialAnalysisModal({
 const styles = StyleSheet.create({
   fullScreenContainer: {
     flex: 1,
-    paddingTop: Platform.OS === 'ios' ? 44 : 0,
+    paddingTop: Platform.OS === 'ios' ? 44 : Platform.OS === 'android' ? 0 : 0,
   },
   header: {
-    paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 16,
     backgroundColor: 'transparent',
@@ -475,7 +481,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   title: {
     fontSize: 24,
@@ -645,7 +651,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
     paddingBottom: 40,
   },
   infoCardsGrid: {
@@ -655,6 +660,7 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     flex: 1,
+    minWidth: 0, // Permite que las tarjetas se adapten mejor en pantallas pequeñas
   },
   infoCardGradient: {
     padding: 20,
