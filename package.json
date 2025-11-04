@@ -9,8 +9,8 @@
     "ios:device": "expo run:ios --device",
     "ios:select": "expo run:ios --device --select-device",
     "web": "expo start --web",
-    "web:build": "expo export:web",
-    "web:serve": "npx serve web-build",
+    "web:build": "expo export --platform web",
+    "web:serve": "npx serve dist",
     "prebuild": "expo prebuild --clean",
     "prebuild:ios": "expo prebuild --platform ios --clean"
   },

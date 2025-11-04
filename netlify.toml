@@ -6,7 +6,7 @@
   command = "npm install --legacy-peer-deps && npm run web:build"
   
   # Directory where the static files are generated
-  publish = "web-build"
+  publish = "dist"
   
   # Node version
   environment = { NODE_VERSION = "18", NPM_FLAGS = "--legacy-peer-deps" }
