@@ -13,6 +13,7 @@ import { loadXComments, StoredXComments } from '../storage/xCommentsRepo';
 import { fetchXComments } from '../services/xCommentService';
 import { analyzeXPost as runXAnalysis } from '../services/xAnalysisService';
 import { loadXAnalysis } from '../storage/xAnalysisRepo';
+import { ExtractedEntity } from '../types/entities';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -51,6 +52,7 @@ export interface SavedItem extends LinkData {
     caption?: string;
     topic?: string;
     sentiment?: 'positive' | 'negative' | 'neutral';
+    entities?: ExtractedEntity[];  // ✅ Extracted entities
     loading: boolean;
     error?: string | null;
     lastUpdated?: number;
@@ -64,6 +66,7 @@ export interface SavedItem extends LinkData {
     text?: string;
     topic?: string;
     sentiment?: 'positive' | 'negative' | 'neutral';
+    entities?: ExtractedEntity[];  // ✅ Extracted entities
     loading: boolean;
     error?: string | null;
     lastUpdated?: number;
@@ -498,6 +501,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                   text: analysis.text,
                   topic: analysis.topic,
                   sentiment: analysis.sentiment,
+                  entities: analysis.entities || [],  // ✅ Include entities
                   loading: false,
                   error: null,
                   lastUpdated: analysis.createdAt,
@@ -761,6 +765,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
               text: cachedXAnalysis.text,
               topic: cachedXAnalysis.topic,
               sentiment: cachedXAnalysis.sentiment,
+              entities: cachedXAnalysis.entities || [],  // ✅ Load cached entities
               loading: false,
               error: null,
               lastUpdated: cachedXAnalysis.createdAt,

@@ -4,6 +4,7 @@
  */
 
 import { getApiUrl } from '../config/backend';
+import { ExtractedEntity } from '../types/entities';
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -53,6 +54,7 @@ export interface XCompleteData {
     author_handle: string;
     author_name: string;
   };
+  entities?: ExtractedEntity[];  // ✅ Extracted entities from all sources
 }
 
 /**

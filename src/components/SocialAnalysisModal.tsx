@@ -17,6 +17,7 @@ import { SavedItem } from '../state/savedStore';
 import BulletRow from './BulletRow';
 import InfoCard from './InfoCard';
 import { parseSummary } from '../utils/parseSummary';
+import { EntityPanel } from './EntityPanel';
 
 interface SocialAnalysisModalProps {
   visible: boolean;
@@ -351,6 +352,11 @@ export default function SocialAnalysisModal({
                   {analysis.transcript}
                 </Text>
               </View>
+            )}
+
+            {/* Extracted Entities Section (below transcription) */}
+            {analysis?.entities && analysis.entities.length > 0 && (
+              <EntityPanel entities={analysis.entities} platform={platform} />
             )}
 
             {/* Visual Description Section */}

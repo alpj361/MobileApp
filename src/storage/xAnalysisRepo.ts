@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ExtractedEntity } from '../types/entities';
 
 export interface StoredXAnalysis {
   postId: string;
@@ -9,6 +10,7 @@ export interface StoredXAnalysis {
   text: string; // Tweet original text
   topic?: string;
   sentiment: 'positive' | 'negative' | 'neutral';
+  entities?: ExtractedEntity[];  // ✅ Extracted entities
   createdAt: number;
   metadata?: {
     processingTime?: number;

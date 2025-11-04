@@ -2,6 +2,7 @@ import { getCommonHeaders } from '../config/api';
 import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
 import { XMedia, XMediaType } from './xMediaService';
 import { Platform } from 'react-native';
+import { ExtractedEntity } from '../types/entities';
 
 const EXTRACTORT_URL = process.env.EXPO_PUBLIC_EXTRACTORT_URL ?? 'https://api.standatpd.com';
 
@@ -26,6 +27,7 @@ export interface XCompleteData {
   metrics: XMetrics;
   transcription?: string;
   vision?: string;
+  entities?: ExtractedEntity[];  // ✅ Extracted entities from all sources
   tweet: {
     text: string;
     author_handle?: string;

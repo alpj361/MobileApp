@@ -122,6 +122,7 @@ export async function analyzeXPost(
       text: tweetText,
       topic: insights.topic,
       sentiment: insights.sentiment ?? 'neutral',
+      entities: completeData.entities || [],  // ✅ Include extracted entities
       createdAt: Date.now(),
       metadata: {
         processingTime,

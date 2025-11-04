@@ -3,7 +3,8 @@
 
 [build]
   # Command to build the web version
-  command = "npm install --legacy-peer-deps && npm run web:build"
+  # Note: .npmrc sets legacy-peer-deps=true globally for all npm operations
+  command = "npm run web:build"
   
   # Directory where the static files are generated
   publish = "dist"
