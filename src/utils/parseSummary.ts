@@ -68,7 +68,18 @@ export function parseSummary(summary?: string | null): ParsedSummary {
     const cleanedLine = line.replace(BULLET_REGEX, '').trim();
     if (!cleanedLine) return;
 
+    // Filtrar bullets redundantes que solo contengan "Resumen:" o similares
+    const normalizedLine = cleanedLine.toLowerCase().trim();
+    const isRedundantSummary = /^resumen[:.]?\s*$/.test(normalizedLine);
+    if (isRedundantSummary) return;
+
     const { emphasis, remaining } = splitEmphasis(cleanedLine);
+    
+    // También filtrar si el texto completo después del split es solo "Resumen:" o similar
+    const normalizedRemaining = remaining.toLowerCase().trim();
+    const isRedundantRemaining = /^resumen[:.]?\s*$/.test(normalizedRemaining);
+    if (isRedundantRemaining && !emphasis) return;
+
     bullets.push({
       text: remaining,
       icon: pickIcon(cleanedLine),
