@@ -1,6 +1,10 @@
 //DO NOT REMOVE THIS CODE
 console.log("[index] Project ID is: ", process.env.EXPO_PUBLIC_VIBECODE_PROJECT_ID);
-import "./global.css";
+// Note: global.css uses NativeWind which requires lightningcss (fails on Netlify)
+// Conditionally load for non-Netlify builds only
+if (process.env.DISABLE_NATIVEWIND !== 'true') {
+  require("./global.css");
+}
 import "react-native-get-random-values";
 import { LogBox } from "react-native";
 LogBox.ignoreLogs(["Expo AV has been deprecated", "Disconnected from Metro"]);
