@@ -5,7 +5,7 @@
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -138,6 +138,52 @@
       } else {
         document.documentElement.classList.add('desktop-web');
       }
+      
+      // Prevent iOS Safari zoom on input focus
+      (function() {
+        // Detect iOS
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+                     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        
+        if (isIOS) {
+          // Prevent zoom on input focus
+          document.addEventListener('touchstart', function(event) {
+            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+              const viewport = document.querySelector('meta[name="viewport"]');
+              if (viewport) {
+                viewport.setAttribute('content', 
+                  'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+              }
+            }
+          }, { passive: true });
+          
+          // Ensure all inputs/textarea have 16px font size
+          const enforceFontSize = function() {
+            const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="tel"], input[type="url"], textarea');
+            inputs.forEach(function(input) {
+              const computedSize = window.getComputedStyle(input).fontSize;
+              if (computedSize !== '16px' && computedSize !== '12.8px') {
+                input.style.fontSize = '16px';
+                input.style.webkitTextSizeAdjust = '100%';
+              }
+            });
+          };
+          
+          // Run on load and after DOM mutations
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', enforceFontSize);
+          } else {
+            enforceFontSize();
+          }
+          
+          // Watch for new elements
+          const observer = new MutationObserver(enforceFontSize);
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+        }
+      })();
     </script>
   </body>
 </html>
