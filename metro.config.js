@@ -23,6 +23,12 @@ const shouldDisableNativeWind = process.env.DISABLE_NATIVEWIND === 'true';
 
 if (shouldDisableNativeWind) {
   console.log('[Metro] NativeWind disabled (Netlify build)');
+  
+  // Exclude CSS files from processing when NativeWind is disabled
+  // Move CSS from sourceExts to assetExts so Metro treats them as static assets
+  config.resolver.sourceExts = config.resolver.sourceExts.filter(ext => ext !== 'css');
+  config.resolver.assetExts = [...config.resolver.assetExts, 'css'];
+  
   module.exports = config;
 } else {
   console.log('[Metro] NativeWind enabled (local/native build)');
