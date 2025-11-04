@@ -10,8 +10,7 @@
   
   # Environment variables for web build
   # EXPO_PLATFORM tells metro.config.js to skip NativeWind
-  # NODE_ENV=production helps identify web build
-  environment = { NODE_VERSION = "18", EXPO_PLATFORM = "web", NODE_ENV = "production" }
+  environment = { NODE_VERSION = "18", EXPO_PLATFORM = "web" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
