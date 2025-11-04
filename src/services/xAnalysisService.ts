@@ -136,6 +136,7 @@ export async function analyzeXPost(
     };
 
     console.log('[X Analysis] Saving analysis to cache...');
+    console.log('[X Analysis] Payload includes', payload.entities?.length || 0, 'entities');
     await saveXAnalysis(payload);
 
     console.log('[X Analysis] ✅ Analysis completed successfully for:', postId);

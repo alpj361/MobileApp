@@ -102,9 +102,12 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
         metrics: asyncResult.metrics,
         transcription: asyncResult.transcription,
         vision: asyncResult.vision,
+        entities: asyncResult.entities || [],  // ✅ Include extracted entities
         tweet: asyncResult.tweet,
         thumbnail_url: asyncResult.media.thumbnail_url,
       };
+
+      console.log('[X Complete] ✅ Entities included:', result.entities?.length || 0, 'entities');
 
       // ✅ CACHE: Guardar resultado completo
       setXDataToCache(cacheKey, result);
