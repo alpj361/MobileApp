@@ -9,8 +9,9 @@
     "ios:device": "expo run:ios --device",
     "ios:select": "expo run:ios --device --select-device",
     "web": "expo start --web",
-    "web:build": "expo export --platform web && npm run web:build:css",
+    "web:build": "expo export --platform web && npm run web:build:css && npm run web:inject-css",
     "web:build:css": "mkdir -p dist && tailwindcss -i ./global.css -o ./dist/styles.css --config ./tailwind.web.config.js --minify",
+    "web:inject-css": "node scripts/inject-css.js",
     "web:serve": "npx serve dist",
     "prebuild": "expo prebuild --clean",
     "prebuild:ios": "expo prebuild --platform ios --clean"
