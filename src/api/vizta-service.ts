@@ -63,15 +63,18 @@ export interface ViztaRequestConfig {
 export const getViztaChatResponse = async (
   message: string,
   sessionId?: string,
-  config: ViztaRequestConfig = {}
+  configOrUseGenerative?: boolean | ViztaRequestConfig
 ): Promise<ViztaResponse> => {
   const { EXTRACTORW_URL, BEARER_TOKEN } = getEnvVars();
-  const {
-    useGenerativeUI = false,
-    mode = 'chat',
-    contextRefs = [],
-    codexItemIds = []
-  } = config;
+  const isBool = typeof configOrUseGenerative === 'boolean';
+  const cfg = (configOrUseGenerative && typeof configOrUseGenerative === 'object')
+    ? (configOrUseGenerative as ViztaRequestConfig)
+    : {} as ViztaRequestConfig;
+
+  const useGenerativeUI = isBool ? (configOrUseGenerative as boolean) : (cfg.useGenerativeUI ?? false);
+  const mode = isBool ? 'chat' : (cfg.mode ?? 'chat');
+  const contextRefs = isBool ? [] : (cfg.contextRefs ?? []);
+  const codexItemIds = isBool ? [] : (cfg.codexItemIds ?? []);
   
   if (!EXTRACTORW_URL) {
     throw new Error('EXTRACTORW_URL no configurada en variables de entorno');

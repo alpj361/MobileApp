@@ -3,13 +3,13 @@
 
 [build]
   # Command to build the web version
-  command = "npm run web:build"
+  command = "npm install --legacy-peer-deps && npm run web:build"
   
   # Directory where the static files are generated
   publish = "web-build"
   
   # Node version
-  environment = { NODE_VERSION = "18" }
+  environment = { NODE_VERSION = "18", NPM_FLAGS = "--legacy-peer-deps" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]

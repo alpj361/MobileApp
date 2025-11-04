@@ -91,9 +91,7 @@ export default function ChatScreen() {
       const viztaResponse = await getViztaChatResponse(
         userMessage,
         conversationId || undefined,
-        {
-          useGenerativeUI: false
-        }
+        false // useGenerativeUI - keep boolean for backward compatibility
       );
       
       if (viztaResponse.success) {
