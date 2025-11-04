@@ -8,9 +8,8 @@
   # Directory where the static files are generated
   publish = "dist"
   
-  # Environment variables for web build
-  # EXPO_PLATFORM tells metro.config.js to skip NativeWind
-  environment = { NODE_VERSION = "18", EXPO_PLATFORM = "web" }
+  # Node version
+  environment = { NODE_VERSION = "18" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]

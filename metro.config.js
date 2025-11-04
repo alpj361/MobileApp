@@ -18,16 +18,14 @@ config.transformer = {
   }),
 };
 
-// Skip NativeWind for web builds (lightningcss native module fails on Netlify)
-// Only load NativeWind for native builds (iOS/Android)
-const isWebBuild = process.env.EXPO_PLATFORM === 'web' || 
-                   process.argv.some(arg => arg.includes('web')) ||
-                   process.env.NODE_ENV === 'production';
+// Disable NativeWind only on Netlify (lightningcss native module fails there)
+// Keep it enabled for local development and native builds
+const isNetlify = process.env.NETLIFY || process.env.BUILDER;
 
-if (isWebBuild) {
-  console.log('[Metro] Web build detected - NativeWind disabled');
+if (isNetlify) {
+  console.log('[Metro] Netlify build detected - NativeWind disabled');
   module.exports = config;
 } else {
-  console.log('[Metro] Native build detected - NativeWind enabled');
+  console.log('[Metro] Local/native build detected - NativeWind enabled');
   module.exports = withNativeWind(config, { input: './global.css' });
 }
