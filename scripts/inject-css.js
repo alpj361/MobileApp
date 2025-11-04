@@ -7,11 +7,16 @@
 const fs = require('fs');
 const path = require('path');
 
-const distDir = path.join(__dirname, 'dist');
+// Get project root directory (parent of scripts/)
+const projectRoot = path.join(__dirname, '..');
+const distDir = path.join(projectRoot, 'dist');
 const indexPath = path.join(distDir, 'index.html');
 const cssPath = path.join(distDir, 'styles.css');
 
 console.log('[Post-build] Injecting Tailwind CSS...');
+console.log('[Post-build] Project root:', projectRoot);
+console.log('[Post-build] CSS path:', cssPath);
+console.log('[Post-build] HTML path:', indexPath);
 
 // Check if CSS file exists
 if (!fs.existsSync(cssPath)) {
@@ -53,4 +58,3 @@ fs.writeFileSync(indexPath, html, 'utf8');
 
 console.log('[Post-build] ✅ Successfully injected Tailwind CSS into index.html');
 console.log('[Post-build] CSS file size:', fs.statSync(cssPath).size, 'bytes');
-
