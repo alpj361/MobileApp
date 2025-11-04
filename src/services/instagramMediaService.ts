@@ -1,6 +1,7 @@
 import { extractInstagramPostId } from '../utils/instagram';
+import { getApiUrl } from '../config/backend';
 
-const INSTAGRAM_MEDIA_ENDPOINT = 'https://server.standatpd.com/api/instagram/media';
+const INSTAGRAM_MEDIA_ENDPOINT = getApiUrl('/api/instagram/media', 'extractorw');
 
 export type InstagramMediaType = 'video' | 'image' | 'carousel' | 'unknown';
 

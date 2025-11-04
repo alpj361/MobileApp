@@ -25,11 +25,8 @@ export default function SavedItemCard({
   onDelete
 }: SavedItemCardProps) {
   const { isConnected, connectedUser } = usePulseConnectionStore();
-  const [isCheckingCodex, setIsCheckingCodex] = useState(false);
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
-  const [showXCommentsModal, setShowXCommentsModal] = useState(false);
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
+  
+  // Zustand store hooks
   const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
   const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
   const analyzeInstagramPost = useSavedStore((state) => state.analyzeInstagramPost);
@@ -37,6 +34,7 @@ export default function SavedItemCard({
   const analyzeXPost = useSavedStore((state) => state.analyzeXPost);
   const refreshXAnalysis = useSavedStore((state) => state.refreshXAnalysis);
 
+  // Extraer info del item (DEBE ir ANTES de los useEffects)
   const commentsInfo = item.commentsInfo;
   const postId = commentsInfo?.postId;
   const totalComments = commentsInfo?.totalCount ?? item.engagement?.comments ?? 0;
@@ -51,6 +49,26 @@ export default function SavedItemCard({
   
   const xAnalysisInfo = item.xAnalysisInfo;
   const xAnalysisLoading = xAnalysisInfo?.loading ?? false;
+  
+  // Local state
+  const [isCheckingCodex, setIsCheckingCodex] = useState(false);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showXCommentsModal, setShowXCommentsModal] = useState(false);
+  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
+  
+  // Debug logging para verificar estado de carga
+  React.useEffect(() => {
+    if (xAnalysisLoading) {
+      console.log('[SavedItemCard] 🔄 X Analysis is LOADING - should show "Analizando..." indicator');
+    }
+  }, [xAnalysisLoading]);
+  
+  React.useEffect(() => {
+    if (analysisLoading) {
+      console.log('[SavedItemCard] 🔄 Instagram Analysis is LOADING - should show "Analizando..." indicator');
+    }
+  }, [analysisLoading]);
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -183,6 +201,16 @@ export default function SavedItemCard({
         }
       ]}
     >
+      {/* Overlay de loading para items pending */}
+      {item.isPending && (
+        <View className="absolute inset-0 bg-white/80 z-50 items-center justify-center">
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text className={`${textStyles.body} text-gray-600 mt-3`}>
+            Obteniendo información...
+          </Text>
+        </View>
+      )}
+
       {/* Header con plataforma y fuente */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
         <View className="flex-row items-center">
@@ -219,31 +247,56 @@ export default function SavedItemCard({
         </View>
       </View>
 
-      {/* Imagen o placeholder mejorado */}
-      {item.image ? (
-        <View className="relative">
-          <Image
-            source={{ uri: item.image }}
-            className="w-full h-48"
-            resizeMode="cover"
-            onError={() => {
-              // Handle image loading error silently
-              console.log("Image failed to load:", item.image);
-            }}
-            onLoad={() => {
-              // Image loaded successfully
-              console.log("Image loaded successfully:", item.image);
-            }}
-          />
-        </View>
-      ) : (
-        <View className="w-full h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex-row items-center justify-center">
-          <View className="items-center">
-            <Text className="text-5xl mb-3 opacity-60">{getPlatformIcon()}</Text>
-            <Text className={`${textStyles.helper} text-gray-500`}>Sin miniatura disponible</Text>
+      {/* Imagen o placeholder mejorado - Prioriza datos de análisis */}
+      {(() => {
+        // Determinar imagen a mostrar (prioridad: análisis > item.image)
+        let imageUrl = item.image;
+        
+        // Para X/Twitter: intentar obtener imagen del análisis
+        if ((platformEff === 'x' || item.platform === 'twitter') && xAnalysisInfo) {
+          const analysisImage = xAnalysisInfo.images?.[0]?.url || 
+                               xAnalysisInfo.metadata?.media?.url ||
+                               xAnalysisInfo.metadata?.media?.thumbnail;
+          if (analysisImage) {
+            imageUrl = analysisImage;
+          }
+        }
+        
+        // Para Instagram: intentar obtener imagen del análisis
+        if (item.platform === 'instagram' && analysisInfo) {
+          const analysisImage = analysisInfo.images?.[0]?.url;
+          if (analysisImage) {
+            imageUrl = analysisImage;
+          }
+        }
+        
+        if (imageUrl) {
+          return (
+            <View className="relative">
+              <Image
+                source={{ uri: imageUrl }}
+                className="w-full h-48"
+                resizeMode="cover"
+                onError={() => {
+                  console.log("Image failed to load:", imageUrl);
+                }}
+                onLoad={() => {
+                  console.log("Image loaded successfully:", imageUrl);
+                }}
+              />
+            </View>
+          );
+        }
+        
+        return (
+          <View className="w-full h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex-row items-center justify-center">
+            <View className="items-center">
+              <Text className="text-5xl mb-3 opacity-60">{getPlatformIcon()}</Text>
+              <Text className={`${textStyles.helper} text-gray-500`}>Sin miniatura disponible</Text>
+            </View>
           </View>
-        </View>
-      )}
+        );
+      })()}
       
       {/* Contenido mejorado */}
       <View className="p-5">
@@ -254,16 +307,72 @@ export default function SavedItemCard({
           </Text>
         </View>
         
-        {/* Descripción mejorada */}
-        {item.description && item.description !== 'No description available' && item.description !== 'Vista previa no disponible' ? (
-          <Text className={`${textStyles.description} mb-4`} numberOfLines={3}>
-            {item.description}
-          </Text>
-        ) : (
-          <Text className={`${textStyles.helper} text-gray-400 mb-4 italic`}>
-            Descripción no disponible
-          </Text>
-        )}
+        {/* Descripción mejorada - Prioriza datos de análisis */}
+        {(() => {
+          // Para X/Twitter: usar datos de análisis si están disponibles
+          if ((platformEff === 'x' || item.platform === 'twitter') && xAnalysisInfo) {
+            const content = xAnalysisInfo.text || xAnalysisInfo.summary;
+            if (content && content !== 'No description available') {
+              return (
+                <View className="mb-4">
+                  <Text className={`${textStyles.description} mb-2`} numberOfLines={4}>
+                    {content}
+                  </Text>
+                  {xAnalysisInfo.transcript && (
+                    <View className="mt-2 p-3 bg-blue-50 rounded-lg">
+                      <Text className={`${textStyles.helper} text-blue-700 font-medium mb-1`}>
+                        📝 Transcripción:
+                      </Text>
+                      <Text className={`${textStyles.helper} text-gray-700`} numberOfLines={3}>
+                        {xAnalysisInfo.transcript}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }
+          }
+          
+          // Para Instagram: usar datos de análisis si están disponibles
+          if (item.platform === 'instagram' && analysisInfo) {
+            const content = analysisInfo.caption || analysisInfo.summary;
+            if (content && content !== 'No description available') {
+              return (
+                <View className="mb-4">
+                  <Text className={`${textStyles.description} mb-2`} numberOfLines={4}>
+                    {content}
+                  </Text>
+                  {analysisInfo.transcript && (
+                    <View className="mt-2 p-3 bg-pink-50 rounded-lg">
+                      <Text className={`${textStyles.helper} text-pink-700 font-medium mb-1`}>
+                        📝 Transcripción:
+                      </Text>
+                      <Text className={`${textStyles.helper} text-gray-700`} numberOfLines={3}>
+                        {analysisInfo.transcript}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            }
+          }
+          
+          // Fallback: usar descripción original
+          if (item.description && item.description !== 'No description available' && item.description !== 'Vista previa no disponible') {
+            return (
+              <Text className={`${textStyles.description} mb-4`} numberOfLines={3}>
+                {item.description}
+              </Text>
+            );
+          }
+          
+          // Sin contenido disponible
+          return (
+            <Text className={`${textStyles.helper} text-gray-400 mb-4 italic`}>
+              Descripción no disponible
+            </Text>
+          );
+        })()}
         
         {/* Metadatos adicionales */}
         <View className="flex-row items-center justify-between mb-3">
@@ -418,6 +527,26 @@ export default function SavedItemCard({
                   {item.platform === 'generic' ? item.domain : item.platform}
                 </Text>
               </View>
+              
+              {/* Indicador de análisis en progreso (X/Twitter) */}
+              {(platformEff === 'x' || item.platform === 'twitter') && xAnalysisLoading && (
+                <View className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full">
+                  <ActivityIndicator size="small" color="#3B82F6" />
+                  <Text className={`${textStyles.helper} text-blue-600 ml-1.5 font-medium`}>
+                    Analizando...
+                  </Text>
+                </View>
+              )}
+              
+              {/* Indicador de análisis en progreso (Instagram) */}
+              {item.platform === 'instagram' && analysisLoading && (
+                <View className="flex-row items-center bg-pink-50 px-2 py-1 rounded-full">
+                  <ActivityIndicator size="small" color="#E1306C" />
+                  <Text className={`${textStyles.helper} text-pink-600 ml-1.5 font-medium`}>
+                    Analizando...
+                  </Text>
+                </View>
+              )}
             </View>
             
             {/* Acciones */}

@@ -1,92 +1,25 @@
+import { createClient } from '@supabase/supabase-js';
 import { ENV, isSupabaseEnabled } from './env';
 
-// Web-compatible Supabase client using fetch API
-// This avoids the module resolution issues with @supabase/supabase-js on web
+// Web uses the official Supabase client (same as native now)
+// The "@supabase/supabase-js" package works correctly on web with proper bundling
 
-class WebSupabaseClient {
-  private url: string;
-  private key: string;
-  private headers: HeadersInit;
+console.log('[Supabase Web] Initializing with URL:', ENV.SUPABASE_URL);
 
-  constructor(url: string, key: string) {
-    this.url = url;
-    this.key = key;
-    this.headers = {
-      'apikey': key,
-      'Authorization': `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    };
-  }
-
-  from(table: string) {
-    return {
-      select: async (columns: string = '*') => {
-        try {
-          const response = await fetch(`${this.url}/rest/v1/${table}?select=${columns}`, {
-            headers: this.headers,
-          });
-          const data = await response.json();
-          return { data, error: null };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      insert: async (values: any) => {
-        try {
-          const response = await fetch(`${this.url}/rest/v1/${table}`, {
-            method: 'POST',
-            headers: this.headers,
-            body: JSON.stringify(values),
-          });
-          const data = await response.json();
-          return { data, error: null };
-        } catch (error) {
-          return { data: null, error };
-        }
-      },
-      update: async (values: any) => {
-        return {
-          eq: async (column: string, value: any) => {
-            try {
-              const response = await fetch(`${this.url}/rest/v1/${table}?${column}=eq.${value}`, {
-                method: 'PATCH',
-                headers: this.headers,
-                body: JSON.stringify(values),
-              });
-              const data = await response.json();
-              return { data, error: null };
-            } catch (error) {
-              return { data: null, error };
-            }
-          },
-        };
-      },
-      delete: () => {
-        return {
-          eq: async (column: string, value: any) => {
-            try {
-              const response = await fetch(`${this.url}/rest/v1/${table}?${column}=eq.${value}`, {
-                method: 'DELETE',
-                headers: this.headers,
-              });
-              const data = await response.json();
-              return { data, error: null };
-            } catch (error) {
-              return { data: null, error };
-            }
-          },
-        };
-      },
-    };
-  }
-}
-
-// Create web-compatible Supabase client
+// Create Supabase client only if env is configured
 export const supabase = isSupabaseEnabled()
-  ? new WebSupabaseClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY)
+  ? createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false, // Importante para web
+      },
+    })
   : null as any;
 
 export const supabaseAvailable = () => isSupabaseEnabled();
+
+console.log('[Supabase Web] Client initialized:', supabase ? 'SUCCESS' : 'FAILED (no env vars)');
 
 // Re-export types from native version
 export type {

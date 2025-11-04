@@ -586,13 +586,25 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         improvedData = await processImprovedLink(linkData.url);
       } catch (error) {
         console.log('[SavedStore] Improved processing failed, using original data:', error);
-        // Remove pending item on error
+        // ✅ NO eliminamos el item - lo guardamos con datos básicos
+        // Actualizar item pending con datos básicos de la URL
+        const basicItem: SavedItem = {
+          ...pendingItem,
+          title: linkData.url,
+          description: `Contenido de ${linkData.url}`,
+          isPending: false,
+          platform: detectPostPlatform(linkData.url, null),
+        };
+
         set((state) => ({
-          items: state.items.filter((item) => item.id !== pendingId),
+          items: state.items.map((item) =>
+            item.id === pendingId ? basicItem : item
+          ),
         }));
+
         // Remove from processing set
         runningItemProcessing.delete(linkData.url);
-        return false;
+        return true; // ✅ Return true porque sí guardamos el item
       } finally {
         // Always remove from processing set when done
         runningItemProcessing.delete(linkData.url);
@@ -637,12 +649,14 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         }
       }
 
+      // Construir engagement de forma segura sin sobrescribir con undefined
       const candidateEngagement: SavedItem['engagement'] = {
-        ...linkData.engagement,
-        ...baseData.engagement,
+        ...(linkData.engagement || {}),
+        ...(baseData.engagement || {}),
       };
       console.log('[DEBUG] linkData.engagement:', linkData.engagement);
       console.log('[DEBUG] baseData.engagement:', baseData.engagement);
+      console.log('[DEBUG] candidateEngagement AFTER merge:', candidateEngagement);
       console.log('[DEBUG] cachedComments?.engagement:', cachedComments?.engagement);
       
       // BLOQUEAR: No permitir que cachedComments sobrescriba métricas válidas
@@ -773,13 +787,11 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         });
       }
 
-      // Auto-analyze X posts (same behavior as Instagram)
+      // Auto-analyze X posts DISABLED - analysis takes too long and times out in browser
+      // Users can manually trigger analysis by clicking on the post
       if (platform === 'x' && postId && !cachedXAnalysis) {
-        console.log('[SavedStore] Auto-analyzing X post:', postId);
-        // Run analysis in background without awaiting
-        runXAnalysisForItem(newItem.id, linkData.url, baseData.description).catch((error) => {
-          console.error('[SavedStore] Auto-analysis failed for X post:', error);
-        });
+        console.log('[SavedStore] X post saved - analysis available on demand');
+        // Analysis will be triggered manually by user clicking on the card
       }
 
       return true;

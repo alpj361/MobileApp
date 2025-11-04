@@ -1,6 +1,7 @@
 import { getCommonHeaders } from '../config/api';
 import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
 import { XMedia, XMediaType } from './xMediaService';
+import { Platform } from 'react-native';
 
 const EXTRACTORT_URL = process.env.EXPO_PUBLIC_EXTRACTORT_URL ?? 'https://api.standatpd.com';
 
@@ -61,9 +62,66 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
 
   console.log('[X Complete] Cache MISS - fetching from ExtractorT');
 
+  // ✅ DETECCIÓN DE PLATAFORMA: En web, usar async service
+  // Usar detección más confiable que Platform.OS para evitar problemas de bundling
+  const isWeb = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+  console.log('[X Complete] 🔍 Platform detection:', {
+    platformOS: Platform.OS,
+    hasWindow: typeof window !== 'undefined',
+    hasDocument: typeof window !== 'undefined' && typeof window.document !== 'undefined',
+    isWeb
+  });
+
+  if (isWeb) {
+    console.log('[X Complete] 🌐 Web platform detected - using async service to avoid timeouts');
+
+    try {
+      // Import async service dynamically using require for better compatibility
+      const xAsyncService = require('./xAsyncService');
+      const asyncResult = await xAsyncService.processXPostAsync(url, (job: any) => {
+        console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
+      });
+
+      // Transform async result to XCompleteData format
+      const result: XCompleteData = {
+        success: true,
+        media: {
+          type: asyncResult.media.type,
+          url: asyncResult.media.video_url || asyncResult.media.images?.[0],
+          urls: asyncResult.media.images,
+          thumbnail: asyncResult.media.thumbnail_url,
+        },
+        comments: asyncResult.comments.map((c: any) => ({
+          user: c.author || c.user || 'Unknown',
+          text: c.text || '',
+          likes: c.likes || 0,
+          timestamp: c.timestamp,
+        })),
+        metrics: asyncResult.metrics,
+        transcription: asyncResult.transcription,
+        vision: asyncResult.vision,
+        tweet: asyncResult.tweet,
+        thumbnail_url: asyncResult.media.thumbnail_url,
+      };
+
+      // ✅ CACHE: Guardar resultado completo
+      setXDataToCache(cacheKey, result);
+      console.log('[X Complete] 💾 Cached async result');
+      console.log('[X Complete] ========== END fetchXComplete (async) ==========');
+
+      return result;
+    } catch (error) {
+      console.error('[X Complete] Async service failed:', error);
+      throw error;
+    }
+  }
+
+  // ✅ iOS/Android: Continuar con el método directo original
+  console.log('[X Complete] 📱 Mobile platform detected - using direct ExtractorT call');
+
   try {
     // ✅ Obtener credenciales de Pulse para transcripción
-    const pulseConnectionStore = await import('../state/pulseConnectionStore');
+    const pulseConnectionStore = require('../state/pulseConnectionStore');
     const { connectedUser } = pulseConnectionStore.usePulseConnectionStore.getState();
 
     if (!connectedUser) {
@@ -82,11 +140,39 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
     console.log('[X Complete] 📤 Calling ExtractorT /enhanced-media/process');
     console.log('[X Complete] Request body:', JSON.stringify(requestBody, null, 2));
 
-    const response = await fetch(`${EXTRACTORT_URL}/enhanced-media/process`, {
-      method: 'POST',
-      headers: getCommonHeaders(),
-      body: JSON.stringify(requestBody),
-    });
+    // Crear timeout de 2 minutos para la petición
+    const timeoutMs = 120000; // 2 minutos
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn('[X Complete] ⚠️ Request timeout after', timeoutMs, 'ms');
+      controller.abort();
+    }, timeoutMs);
+
+    let response;
+    try {
+      console.log('[X Complete] Fetching from:', `${EXTRACTORT_URL}/enhanced-media/process`);
+      const startTime = Date.now();
+
+      response = await fetch(`${EXTRACTORT_URL}/enhanced-media/process`, {
+        method: 'POST',
+        headers: getCommonHeaders(),
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      const elapsed = Date.now() - startTime;
+      console.log('[X Complete] ✅ Fetch completed in', elapsed, 'ms');
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      console.error('[X Complete] ❌ Fetch error:', error);
+      if (error.name === 'AbortError') {
+        console.error('[X Complete] Request aborted due to timeout');
+        throw new Error('Request timeout - ExtractorT took too long to respond');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       let errorMessage = `ExtractorT responded with ${response.status}`;

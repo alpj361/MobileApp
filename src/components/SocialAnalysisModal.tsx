@@ -7,6 +7,7 @@ import {
   Text,
   View,
   Alert,
+  Platform,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -66,7 +67,13 @@ export default function SocialAnalysisModal({
 
   const handleOpenOriginal = () => {
     if (url) {
-      Linking.openURL(url);
+      // En web, abrir en nueva pestaña para no perder el estado
+      const isWeb = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+      if (isWeb) {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        Linking.openURL(url);
+      }
     } else {
       Alert.alert('Error', 'URL no disponible');
     }
@@ -138,8 +145,19 @@ export default function SocialAnalysisModal({
     }
   }, [visible]);
 
+  // Debug logging para ver si el modal se abre
+  React.useEffect(() => {
+    console.log('[SocialAnalysisModal] visible:', visible, 'isLoading:', isLoading, 'hasData:', hasData);
+  }, [visible, isLoading, hasData]);
+
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} presentationStyle="pageSheet">
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      onRequestClose={onClose}
+      transparent={false}
+      {...(Platform.OS === 'ios' ? { presentationStyle: 'pageSheet' } : {})}
+    >
       <View className="flex-1 bg-gray-50">
         {/* Enhanced Header */}
         <View className="px-5 pt-5 pb-4 border-b border-gray-200 bg-white">

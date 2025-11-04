@@ -33,7 +33,7 @@ export function WebContainer({ children }: WebContainerProps) {
   return (
     <View style={styles.desktopWrapper}>
       <View style={styles.mobileFrame}>
-        {children}
+      {children}
       </View>
     </View>
   );

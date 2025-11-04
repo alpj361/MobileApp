@@ -16,6 +16,12 @@ export interface ViztaSource {
   platform?: string;
 }
 
+export interface ViztaContextReference {
+  id: string;
+  type: 'codex' | 'project' | 'file';
+  note?: string;
+}
+
 export interface ViztaResponse {
   success: boolean;
   response: {
@@ -27,13 +33,17 @@ export interface ViztaResponse {
     timestamp?: string;
   };
   conversationId?: string;
+  sources?: ViztaSource[];
+  attachments?: Array<Record<string, any>>;
+  metadata?: Record<string, any>;
   error?: string;
 }
 
-export interface ViztaRequestOptions {
-  message: string;
-  sessionId?: string;
+export interface ViztaRequestConfig {
   useGenerativeUI?: boolean;
+  mode?: 'chat' | 'agentic';
+  contextRefs?: ViztaContextReference[];
+  codexItemIds?: string[];
 }
 
 /**
@@ -53,9 +63,15 @@ export interface ViztaRequestOptions {
 export const getViztaChatResponse = async (
   message: string,
   sessionId?: string,
-  useGenerativeUI: boolean = false
+  config: ViztaRequestConfig = {}
 ): Promise<ViztaResponse> => {
   const { EXTRACTORW_URL, BEARER_TOKEN } = getEnvVars();
+  const {
+    useGenerativeUI = false,
+    mode = 'chat',
+    contextRefs = [],
+    codexItemIds = []
+  } = config;
   
   if (!EXTRACTORW_URL) {
     throw new Error('EXTRACTORW_URL no configurada en variables de entorno');
@@ -69,6 +85,20 @@ export const getViztaChatResponse = async (
     console.log(`🤖 Enviando mensaje a Vizta (${EXTRACTORW_URL}): "${message.substring(0, 50)}..."`);
     
     const finalSessionId = sessionId || `mobile_chat_${Date.now()}`;
+    const payload: Record<string, any> = {
+      message,
+      sessionId: finalSessionId,
+      useGenerativeUI,
+      mode
+    };
+
+    if (contextRefs.length > 0) {
+      payload.context_refs = contextRefs;
+    }
+
+    if (Array.isArray(codexItemIds) && codexItemIds.length > 0) {
+      payload.codex_item_ids = codexItemIds;
+    }
     
     const response = await fetch(`${EXTRACTORW_URL}/api/vizta-chat/query`, {
       method: 'POST',
@@ -76,11 +106,7 @@ export const getViztaChatResponse = async (
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${BEARER_TOKEN}`
       },
-      body: JSON.stringify({
-        message,
-        sessionId: finalSessionId,
-        useGenerativeUI
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!response.ok) {
@@ -161,4 +187,3 @@ export const checkViztaHealth = async (): Promise<boolean> => {
     return false;
   }
 };
-

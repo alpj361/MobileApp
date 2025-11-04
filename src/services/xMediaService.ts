@@ -1,7 +1,8 @@
 import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
 import { getCommonHeaders, addPlatformParam } from '../config/api';
+import { EXTRACTORW_URL } from '../config/backend';
 
-const BASE_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
+const BASE_URL = EXTRACTORW_URL;
 
 // Deduplication: Track URLs currently being fetched
 const runningMediaFetches = new Set<string>();
@@ -69,8 +70,8 @@ export async function fetchXMedia(url: string): Promise<XMedia> {
 
   try {
     // ✅ Usar servicio unificado que obtiene TODO en una llamada
-    const { fetchXComplete } = await import('./xCompleteService');
-    const completeData = await fetchXComplete(url);
+    const xCompleteService = require('./xCompleteService');
+    const completeData = await xCompleteService.fetchXComplete(url);
     
     console.log('[X Media] ✅ Got media from unified service');
     console.log('[X Media] Media type:', completeData.media.type);

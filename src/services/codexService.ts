@@ -13,6 +13,7 @@ import { loadInstagramComments } from '../storage/commentsRepo';
 import { loadXComments } from '../storage/xCommentsRepo';
 import { extractInstagramPostId } from '../utils/instagram';
 import { extractXPostId } from '../utils/x';
+import { getApiUrl } from '../config/backend';
 
 export interface CodexSaveResult {
   success: boolean;
@@ -138,7 +139,7 @@ async function checkLinkExists(userId: string, url: string): Promise<{ exists: b
       return { exists: false };
     }
 
-    const response = await fetch('https://server.standatpd.com/api/codex/check-link', {
+    const response = await fetch(getApiUrl('/api/codex/check-link', 'extractorw'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -176,7 +177,7 @@ export async function checkMultipleLinksExist(userId: string, urls: string[]): P
       return urls.reduce((acc, url) => ({ ...acc, [url]: { exists: false } }), {});
     }
 
-    const response = await fetch('https://server.standatpd.com/api/codex/check-multiple-links', {
+    const response = await fetch(getApiUrl('/api/codex/check-multiple-links', 'extractorw'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -386,7 +387,7 @@ export async function saveLinkToCodex(
       }
       
       // ✨ NUEVO: Usar endpoint con nueva estructura
-      response = await fetch('https://server.standatpd.com/api/codex/save-link-pulse', {
+      response = await fetch(getApiUrl('/api/codex/save-link-pulse', 'extractorw'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -413,7 +414,7 @@ export async function saveLinkToCodex(
       });
     } else {
       // ✨ NUEVO: Usar endpoint con nueva estructura
-      response = await fetch('https://server.standatpd.com/api/codex/save-link', {
+      response = await fetch(getApiUrl('/api/codex/save-link', 'extractorw'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -516,7 +517,7 @@ export async function saveRecordingToCodex(
       console.log('No Supabase session available, using Pulse authentication...');
       
       // ✨ NUEVO: Usar endpoint con nueva estructura
-      response = await fetch('https://server.standatpd.com/api/codex/save-recording-pulse', {
+      response = await fetch(getApiUrl('/api/codex/save-recording-pulse', 'extractorw'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -539,7 +540,7 @@ export async function saveRecordingToCodex(
       });
     } else {
       // ✨ NUEVO: Usar endpoint con nueva estructura
-      response = await fetch('https://server.standatpd.com/api/codex/save-recording', {
+      response = await fetch(getApiUrl('/api/codex/save-recording', 'extractorw'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

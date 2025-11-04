@@ -5,11 +5,10 @@ import {
   saveXComments,
   StoredXComments,
 } from '../storage/xCommentsRepo';
+import { EXTRACTORW_URL, EXTRACTORT_URL, getApiUrl } from '../config/backend';
 
-const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL ?? 'https://server.standatpd.com';
-const EXTRACTORT_URL = 'https://api.standatpd.com';
-const X_COMMENTS_ENDPOINT = `${EXTRACTORW_URL.replace(/\/$/, '')}/api/x/comments`;
-const X_COMMENTS_EXTRACTORT_ENDPOINT = `${EXTRACTORT_URL}/api/x_comment/`;
+const X_COMMENTS_ENDPOINT = getApiUrl('/api/x/comments', 'extractorw');
+const X_COMMENTS_EXTRACTORT_ENDPOINT = getApiUrl('/api/x_comment/', 'extractort');
 
 export type XComment = InstagramComment;
 
@@ -179,8 +178,8 @@ export async function fetchXComments(url: string, options: FetchXCommentsOptions
 
   try {
     // ✅ Usar servicio unificado que obtiene TODO en una llamada
-    const { fetchXComplete } = await import('./xCompleteService');
-    const completeData = await fetchXComplete(url);
+    const xCompleteService = require('./xCompleteService');
+    const completeData = await xCompleteService.fetchXComplete(url);
     
     console.log('[X Comments] ✅ Got comments from unified service');
     console.log('[X Comments] Comments count:', completeData.comments.length);

@@ -4,10 +4,14 @@
  * solicitan los mismos datos simultáneamente
  */
 
+// ⚠️ Incrementar CACHE_VERSION cuando se cambia el formato de datos
+const CACHE_VERSION = 2; // v2: incluye transcripción correcta de videos
+
 interface CachedXData {
   data: any;
   timestamp: number;
   expiresAt: number;
+  version: number;
 }
 
 // Caché en memoria (se pierde al recargar la app, pero eso está bien para evitar duplicación)
@@ -21,17 +25,24 @@ const DEFAULT_TTL_MS = 5 * 60 * 1000;
  */
 export function getXDataFromCache(url: string): any | null {
   const cached = xDataCache.get(url);
-  
+
   if (!cached) {
     return null;
   }
-  
+
+  // ✅ Verificar versión - invalidar cache si es de versión vieja
+  if (cached.version !== CACHE_VERSION) {
+    console.log('[X Cache] Cache version mismatch - invalidating:', cached.version, '!==', CACHE_VERSION);
+    xDataCache.delete(url);
+    return null;
+  }
+
   // Verificar si expiró
   if (Date.now() >= cached.expiresAt) {
     xDataCache.delete(url);
     return null;
   }
-  
+
   return cached.data;
 }
 
@@ -43,6 +54,7 @@ export function setXDataToCache(url: string, data: any, ttl: number = DEFAULT_TT
     data,
     timestamp: Date.now(),
     expiresAt: Date.now() + ttl,
+    version: CACHE_VERSION,
   });
 }
 

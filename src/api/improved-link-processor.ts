@@ -7,6 +7,7 @@ import { LinkData, InstagramComment } from './link-processor';
 import { generateInstagramTitleAI } from '../services/instagramTitleService';
 import { generateXTitleAI } from '../services/xTitleService';
 import { extractXPostId } from '../utils/x';
+import { Platform } from 'react-native';
 
 // Enhanced LinkData interface with quality scoring
 export interface ImprovedLinkData extends LinkData {
@@ -838,8 +839,9 @@ async function extractXEngagementAndContent(url: string): Promise<{
   console.log('[X] Starting X extraction for:', url);
   console.log('[X] ExtractorW URL:', EXTRACTORW_URL);
   
-  // ✅ Importar caché (necesitamos hacerlo dinámicamente para evitar errores de compilación)
-  const { getXDataFromCache, setXDataToCache } = await import('../storage/xDataCache');
+  // ✅ Importar caché
+  const xDataCache = require('../storage/xDataCache');
+  const { getXDataFromCache, setXDataToCache } = xDataCache;
   
   // ✅ Verificar caché primero (usar key específica para engagement)
   const cacheKey = `engagement:${url}`;
@@ -858,14 +860,32 @@ async function extractXEngagementAndContent(url: string): Promise<{
     let text: string | undefined;
     let author: string | undefined;
     let imageData: { url?: string; type?: string; quality?: string } = {};
-    const mediaResponse = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer extractorw-auth-token'
-      },
-      body: JSON.stringify({ url }),
-    });
+    
+    // Add timeout to prevent hanging
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout for X media
+    
+    let mediaResponse: Response;
+    try {
+      mediaResponse = await fetch(`${EXTRACTORW_URL}/api/x/media`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer extractorw-auth-token'
+        },
+        body: JSON.stringify({ url }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.error('[X] ❌ Timeout calling /api/x/media after 20s');
+        throw new Error('Request timeout - ExtractorW took too long');
+      }
+      console.error('[X] ❌ Network error calling /api/x/media:', error.message);
+      throw error;
+    }
 
     if (mediaResponse.ok) {
       const mediaData = await mediaResponse.json();
@@ -1370,32 +1390,63 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
   }
 
   const startTime = Date.now();
-  
+
   try {
     // Validate URL
     new URL(url);
-    
-    // Fetch HTML content
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Accept-Encoding': 'gzip, deflate',
-        'Cache-Control': 'no-cache',
-      },
-    });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    
-    const html = await response.text();
-    
-    // Extract metadata using platform-specific functions
+
+    // Detect platform early to handle CORS issues
     const platform = detectPlatform(url);
-    console.log('[X] Detected platform:', platform, 'for URL:', url);
+    const isWeb = Platform.OS === 'web';
+    const isXTwitter = platform === 'twitter';
+
+    console.log('[Link Processor] Platform:', platform, 'isWeb:', isWeb);
+
+    // ✅ CORS FIX: Skip direct fetch for X/Twitter on web (use ExtractorT instead)
+    const shouldSkipDirectFetch = isWeb && isXTwitter;
+
+    let html = '';
+
+    if (!shouldSkipDirectFetch) {
+      // Fetch HTML content with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout for HTML fetch
+
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Cache-Control': 'no-cache',
+          },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          console.error('[Link Processor] ❌ Timeout fetching URL:', url);
+          throw new Error('Request timeout - URL took too long to respond');
+        }
+        console.error('[Link Processor] ❌ Network error:', error.message);
+        throw error;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      html = await response.text();
+    } else {
+      console.log('[Link Processor] ⏭️ Skipping direct fetch for X/Twitter on web (CORS workaround)');
+    }
+
+    // Extract metadata using platform-specific functions
+    console.log('[Link Processor] Detected platform:', platform, 'for URL:', url);
     
     let title = extractPlatformSpecificTitle(html, url, platform);
     let description = extractPlatformSpecificDescription(html, platform);
@@ -1437,65 +1488,79 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
       commentsLoaded = false;
     } else if (platform === 'twitter') {
       console.log('[X] Processing Twitter URL:', url);
-      
-      // Usar ExtractorW como única fuente (similar a Instagram)
-      const xData = await extractXEngagementAndContent(url);
-      
-      console.log('[X] xData received:', JSON.stringify(xData, null, 2));
-      
-      if (xData) {
-        engagement = xData.engagement;
-        console.log('[X] Engagement set:', engagement);
-        
-        // Establecer descripción con el texto del tweet
-        if (xData.text) {
-          description = xData.text;
-          console.log('[X] Description set:', description.substring(0, 100));
-        }
-        
-        // Establecer autor
-        if (xData.author) {
-          author = xData.author;
-          console.log('[X] Author set:', author);
-        }
-        
-        // Establecer miniatura
-        console.log('[X] DEBUG: xData.media:', xData.media);
-        console.log('[X] DEBUG: imageData.url before:', imageData.url);
-        if (xData.media?.url && !imageData.url) {
-          imageData = { url: xData.media.url, quality: 'high' };
-          console.log('[X] DEBUG: Image set successfully:', xData.media.url);
-        } else {
-          console.log('[X] DEBUG: Image NOT set - xData.media?.url:', xData.media?.url, 'imageData.url:', imageData.url);
-        }
-        
-        // Generar título con IA (igual que Instagram)
-        if (description) {
-          try {
-            console.log('[X] Generating AI title for:', description.substring(0, 50));
-            const aiTitle = await generateXTitleAI({
-              text: description,
-              author: xData.author,
-              url,
-            });
-            if (aiTitle) {
-              title = aiTitle;
-              console.log('[X] AI title generated:', aiTitle);
-            } else {
-              // Fallback: primer línea del tweet
+
+      // ✅ Use unified xCompleteService (ExtractorT /enhanced-media/process)
+      const xCompleteService = require('../services/xCompleteService');
+
+      try {
+        console.log('[X] Fetching complete data from ExtractorT...');
+        const completeData = await xCompleteService.fetchXComplete(url);
+        console.log('[X] Complete data received:', JSON.stringify(completeData, null, 2));
+
+        if (completeData.success) {
+          // Extract engagement metrics
+          engagement = {
+            likes: completeData.metrics.likes || 0,
+            comments: completeData.metrics.replies || 0,
+            shares: completeData.metrics.reposts || 0,
+            views: completeData.metrics.views || 0,
+          };
+          console.log('[X] Engagement set:', engagement);
+
+          // Set description from tweet text
+          if (completeData.tweet.text) {
+            description = completeData.tweet.text;
+            console.log('[X] Description set:', description.substring(0, 100));
+          }
+
+          // Set author
+          if (completeData.tweet.author_handle) {
+            author = `@${completeData.tweet.author_handle}`;
+            console.log('[X] Author set:', author);
+          }
+
+          // Set thumbnail from media or thumbnail_url
+          const thumbnailUrl = completeData.thumbnail_url || completeData.media.url;
+          console.log('[X] DEBUG: thumbnailUrl:', thumbnailUrl);
+          console.log('[X] DEBUG: imageData.url before:', imageData.url);
+          if (thumbnailUrl && !imageData.url) {
+            imageData = { url: thumbnailUrl, quality: 'high' };
+            console.log('[X] DEBUG: Image set successfully:', thumbnailUrl);
+          } else {
+            console.log('[X] DEBUG: Image NOT set - thumbnailUrl:', thumbnailUrl, 'imageData.url:', imageData.url);
+          }
+
+          // Generate title with AI (same as Instagram)
+          if (description) {
+            try {
+              console.log('[X] Generating AI title for:', description.substring(0, 50));
+              const aiTitle = await generateXTitleAI({
+                text: description,
+                author: completeData.tweet.author_handle,
+                url,
+              });
+              if (aiTitle) {
+                title = aiTitle;
+                console.log('[X] AI title generated:', aiTitle);
+              } else {
+                // Fallback: first line of tweet
+                title = description.split('\n')[0].substring(0, 80);
+                console.log('[X] Using fallback title:', title);
+              }
+            } catch (error) {
+              console.log('[X] Title AI error:', error);
               title = description.split('\n')[0].substring(0, 80);
-              console.log('[X] Using fallback title:', title);
+              console.log('[X] Using fallback title after error:', title);
             }
-          } catch (error) {
-            console.log('[X] Title AI error:', error);
-            title = description.split('\n')[0].substring(0, 80);
-            console.log('[X] Using fallback title after error:', title);
-            }
+          } else {
+            console.log('[X] No description available for title generation');
+          }
         } else {
-          console.log('[X] No description available for title generation');
+          console.log('[X] fetchXComplete returned success=false');
         }
-      } else {
-        console.log('[X] No xData received from ExtractorW');
+      } catch (error) {
+        console.error('[X] Error fetching complete data:', error);
+        // Continue with empty data - let the rest of the function handle fallbacks
       }
     }
     

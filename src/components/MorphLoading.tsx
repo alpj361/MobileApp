@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet, Platform } from 'react-native';
 
 interface MorphLoadingProps {
   size?: 'sm' | 'md' | 'lg';
@@ -232,11 +232,19 @@ const styles = StyleSheet.create({
     position: 'absolute',
     backgroundColor: '#7C3AED', // Purple to match app theme
     opacity: 0.8, // Slightly transparent for softer look
-    shadowColor: '#7C3AED',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
     elevation: 3, // Android shadow
+    ...(Platform.OS === 'web' 
+      ? {
+          // @ts-ignore - web-specific
+          boxShadow: '0 2px 4px rgba(124, 58, 237, 0.3)',
+        }
+      : {
+          shadowColor: '#7C3AED',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.3,
+          shadowRadius: 4,
+        }
+    ),
   },
 });
 

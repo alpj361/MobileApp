@@ -7,10 +7,12 @@ import {
 } from '../storage/commentsRepo';
 import { getCommonHeaders } from '../config/api';
 
+import { getApiUrl } from '../config/backend';
+
 // Primary: use the public server wrapper (ExtractorW) which handles auth and routing
-const EXTRACTOR_WRAPPER_URL = 'https://server.standatpd.com/api/instagram/comments';
+const EXTRACTOR_WRAPPER_URL = getApiUrl('/api/instagram/comments', 'extractorw');
 // Fallback: call ExtractorT directly if wrapper is unavailable (requires valid token)
-const EXTRACTOR_T_API_URL = 'https://api.standatpd.com/api/instagram_comment/';
+const EXTRACTOR_T_API_URL = getApiUrl('/api/instagram_comment/', 'extractort');
 const API_AUTH_TOKEN = 'extractorw-auth-token';
 
 interface FetchCommentsOptions {

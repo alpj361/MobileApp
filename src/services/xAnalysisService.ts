@@ -1,7 +1,7 @@
 import { fetchXComplete } from './xCompleteService';
 import { XMediaType } from './xMediaService';
-import { getOpenAITextResponse } from '../api/chat-service';
 import { extractXPostId } from '../utils/x';
+import { getApiUrl } from '../config/backend';
 import {
   loadXAnalysis,
   saveXAnalysis,
@@ -69,22 +69,46 @@ export async function analyzeXPost(
     const tweetText = text || completeData.tweet.text;
 
     // Solo generar resumen e insights (NO volver a transcribir/analizar)
-    console.log('[X Analysis] Generating summary...');
-    const summary = await summarizeXPost({
-      text: tweetText,
-      transcript,
-      type: completeData.media.type,
-    });
-    console.log('[X Analysis] Summary completed:', summary.length, 'chars');
+    let summary = '';
+    let insights = { topic: undefined, sentiment: 'neutral' as const };
+    
+    try {
+      console.log('[X Analysis] Generating summary...');
+      summary = await Promise.race([
+        summarizeXPost({
+          text: tweetText,
+          transcript,
+          type: completeData.media.type,
+        }),
+        new Promise<string>((_, reject) => 
+          setTimeout(() => reject(new Error('Summary timeout')), 15000)
+        )
+      ]);
+      console.log('[X Analysis] Summary completed:', summary.length, 'chars');
+    } catch (error) {
+      console.warn('[X Analysis] ⚠️ Summary generation failed or timed out, using basic text');
+      // Usar el texto del tweet como fallback
+      summary = tweetText ? `Tweet: ${tweetText}` : 'Contenido de X/Twitter';
+    }
 
-    console.log('[X Analysis] Deriving insights...');
-    const insights = await deriveXInsights({
-      text: tweetText,
-      summary,
-      transcript,
-      type: completeData.media.type,
-    });
-    console.log('[X Analysis] Insights completed - topic:', insights.topic, 'sentiment:', insights.sentiment);
+    try {
+      console.log('[X Analysis] Deriving insights...');
+      insights = await Promise.race([
+        deriveXInsights({
+          text: tweetText,
+          summary,
+          transcript,
+          type: completeData.media.type,
+        }),
+        new Promise<{ topic: undefined; sentiment: 'neutral' }>((_, reject) => 
+          setTimeout(() => reject(new Error('Insights timeout')), 15000)
+        )
+      ]);
+      console.log('[X Analysis] Insights completed - topic:', insights.topic, 'sentiment:', insights.sentiment);
+    } catch (error) {
+      console.warn('[X Analysis] ⚠️ Insights generation failed or timed out, using defaults');
+      insights = { topic: undefined, sentiment: 'neutral' };
+    }
 
     const processingTime = Date.now() - startTime;
     console.log('[X Analysis] Total processing time:', processingTime, 'ms');
@@ -128,54 +152,53 @@ interface SummarizeParams {
   type: XMediaType;
 }
 
-// Resumen IA
+// Resumen IA - Ahora llama al backend ExtractorW
 async function summarizeXPost(params: SummarizeParams): Promise<string> {
   const { text, transcript, type } = params;
 
-  const pieces: string[] = [];
-  if (text) {
-    pieces.push(`Tweet original:\n${text}`);
-  }
-  if (transcript) {
-    pieces.push(`Contenido analizado:\n${transcript}`);
-  }
-
-  if (pieces.length === 0) {
+  if (!text && !transcript) {
     return 'No hay contenido suficiente para generar resumen.';
   }
 
-  const prompt = `Eres un asistente que resume tweets de X/Twitter en español claro y conciso.
-Tienes la siguiente información de un tweet de tipo ${type}.
-
-${pieces.join('\n\n')}
-
-Genera una respuesta únicamente en este formato:
-Resumen:
-• Punto clave 1
-• Punto clave 2
-• Punto clave 3 (opcional)
-TL;DR: una sola oración breve con la idea principal.
-
-No repitas hashtags ni menciones, no inventes información. Si falta información (por ejemplo no hay transcripción), enfócate en la disponible.`;
-
   try {
-    const response = await getOpenAITextResponse([
-      { role: 'system', content: 'Eres un asistente experto en redacción en español neutro.' },
-      { role: 'user', content: prompt },
-    ], {
-      model: 'gpt-4o-mini',
-      temperature: 0.4,
-      maxTokens: 400,
+    const url = getApiUrl('/api/x/summarize', 'extractorw');
+
+    console.log('[X Summary] Calling backend:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        transcript,
+        type,
+      }),
     });
 
-    return (response.content || '').trim();
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[X Summary] Backend error - Status:', response.status);
+      console.error('[X Summary] Backend error - Data:', errorData);
+      return 'Error al generar resumen.';
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.summary) {
+      console.log('[X Summary] Backend summary received:', data.summary.substring(0, 100));
+      return data.summary;
+    }
+
+    return 'Error al generar resumen.';
   } catch (error) {
-    console.error('[X Analysis] Summary generation failed:', error);
+    console.error('[X Summary] Failed to generate summary:', error);
     return 'Error al generar resumen.';
   }
 }
 
-// Topic + Sentiment
+// Topic + Sentiment - Ahora llama al backend ExtractorW
 async function deriveXInsights(params: InsightParams): Promise<AnalysisInsights> {
   const { text, summary, transcript, type } = params;
 
@@ -183,65 +206,44 @@ async function deriveXInsights(params: InsightParams): Promise<AnalysisInsights>
     return {};
   }
 
-  const pieces: string[] = [];
-  if (summary) pieces.push(`Resumen existente:\n${summary}`);
-  if (text) pieces.push(`Tweet original:\n${text}`);
-  if (transcript) pieces.push(`Contenido analizado:\n${transcript}`);
-
-  const prompt = `Analiza el siguiente tweet de ${type} y responde únicamente con un JSON válido.
-El JSON debe tener esta forma:
-{"topic": "tema principal en español", "sentiment": "positive|negative|neutral"}
-
-Instrucciones adicionales:
-- "topic" debe ser una frase corta (máximo 6 palabras) en español neutro.
-- "sentiment" debe ser exactamente "positive", "negative" o "neutral".
-- Si no hay información suficiente para alguno de los campos, usa null.
-
-Contenido para analizar:
-${pieces.join('\n\n')}`;
-
   try {
-    const response = await getOpenAITextResponse(
-      [
-        { role: 'system', content: 'Eres un analista de redes sociales que responde estrictamente en JSON.' },
-        { role: 'user', content: prompt },
-      ],
-      {
-        model: 'gpt-4o-mini',
-        temperature: 0.2,
-        maxTokens: 200,
-      },
-    );
+    const url = getApiUrl('/api/x/analyze', 'extractorw');
 
-    const parsed = parseInsightsResponse(response.content);
-    return normalizeInsights(parsed);
+    console.log('[X Analysis] Calling backend:', url);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text,
+        summary,
+        transcript,
+        type,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('[X Analysis] Backend error - Status:', response.status);
+      console.error('[X Analysis] Backend error - Data:', errorData);
+      return {};
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.insights) {
+      console.log('[X Analysis] Backend insights:', data.insights);
+      return data.insights;
+    }
+
+    return {};
   } catch (error) {
     console.warn('[X Analysis] Failed to derive insights:', error);
     return {};
   }
 }
 
-function parseInsightsResponse(raw?: string | null): Partial<AnalysisInsights> | null {
-  if (!raw) return null;
-  try {
-    const jsonMatch = raw.match(/\{[^}]+\}/);
-    if (!jsonMatch) return null;
-    return JSON.parse(jsonMatch[0]);
-  } catch {
-    return null;
-  }
-}
-
-function normalizeInsights(parsed: Partial<AnalysisInsights> | null): AnalysisInsights {
-  if (!parsed || typeof parsed !== 'object') {
-    return {};
-  }
-  const result: AnalysisInsights = {};
-  if (typeof parsed.topic === 'string' && parsed.topic.trim()) {
-    result.topic = parsed.topic.trim();
-  }
-  if (parsed.sentiment === 'positive' || parsed.sentiment === 'negative' || parsed.sentiment === 'neutral') {
-    result.sentiment = parsed.sentiment;
-  }
-  return result;
-}
+// Las funciones parseInsightsResponse y normalizeInsights
+// ahora se manejan en el backend (ExtractorW)
