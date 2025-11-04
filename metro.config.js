@@ -20,12 +20,12 @@ config.transformer = {
 
 // Disable NativeWind only on Netlify (lightningcss native module fails there)
 // Keep it enabled for local development and native builds
-const isNetlify = process.env.NETLIFY || process.env.BUILDER;
+const shouldDisableNativeWind = process.env.DISABLE_NATIVEWIND === 'true';
 
-if (isNetlify) {
-  console.log('[Metro] Netlify build detected - NativeWind disabled');
+if (shouldDisableNativeWind) {
+  console.log('[Metro] NativeWind disabled (Netlify build)');
   module.exports = config;
 } else {
-  console.log('[Metro] Local/native build detected - NativeWind enabled');
+  console.log('[Metro] NativeWind enabled (local/native build)');
   module.exports = withNativeWind(config, { input: './global.css' });
 }

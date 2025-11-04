@@ -9,8 +9,9 @@
   # Directory where the static files are generated
   publish = "dist"
   
-  # Node version
-  environment = { NODE_VERSION = "18" }
+  # Environment variables
+  # DISABLE_NATIVEWIND tells metro.config.js to skip NativeWind (avoids lightningcss compilation)
+  environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
