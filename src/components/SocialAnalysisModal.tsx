@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
@@ -20,6 +21,7 @@ import { SavedItem } from '../state/savedStore';
 import { parseSummary } from '../utils/parseSummary';
 import { EntityPanel } from './EntityPanel';
 import { getCurrentSpacing } from '../utils/responsive';
+import { reportExtractionError } from '../services/extractionErrorService';
 
 interface SocialAnalysisModalProps {
   visible: boolean;
@@ -44,6 +46,9 @@ export default function SocialAnalysisModal({
   const parsedSummary = parseSummary(analysis?.summary);
   const [transcriptExpanded, setTranscriptExpanded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [reportModalVisible, setReportModalVisible] = React.useState(false);
+  const [reportText, setReportText] = React.useState('');
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
   const responsiveSpacing = getCurrentSpacing();
   const screenWidth = Dimensions.get('window').width;
 
@@ -147,9 +152,57 @@ export default function SocialAnalysisModal({
     return `~${minutes} min`;
   };
 
+  const handleSubmitReport = async () => {
+    if (!reportText.trim() || !url) {
+      Alert.alert('Error', 'Describe el problema encontrado');
+      return;
+    }
+
+    setIsSubmittingReport(true);
+
+    try {
+      const result = await reportExtractionError({
+        platform: platform === 'twitter' ? 'x' : platform,
+        post_url: url,
+        error_type: 'incomplete_extraction',
+        error_message: reportText.trim(),
+        extraction_step: 'user_reported',
+        severity: 'medium',
+        full_logs: {
+          analysis_data: {
+            has_summary: !!analysis?.summary,
+            has_transcript: !!analysis?.transcript,
+            has_entities: !!analysis?.entities?.length,
+            entity_count: analysis?.entities?.length || 0,
+          },
+        },
+      });
+
+      if (result.success) {
+        Alert.alert(
+          '✅ Reporte enviado',
+          'Gracias por reportar este problema. Lo revisaremos pronto.',
+          [{ text: 'OK', onPress: () => {
+            setReportModalVisible(false);
+            setReportText('');
+          }}]
+        );
+      } else {
+        Alert.alert('Error', result.error || 'No se pudo enviar el reporte');
+      }
+    } catch (error) {
+      console.error('[SocialAnalysisModal] Error submitting report:', error);
+      Alert.alert('Error', 'No se pudo enviar el reporte. Intenta de nuevo.');
+    } finally {
+      setIsSubmittingReport(false);
+    }
+  };
+
   React.useEffect(() => {
     if (!visible) {
       setTranscriptExpanded(false);
+      setReportModalVisible(false);
+      setReportText('');
     }
   }, [visible]);
 
@@ -178,6 +231,15 @@ export default function SocialAnalysisModal({
           <View style={styles.headerTop}>
             <Text style={[styles.title, { fontSize: screenWidth < 375 ? 20 : 24 }]}>Análisis del post</Text>
             <View style={styles.headerButtons}>
+              <Pressable
+                onPress={() => setReportModalVisible(true)}
+                style={({ pressed }) => [
+                  styles.iconButton,
+                  pressed && styles.iconButtonPressed,
+                ]}
+              >
+                <Ionicons name="flag" size={20} color="#EF4444" />
+              </Pressable>
               {onRefresh && (
                 <Pressable
                   onPress={() => onRefresh()}
@@ -460,6 +522,99 @@ export default function SocialAnalysisModal({
             <Text style={styles.emptyText}>
               Toca "Actualizar" para generar la transcripción o descripción de este post.
             </Text>
+          </View>
+        )}
+
+        {/* Report Modal */}
+        {reportModalVisible && (
+          <View style={styles.reportModalOverlay}>
+            <View style={styles.reportModalContainer}>
+              {/* Report Modal Header */}
+              <View style={styles.reportModalHeader}>
+                <View style={styles.reportModalTitleRow}>
+                  <View style={styles.reportModalIconContainer}>
+                    <Ionicons name="flag" size={20} color="#EF4444" />
+                  </View>
+                  <Text style={styles.reportModalTitle}>Reportar Problema</Text>
+                </View>
+                <Pressable
+                  onPress={() => {
+                    setReportModalVisible(false);
+                    setReportText('');
+                  }}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed && styles.iconButtonPressed,
+                  ]}
+                >
+                  <Ionicons name="close" size={20} color="#6B7280" />
+                </Pressable>
+              </View>
+
+              {/* Report Modal Content */}
+              <View style={styles.reportModalContent}>
+                <View>
+                  <Text style={styles.reportModalLabel}>
+                    ¿Qué problema encontraste con la extracción?
+                  </Text>
+                  <TextInput
+                    value={reportText}
+                    onChangeText={setReportText}
+                    placeholder="Describe el problema con los datos extraídos..."
+                    placeholderTextColor="#9CA3AF"
+                    multiline
+                    numberOfLines={4}
+                    style={styles.reportTextInput}
+                    editable={!isSubmittingReport}
+                  />
+                </View>
+
+                <View style={styles.reportModalButtons}>
+                  <Pressable
+                    onPress={() => {
+                      setReportModalVisible(false);
+                      setReportText('');
+                    }}
+                    disabled={isSubmittingReport}
+                    style={({ pressed }) => [
+                      styles.reportCancelButton,
+                      pressed && styles.reportCancelButtonPressed,
+                    ]}
+                  >
+                    <Text style={styles.reportCancelButtonText}>Cancelar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleSubmitReport}
+                    disabled={!reportText.trim() || isSubmittingReport}
+                    style={({ pressed }) => [
+                      styles.reportSubmitButton,
+                      pressed && styles.reportSubmitButtonPressed,
+                      (!reportText.trim() || isSubmittingReport) && styles.reportSubmitButtonDisabled,
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['#EF4444', '#DC2626']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: 999,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {isSubmittingReport ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={styles.reportSubmitButtonText}>Enviar Reporte</Text>
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+                </View>
+              </View>
+            </View>
           </View>
         )}
       </LinearGradient>
@@ -977,6 +1132,129 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
+  },
+  // Report Modal Styles
+  reportModalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    zIndex: 100,
+  },
+  reportModalContainer: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 24,
+  },
+  reportModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  reportModalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  reportModalIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  reportModalContent: {
+    padding: 24,
+    gap: 16,
+  },
+  reportModalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  reportTextInput: {
+    width: '100%',
+    height: 128,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 16,
+    fontSize: 14,
+    color: '#111827',
+    textAlignVertical: 'top',
+  },
+  reportTextInputFocused: {
+    borderColor: '#FECACA',
+    backgroundColor: '#FFFFFF',
+  },
+  reportModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  reportCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportCancelButtonPressed: {
+    backgroundColor: '#E5E7EB',
+    transform: [{ scale: 0.95 }],
+  },
+  reportCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  reportSubmitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#EF4444',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  reportSubmitButtonPressed: {
+    transform: [{ scale: 0.95 }],
+  },
+  reportSubmitButtonDisabled: {
+    opacity: 0.5,
+  },
+  reportSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 
