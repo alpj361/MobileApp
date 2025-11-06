@@ -49,6 +49,7 @@ export default function SocialAnalysisModal({
   const [reportModalVisible, setReportModalVisible] = React.useState(false);
   const [reportText, setReportText] = React.useState('');
   const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
+  const [isReportSubmitted, setIsReportSubmitted] = React.useState(false);
   const responsiveSpacing = getCurrentSpacing();
   const screenWidth = Dimensions.get('window').width;
 
@@ -179,14 +180,13 @@ export default function SocialAnalysisModal({
       });
 
       if (result.success) {
-        Alert.alert(
-          '✅ Reporte enviado',
-          'Gracias por reportar este problema. Lo revisaremos pronto.',
-          [{ text: 'OK', onPress: () => {
-            setReportModalVisible(false);
-            setReportText('');
-          }}]
-        );
+        setIsReportSubmitted(true);
+        // Auto cerrar después de 2 segundos
+        setTimeout(() => {
+          setReportModalVisible(false);
+          setIsReportSubmitted(false);
+          setReportText('');
+        }, 2000);
       } else {
         Alert.alert('Error', result.error || 'No se pudo enviar el reporte');
       }
@@ -529,91 +529,115 @@ export default function SocialAnalysisModal({
         {reportModalVisible && (
           <View style={styles.reportModalOverlay}>
             <View style={styles.reportModalContainer}>
-              {/* Report Modal Header */}
-              <View style={styles.reportModalHeader}>
-                <View style={styles.reportModalTitleRow}>
-                  <View style={styles.reportModalIconContainer}>
-                    <Ionicons name="flag" size={20} color="#EF4444" />
-                  </View>
-                  <Text style={styles.reportModalTitle}>Reportar Problema</Text>
-                </View>
-                <Pressable
-                  onPress={() => {
-                    setReportModalVisible(false);
-                    setReportText('');
-                  }}
-                  style={({ pressed }) => [
-                    styles.iconButton,
-                    pressed && styles.iconButtonPressed,
-                  ]}
-                >
-                  <Ionicons name="close" size={20} color="#6B7280" />
-                </Pressable>
-              </View>
-
-              {/* Report Modal Content */}
-              <View style={styles.reportModalContent}>
-                <View>
-                  <Text style={styles.reportModalLabel}>
-                    ¿Qué problema encontraste con la extracción?
-                  </Text>
-                  <TextInput
-                    value={reportText}
-                    onChangeText={setReportText}
-                    placeholder="Describe el problema con los datos extraídos..."
-                    placeholderTextColor="#9CA3AF"
-                    multiline
-                    numberOfLines={4}
-                    style={styles.reportTextInput}
-                    editable={!isSubmittingReport}
-                  />
-                </View>
-
-                <View style={styles.reportModalButtons}>
-                  <Pressable
-                    onPress={() => {
-                      setReportModalVisible(false);
-                      setReportText('');
-                    }}
-                    disabled={isSubmittingReport}
-                    style={({ pressed }) => [
-                      styles.reportCancelButton,
-                      pressed && styles.reportCancelButtonPressed,
-                    ]}
-                  >
-                    <Text style={styles.reportCancelButtonText}>Cancelar</Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={handleSubmitReport}
-                    disabled={!reportText.trim() || isSubmittingReport}
-                    style={({ pressed }) => [
-                      styles.reportSubmitButton,
-                      pressed && styles.reportSubmitButtonPressed,
-                      (!reportText.trim() || isSubmittingReport) && styles.reportSubmitButtonDisabled,
-                    ]}
-                  >
+              {isReportSubmitted ? (
+                // Success State
+                <View style={styles.reportSuccessContainer}>
+                  <View style={styles.reportSuccessIconWrapper}>
                     <LinearGradient
-                      colors={['#EF4444', '#DC2626']}
+                      colors={['#BBF7D0', '#86EFAC']}
                       start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        borderRadius: 999,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.reportSuccessIconGradient}
                     >
-                      {isSubmittingReport ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={styles.reportSubmitButtonText}>Enviar Reporte</Text>
-                      )}
+                      <Ionicons name="checkmark-circle" size={64} color="#16A34A" />
                     </LinearGradient>
-                  </Pressable>
+                  </View>
+                  <View style={styles.reportSuccessTextContainer}>
+                    <Text style={styles.reportSuccessTitle}>¡Feedback Enviado!</Text>
+                    <Text style={styles.reportSuccessMessage}>
+                      Gracias por ayudarnos a mejorar la calidad de las extracciones.
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <>
+                  {/* Report Modal Header */}
+                  <View style={styles.reportModalHeader}>
+                    <View style={styles.reportModalTitleRow}>
+                      <View style={styles.reportModalIconContainer}>
+                        <Ionicons name="flag" size={20} color="#EF4444" />
+                      </View>
+                      <Text style={styles.reportModalTitle}>Reportar Problema</Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        setReportModalVisible(false);
+                        setReportText('');
+                      }}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        pressed && styles.iconButtonPressed,
+                      ]}
+                    >
+                      <Ionicons name="close" size={20} color="#6B7280" />
+                    </Pressable>
+                  </View>
+
+                  {/* Report Modal Content */}
+                  <View style={styles.reportModalContent}>
+                    <View>
+                      <Text style={styles.reportModalLabel}>
+                        ¿Qué problema encontraste con la extracción?
+                      </Text>
+                      <TextInput
+                        value={reportText}
+                        onChangeText={setReportText}
+                        placeholder="Describe el problema con los datos extraídos..."
+                        placeholderTextColor="#9CA3AF"
+                        multiline
+                        numberOfLines={4}
+                        style={styles.reportTextInput}
+                        editable={!isSubmittingReport}
+                      />
+                    </View>
+
+                    <View style={styles.reportModalButtons}>
+                      <Pressable
+                        onPress={() => {
+                          setReportModalVisible(false);
+                          setReportText('');
+                        }}
+                        disabled={isSubmittingReport}
+                        style={({ pressed }) => [
+                          styles.reportCancelButton,
+                          pressed && styles.reportCancelButtonPressed,
+                        ]}
+                      >
+                        <Text style={styles.reportCancelButtonText}>Cancelar</Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={handleSubmitReport}
+                        disabled={!reportText.trim() || isSubmittingReport}
+                        style={({ pressed }) => [
+                          styles.reportSubmitButton,
+                          pressed && styles.reportSubmitButtonPressed,
+                          (!reportText.trim() || isSubmittingReport) && styles.reportSubmitButtonDisabled,
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={['#EF4444', '#DC2626']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            borderRadius: 999,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          {isSubmittingReport ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                          ) : (
+                            <Text style={styles.reportSubmitButtonText}>Enviar Reporte</Text>
+                          )}
+                        </LinearGradient>
+                      </Pressable>
+                    </View>
+                  </View>
+                </>
+              )}
             </View>
           </View>
         )}
@@ -1255,6 +1279,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  reportSuccessContainer: {
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reportSuccessIconWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  reportSuccessIconGradient: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  reportSuccessTextContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  reportSuccessTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#111827',
+    textAlign: 'center',
+  },
+  reportSuccessMessage: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 
