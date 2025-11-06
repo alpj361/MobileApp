@@ -31,22 +31,35 @@ export async function reportExtractionError(
   try {
     console.log('[Extraction Error Service] Reporting error for:', params.post_url);
 
-    // Get auth token
-    const tokenData = await AsyncStorage.getItem('auth_token');
-    if (!tokenData) {
-      throw new Error('No authentication token found');
+    // Get auth token (optional - use anonymous if not available)
+    let userEmail = 'anonymous@vizta.app';
+    let authToken: string | null = null;
+
+    try {
+      const tokenData = await AsyncStorage.getItem('auth_token');
+      if (tokenData) {
+        const parsed = JSON.parse(tokenData);
+        authToken = parsed.token;
+        userEmail = parsed.email || 'anonymous@vizta.app';
+      }
+    } catch (error) {
+      console.log('[Extraction Error Service] No auth token, using anonymous');
     }
 
-    const { token } = JSON.parse(tokenData);
-
     const apiUrl = getApiUrl();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Platform': 'mobile-web',
+    };
+
+    // Only add Authorization header if we have a token
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
     const response = await fetch(`${apiUrl}/api/extraction-errors/report`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-        'X-Platform': 'mobile-web',
-      },
+      headers,
       body: JSON.stringify({
         platform: params.platform,
         post_url: params.post_url,
@@ -99,12 +112,18 @@ export async function getRecentExtractionErrors(filters?: {
   try {
     console.log('[Extraction Error Service] Fetching recent errors');
 
-    const tokenData = await AsyncStorage.getItem('auth_token');
-    if (!tokenData) {
-      throw new Error('No authentication token found');
-    }
+    // Get auth token (optional)
+    let authToken: string | null = null;
 
-    const { token } = JSON.parse(tokenData);
+    try {
+      const tokenData = await AsyncStorage.getItem('auth_token');
+      if (tokenData) {
+        const parsed = JSON.parse(tokenData);
+        authToken = parsed.token;
+      }
+    } catch (error) {
+      console.log('[Extraction Error Service] No auth token available');
+    }
 
     const apiUrl = getApiUrl();
     const queryParams = new URLSearchParams();
@@ -112,14 +131,20 @@ export async function getRecentExtractionErrors(filters?: {
     if (filters?.error_type) queryParams.append('error_type', filters.error_type);
     if (filters?.limit) queryParams.append('limit', filters.limit.toString());
 
+    const headers: Record<string, string> = {
+      'X-Platform': 'mobile-web',
+    };
+
+    // Only add Authorization header if we have a token
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`;
+    }
+
     const response = await fetch(
       `${apiUrl}/api/extraction-errors/recent?${queryParams.toString()}`,
       {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'X-Platform': 'mobile-web',
-        },
+        headers,
       }
     );
 
