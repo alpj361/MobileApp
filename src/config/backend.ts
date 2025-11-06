@@ -47,9 +47,15 @@ export const isDevelopment = () => {
 /**
  * Get full API endpoint URL
  */
-export function getApiUrl(path: string, service: 'extractorw' | 'extractort' = 'extractorw'): string {
+export function getApiUrl(path?: string, service: 'extractorw' | 'extractort' = 'extractorw'): string {
   const baseUrl = service === 'extractorw' ? EXTRACTORW_URL : EXTRACTORT_URL;
   const cleanBase = baseUrl.replace(/\/$/, '');
+
+  // If no path provided, return base URL
+  if (!path) {
+    return cleanBase;
+  }
+
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
   return `${cleanBase}${cleanPath}`;
 }
