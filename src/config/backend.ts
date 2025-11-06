@@ -46,12 +46,14 @@ export const isDevelopment = () => {
 
 /**
  * Get full API endpoint URL
+ * @param path - Optional path to append to base URL
+ * @param service - Service to use (extractorw or extractort)
  */
 export function getApiUrl(path?: string, service: 'extractorw' | 'extractort' = 'extractorw'): string {
   const baseUrl = service === 'extractorw' ? EXTRACTORW_URL : EXTRACTORT_URL;
   const cleanBase = baseUrl.replace(/\/$/, '');
 
-  // If no path provided, return base URL
+  // If no path provided, return just the base URL
   if (!path) {
     return cleanBase;
   }

@@ -1,7 +1,7 @@
 // Extraction Error Reporting Service
 // Reports failed extractions to ExtractorW API
 import { getApiUrl } from '../config/backend';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../config/supabase';
 
 interface ReportExtractionErrorParams {
   platform: 'x' | 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'other';
@@ -31,28 +31,32 @@ export async function reportExtractionError(
   try {
     console.log('[Extraction Error Service] Reporting error for:', params.post_url);
 
-    // Get auth token (optional - use anonymous if not available)
+    // Get auth session from Supabase (optional - puede ser null para usuarios no autenticados)
     let userEmail = 'anonymous@vizta.app';
     let authToken: string | null = null;
 
-    try {
-      const tokenData = await AsyncStorage.getItem('auth_token');
-      if (tokenData) {
-        const parsed = JSON.parse(tokenData);
-        authToken = parsed.token;
-        userEmail = parsed.email || 'anonymous@vizta.app';
+    if (supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          userEmail = session.user.email;
+          authToken = session.access_token;
+        }
+      } catch (sessionError) {
+        console.warn('[Extraction Error Service] Could not get session:', sessionError);
+        // Continuar como anónimo
       }
-    } catch (error) {
-      console.log('[Extraction Error Service] No auth token, using anonymous');
     }
 
     const apiUrl = getApiUrl();
+
+    // Construir headers (Authorization es opcional)
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Platform': 'mobile-web',
+      'X-User-Email': userEmail, // Enviar email en header para usuarios anónimos
     };
 
-    // Only add Authorization header if we have a token
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
@@ -112,17 +116,20 @@ export async function getRecentExtractionErrors(filters?: {
   try {
     console.log('[Extraction Error Service] Fetching recent errors');
 
-    // Get auth token (optional)
+    // Get auth session from Supabase (optional)
+    let userEmail = 'anonymous@vizta.app';
     let authToken: string | null = null;
 
-    try {
-      const tokenData = await AsyncStorage.getItem('auth_token');
-      if (tokenData) {
-        const parsed = JSON.parse(tokenData);
-        authToken = parsed.token;
+    if (supabase) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          userEmail = session.user.email;
+          authToken = session.access_token;
+        }
+      } catch (sessionError) {
+        console.warn('[Extraction Error Service] Could not get session:', sessionError);
       }
-    } catch (error) {
-      console.log('[Extraction Error Service] No auth token available');
     }
 
     const apiUrl = getApiUrl();
@@ -133,9 +140,9 @@ export async function getRecentExtractionErrors(filters?: {
 
     const headers: Record<string, string> = {
       'X-Platform': 'mobile-web',
+      'X-User-Email': userEmail,
     };
 
-    // Only add Authorization header if we have a token
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`;
     }
