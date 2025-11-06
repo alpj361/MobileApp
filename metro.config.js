@@ -1,38 +1,33 @@
-// Learn more https://docs.expo.io/guides/customizing-metro
-const { getDefaultConfig } = require('expo/metro-config');
+const { getDefaultConfig } = require("expo/metro-config");
+const { withNativeWind } = require("nativewind/metro");
+
+const path = require("node:path");
+const os = require("node:os");
 
 /** @type {import('expo/metro-config').MetroConfig} */
 const config = getDefaultConfig(__dirname);
 
+// Disable Watchman for file watching.
 config.resolver.useWatchman = false;
 
-// Polyfill for import.meta in web (doesn't affect native iOS/Android)
-config.transformer = {
-  ...config.transformer,
-  getTransformOptions: async () => ({
-    transform: {
-      experimentalImportSupport: false,
-      inlineRequires: true,
-    },
-  }),
+// Get environment variables for Metro cache configuration.
+const metroCacheVersion = process.env.METRO_CACHE_VERSION || "1";
+const metroCacheHttpEndpoint = process.env.METRO_CACHE_HTTP_ENDPOINT;
+const metroCacheDir = process.env.METRO_CACHE_DIR || path.join(os.homedir(), ".metro-cache");
+
+// Configure Metro's cache stores.
+config.cacheStores = ({ FileStore, HttpStore }) => {
+  const stores = [new FileStore({ root: metroCacheDir })];
+
+  if (metroCacheHttpEndpoint) {
+    stores.push(new HttpStore({ endpoint: metroCacheHttpEndpoint }));
+  }
+  return stores;
 };
 
-// Disable NativeWind only on Netlify (lightningcss native module fails there)
-// Keep it enabled for local development and native builds
-const shouldDisableNativeWind = process.env.DISABLE_NATIVEWIND === 'true';
+// Set the cache version for Metro, which can be incremented
+// to invalidate existing caches.
+config.cacheVersion = metroCacheVersion;
 
-if (shouldDisableNativeWind) {
-  console.log('[Metro] NativeWind disabled (Netlify build)');
-  
-  // Exclude CSS files from processing when NativeWind is disabled
-  // Move CSS from sourceExts to assetExts so Metro treats them as static assets
-  config.resolver.sourceExts = config.resolver.sourceExts.filter(ext => ext !== 'css');
-  config.resolver.assetExts = [...config.resolver.assetExts, 'css'];
-  
-  module.exports = config;
-} else {
-  console.log('[Metro] NativeWind enabled (local/native build)');
-  // Only require NativeWind when we actually need it
-  const { withNativeWind } = require('nativewind/metro');
-  module.exports = withNativeWind(config, { input: './global.css' });
-}
+// Integrate NativeWind with the Metro configuration.
+module.exports = withNativeWind(config, { input: "./global.css" });
