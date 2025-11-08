@@ -129,18 +129,26 @@ export async function checkJobStatus(jobId: string): Promise<XAsyncJob> {
  * Poll job status until completion
  * Calls onProgress callback with status updates
  * Returns final result when completed
+ * Now supports AbortController for cancellation
  */
 export async function pollJobUntilComplete(
   jobId: string,
   onProgress?: (job: XAsyncJob) => void,
   pollIntervalMs: number = 5000,
   maxAttempts: number = 120, // 10 minutes max (5s * 120)
+  abortController?: AbortController,
 ): Promise<XCompleteData> {
   console.log('[X Async] Starting polling for job:', jobId);
 
   let attempts = 0;
 
   while (attempts < maxAttempts) {
+    // Check if polling was aborted
+    if (abortController?.signal.aborted) {
+      console.log('[X Async] Polling aborted by user');
+      throw new Error('Job cancelled by user');
+    }
+
     attempts++;
 
     try {
@@ -164,13 +172,51 @@ export async function pollJobUntilComplete(
         throw new Error(job.error || 'Job failed');
       }
 
-      // Still processing, wait and poll again
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+      // Still processing, wait and poll again (with abort check)
+      await new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(resolve, pollIntervalMs);
+
+        if (abortController) {
+          const abortHandler = () => {
+            clearTimeout(timeoutId);
+            reject(new Error('Job cancelled by user'));
+          };
+
+          if (abortController.signal.aborted) {
+            clearTimeout(timeoutId);
+            reject(new Error('Job cancelled by user'));
+          } else {
+            abortController.signal.addEventListener('abort', abortHandler, { once: true });
+          }
+        }
+      });
     } catch (error) {
+      // Handle cancellation
+      if (abortController?.signal.aborted || (error as Error)?.message === 'Job cancelled by user') {
+        console.log('[X Async] Job cancelled by user');
+        throw new Error('Job cancelled by user');
+      }
+
       console.error('[X Async] Polling error:', error);
       // If it's a network error, retry
       if (attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(resolve, pollIntervalMs);
+
+          if (abortController) {
+            const abortHandler = () => {
+              clearTimeout(timeoutId);
+              reject(new Error('Job cancelled by user'));
+            };
+
+            if (abortController.signal.aborted) {
+              clearTimeout(timeoutId);
+              reject(new Error('Job cancelled by user'));
+            } else {
+              abortController.signal.addEventListener('abort', abortHandler, { once: true });
+            }
+          }
+        });
         continue;
       }
       throw error;
@@ -181,13 +227,52 @@ export async function pollJobUntilComplete(
 }
 
 /**
+ * Cancel a running job
+ * Attempts to cancel the job on the server
+ */
+export async function cancelJob(jobId: string): Promise<void> {
+  console.log('[X Async] Cancelling job:', jobId);
+
+  const apiUrl = getApiUrl(`/api/x/cancel-job/${jobId}`, 'extractorw');
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.warn('[X Async] Failed to cancel job on server:', response.status);
+      // Don't throw - cancellation is best effort
+    } else {
+      console.log('[X Async] Job cancelled on server');
+    }
+  } catch (error) {
+    console.warn('[X Async] Failed to cancel job on server:', error);
+    // Don't throw - cancellation is best effort
+  }
+}
+
+/**
  * Convenience function: Start processing and wait for result
  * This combines startXProcessing and pollJobUntilComplete
+ * Now supports AbortController for cancellation
  */
 export async function processXPostAsync(
   url: string,
   onProgress?: (job: XAsyncJob) => void,
+  abortController?: AbortController,
 ): Promise<XCompleteData> {
   const jobId = await startXProcessing(url);
-  return await pollJobUntilComplete(jobId, onProgress);
+
+  // Set up cleanup to cancel job if aborted
+  if (abortController) {
+    abortController.signal.addEventListener('abort', () => {
+      cancelJob(jobId).catch(console.warn);
+    }, { once: true });
+  }
+
+  return await pollJobUntilComplete(jobId, onProgress, 5000, 120, abortController);
 }

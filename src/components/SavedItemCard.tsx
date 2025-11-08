@@ -10,6 +10,7 @@ import InstagramCommentsModal from './InstagramCommentsModal';
 import SocialAnalysisModal from './SocialAnalysisModal';
 import XCommentsModal from './XCommentsModal';
 import { useSavedStore } from '../state/savedStore';
+import { useAsyncJob } from '../hooks/useAsyncJob';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -56,6 +57,9 @@ export default function SavedItemCard({
   const [showXCommentsModal, setShowXCommentsModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
+
+  // Async job management for X analysis (web platform timeouts)
+  const asyncJob = useAsyncJob();
   
   // Debug logging para verificar estado de carga
   React.useEffect(() => {
@@ -69,6 +73,13 @@ export default function SavedItemCard({
       console.log('[SavedItemCard] 🔄 Instagram Analysis is LOADING - should show "Analizando..." indicator');
     }
   }, [analysisLoading]);
+
+  // Check for existing job when component mounts
+  React.useEffect(() => {
+    if ((item.platform === 'twitter' || platformEff === 'x') && !xAnalysisInfo?.summary && !xAnalysisInfo?.transcript) {
+      asyncJob.checkForExistingJob(item.url).catch(console.warn);
+    }
+  }, [item.url, item.platform, platformEff, xAnalysisInfo, asyncJob]);
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -90,12 +101,16 @@ export default function SavedItemCard({
     }
   };
 
-  const handleOpenXAnalysis = () => {
+  const handleOpenXAnalysis = async () => {
     if (item.platform !== 'twitter' && platformEff !== 'x') {
       return;
     }
     setShowXAnalysisModal(true);
-    if (!xAnalysisInfo || (!xAnalysisInfo.summary && !xAnalysisInfo.transcript && !xAnalysisInfo.loading)) {
+
+    // Check for existing job first
+    await asyncJob.checkForExistingJob(item.url);
+
+    if (!xAnalysisInfo || (!xAnalysisInfo.summary && !xAnalysisInfo.transcript && !xAnalysisInfo.loading && !asyncJob.state.isLoading)) {
       analyzeXPost(item.id);
     }
   };
@@ -677,8 +692,14 @@ export default function SavedItemCard({
         <SocialAnalysisModal
           visible={showXAnalysisModal}
           onClose={() => setShowXAnalysisModal(false)}
-          analysis={xAnalysisInfo}
+          analysis={asyncJob.state.isLoading ? {
+            ...xAnalysisInfo,
+            loading: true,
+            error: asyncJob.state.error || undefined,
+          } : xAnalysisInfo}
           onRefresh={() => refreshXAnalysis(item.id)}
+          onCancel={asyncJob.state.canCancel ? asyncJob.cancelJob : undefined}
+          canCancel={asyncJob.state.canCancel}
           platform="x"
           url={item.url}
         />
