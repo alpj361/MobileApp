@@ -2,10 +2,8 @@
 # Expo + React Native Web Deployment
 
 [build]
-  # Skip build - deploy pre-built dist/ directory
-  # Build locally with: npm run web:build
-  # Deploy with: netlify deploy --prod --dir=dist
-  command = "echo 'Skipping build - using pre-built dist/'"
+  # Build the web app using Expo
+  command = "npm run web:build"
 
   # Directory where the static files are generated
   publish = "dist"
