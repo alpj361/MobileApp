@@ -12,6 +12,7 @@
     "web:build": "expo export --platform web && npm run web:build:css && npm run web:inject-css",
     "web:build:css": "mkdir -p dist && tailwindcss -i ./global.css -o ./dist/styles.css --config ./tailwind.web.config.js --minify",
     "web:inject-css": "node scripts/inject-css.js",
+    "vercel-build": "npm run web:build",
     "web:serve": "npx serve dist",
     "prebuild": "expo prebuild --clean",
     "prebuild:ios": "expo prebuild --platform ios --clean"
