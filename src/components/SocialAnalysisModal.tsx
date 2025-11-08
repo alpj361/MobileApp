@@ -179,6 +179,8 @@ export default function SocialAnalysisModal({
         },
       });
 
+      setIsSubmittingReport(false);
+
       if (result.success) {
         setIsReportSubmitted(true);
         // Auto cerrar después de 2 segundos
@@ -193,7 +195,6 @@ export default function SocialAnalysisModal({
     } catch (error) {
       console.error('[SocialAnalysisModal] Error submitting report:', error);
       Alert.alert('Error', 'No se pudo enviar el reporte. Intenta de nuevo.');
-    } finally {
       setIsSubmittingReport(false);
     }
   };
