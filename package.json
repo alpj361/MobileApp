@@ -138,6 +138,15 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "typescript": "~5.8.3"
   },
+  "optionalDependencies": {
+    "lightningcss-darwin-arm64": "^1.28.2",
+    "lightningcss-darwin-x64": "^1.28.2",
+    "lightningcss-linux-arm64-gnu": "^1.28.2",
+    "lightningcss-linux-arm64-musl": "^1.28.2",
+    "lightningcss-linux-x64-gnu": "^1.28.2",
+    "lightningcss-linux-x64-musl": "^1.28.2",
+    "lightningcss-win32-x64-msvc": "^1.28.2"
+  },
   "private": true,
   "patchedDependencies": {
     "react-native@0.79.2": "patches/react-native@0.79.2.patch",
