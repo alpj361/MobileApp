@@ -9,7 +9,7 @@
   publish = "dist"
 
   # Environment variables
-  environment = { NODE_VERSION = "18" }
+  environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
