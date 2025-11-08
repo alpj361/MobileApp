@@ -182,14 +182,17 @@ export default function SocialAnalysisModal({
       setIsSubmittingReport(false);
 
       if (result.success) {
+        console.log('[SocialAnalysisModal] ✅ Setting isReportSubmitted to true');
         setIsReportSubmitted(true);
         // Auto cerrar después de 2 segundos
         setTimeout(() => {
+          console.log('[SocialAnalysisModal] ⏰ Auto-closing report modal');
           setReportModalVisible(false);
           setIsReportSubmitted(false);
           setReportText('');
         }, 2000);
       } else {
+        console.log('[SocialAnalysisModal] ❌ Error in result:', result.error);
         Alert.alert('Error', result.error || 'No se pudo enviar el reporte');
       }
     } catch (error) {
@@ -530,6 +533,10 @@ export default function SocialAnalysisModal({
         {reportModalVisible && (
           <View style={styles.reportModalOverlay}>
             <View style={styles.reportModalContainer}>
+              {(() => {
+                console.log('[SocialAnalysisModal] Render - isReportSubmitted:', isReportSubmitted, 'isSubmittingReport:', isSubmittingReport);
+                return null;
+              })()}
               {isReportSubmitted ? (
                 // Success State
                 <View style={styles.reportSuccessContainer}>
