@@ -30,12 +30,16 @@ CREATE INDEX idx_guest_last_active ON guest_users(last_active_at);
 CREATE INDEX idx_guest_migrated ON guest_users(migrated_to_user_id);
 ```
 
-### 2. Modify `async_jobs` table
+### 2. Create/Modify `async_jobs` table
 
+**If table doesn't exist, use:** `supabase/migrations/000_create_async_jobs_table.sql`
+
+**If table already exists:**
 ```sql
 ALTER TABLE async_jobs
-  ADD COLUMN guest_id UUID REFERENCES guest_users(guest_id),
-  ADD COLUMN user_id UUID REFERENCES users(id);
+  ADD COLUMN guest_id UUID REFERENCES guest_users(guest_id) ON DELETE CASCADE,
+  ADD COLUMN user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  ADD COLUMN metadata JSONB DEFAULT '{}'::jsonb;
 
 -- Constraint: either guest_id or user_id must be set (not both, not neither)
 ALTER TABLE async_jobs
@@ -45,11 +49,54 @@ ALTER TABLE async_jobs
     (guest_id IS NULL AND user_id IS NOT NULL)
   );
 
+-- Constraint: valid status values
+ALTER TABLE async_jobs
+  ADD CONSTRAINT chk_valid_status
+  CHECK (status IN ('queued', 'processing', 'completed', 'failed', 'cancelled'));
+
+-- Constraint: valid progress (0-100)
+ALTER TABLE async_jobs
+  ADD CONSTRAINT chk_valid_progress
+  CHECK (progress >= 0 AND progress <= 100);
+
 -- Indexes for lookups
-CREATE INDEX idx_jobs_guest_id ON async_jobs(guest_id);
-CREATE INDEX idx_jobs_user_id ON async_jobs(user_id);
+CREATE INDEX idx_jobs_guest_id ON async_jobs(guest_id) WHERE guest_id IS NOT NULL;
+CREATE INDEX idx_jobs_user_id ON async_jobs(user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX idx_jobs_status ON async_jobs(status);
+CREATE INDEX idx_jobs_active ON async_jobs(status, created_at DESC)
+  WHERE status IN ('queued', 'processing');
+CREATE INDEX idx_jobs_cleanup ON async_jobs(status, updated_at)
+  WHERE status IN ('completed', 'failed', 'cancelled');
+
+-- Trigger for auto-updating updated_at
+CREATE OR REPLACE FUNCTION update_async_job_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_async_job_updated_at_trigger
+  BEFORE UPDATE ON async_jobs
+  FOR EACH ROW
+  EXECUTE FUNCTION update_async_job_updated_at();
 ```
+
+**Table Structure:**
+| Column | Type | Nullable | Description |
+|--------|------|----------|-------------|
+| id | UUID | NO | Primary key |
+| url | TEXT | NO | URL being processed |
+| status | TEXT | NO | One of: queued, processing, completed, failed, cancelled |
+| progress | INTEGER | NO | 0-100 percentage |
+| result | JSONB | YES | Result data when completed |
+| error | TEXT | YES | Error message if failed |
+| guest_id | UUID | YES | Guest user ID (XOR with user_id) |
+| user_id | UUID | YES | Authenticated user ID (XOR with guest_id) |
+| created_at | TIMESTAMPTZ | NO | Timestamp of creation |
+| updated_at | TIMESTAMPTZ | NO | Auto-updated on changes |
+| metadata | JSONB | NO | Additional job metadata |
 
 ## API Endpoints to Modify
 
@@ -119,9 +166,40 @@ Get all active jobs for current session (guest or authenticated).
 }
 ```
 
-**Implementation:**
+**Implementation (using Supabase function):**
+```javascript
+// Backend endpoint implementation
+app.get('/api/jobs/active', async (req, res) => {
+  const guestId = req.headers['x-guest-id'];
+  const userId = req.headers['x-user-id'];
+
+  const { data, error } = await supabase.rpc('get_active_jobs', {
+    p_guest_id: guestId || null,
+    p_user_id: userId || null
+  });
+
+  if (error) {
+    return res.status(500).json({ success: false, error });
+  }
+
+  res.json({
+    success: true,
+    jobs: data.map(job => ({
+      jobId: job.job_id,
+      url: job.url,
+      status: job.status,
+      progress: job.progress,
+      createdAt: job.created_at,
+      updatedAt: job.updated_at,
+      metadata: job.metadata
+    }))
+  });
+});
+```
+
+**Or direct SQL:**
 ```sql
-SELECT job_id, url, status, progress, created_at, metadata
+SELECT id as job_id, url, status, progress, created_at, updated_at, metadata
 FROM async_jobs
 WHERE (guest_id = $1 OR user_id = $2)
   AND status IN ('queued', 'processing')
@@ -138,6 +216,26 @@ Get count of pending jobs for a guest (used for migration preview).
   "success": true,
   "pendingJobs": 3
 }
+```
+
+**Implementation (using Supabase function):**
+```javascript
+app.get('/api/jobs/guest-pending/:guestId', async (req, res) => {
+  const { guestId } = req.params;
+
+  const { data, error } = await supabase.rpc('get_guest_pending_jobs_count', {
+    p_guest_id: guestId
+  });
+
+  if (error) {
+    return res.status(500).json({ success: false, error });
+  }
+
+  res.json({
+    success: true,
+    pendingJobs: data || 0
+  });
+});
 ```
 
 ### 3. POST `/api/jobs/migrate-guest`
@@ -160,7 +258,37 @@ Migrate all jobs from guest to authenticated user.
 }
 ```
 
-**Implementation:**
+**Implementation (using Supabase function):**
+```javascript
+app.post('/api/jobs/migrate-guest', async (req, res) => {
+  const { guestId, userId } = req.body;
+
+  if (!guestId || !userId) {
+    return res.status(400).json({
+      success: false,
+      error: { message: 'guestId and userId are required' }
+    });
+  }
+
+  const { data, error } = await supabase.rpc('migrate_guest_jobs', {
+    p_guest_id: guestId,
+    p_user_id: userId
+  });
+
+  if (error) {
+    return res.status(500).json({ success: false, error });
+  }
+
+  const result = data[0];
+  res.json({
+    success: result.success,
+    migratedJobs: result.migrated_count,
+    message: result.message
+  });
+});
+```
+
+**Or direct SQL:**
 ```sql
 -- Update all jobs from guest to user
 UPDATE async_jobs
@@ -175,13 +303,35 @@ WHERE guest_id = $2;
 
 ### 4. POST `/api/jobs/cleanup` (Optional)
 
-Clean up completed jobs older than 24 hours.
+Clean up completed jobs older than specified days (default 7).
 
-**Implementation:**
+**Implementation (using Supabase function):**
+```javascript
+app.post('/api/jobs/cleanup', async (req, res) => {
+  const daysOld = req.body.daysOld || 7;
+
+  const { data, error } = await supabase.rpc('cleanup_old_jobs', {
+    p_days_old: daysOld
+  });
+
+  if (error) {
+    return res.status(500).json({ success: false, error });
+  }
+
+  const result = data[0];
+  res.json({
+    success: result.success,
+    deletedCount: result.deleted_count,
+    message: result.message
+  });
+});
+```
+
+**Or direct SQL:**
 ```sql
 DELETE FROM async_jobs
-WHERE status IN ('completed', 'failed')
-  AND updated_at < NOW() - INTERVAL '24 hours';
+WHERE status IN ('completed', 'failed', 'cancelled')
+  AND updated_at < NOW() - INTERVAL '7 days';
 ```
 
 ## Middleware Changes
