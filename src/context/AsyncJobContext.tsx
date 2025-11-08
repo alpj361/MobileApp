@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useRef, ReactNode, useEffect } from 'react';
+import { guestSessionManager } from '../services/guestSessionManager';
 
 interface AsyncJobContextType {
   activeJobController: React.MutableRefObject<AbortController | null>;
@@ -18,6 +19,15 @@ interface AsyncJobProviderProps {
  */
 export function AsyncJobProvider({ children }: AsyncJobProviderProps) {
   const activeJobController = useRef<AbortController | null>(null);
+
+  // Initialize guest session on mount
+  useEffect(() => {
+    guestSessionManager.initializeSession().then((session) => {
+      console.log('[AsyncJobProvider] Session initialized:', session.type);
+    }).catch((error) => {
+      console.error('[AsyncJobProvider] Failed to initialize session:', error);
+    });
+  }, []);
 
   const setActiveJobController = (controller: AbortController | null) => {
     // Cancel previous job if exists

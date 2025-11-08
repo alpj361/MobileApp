@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { XAsyncJob, processXPostAsync, pollJobUntilComplete, checkJobStatus } from '../services/xAsyncService';
 import { useAsyncJobContext } from '../context/AsyncJobContext';
-import { jobPersistence, PersistedJob } from '../services/jobPersistence';
+import { jobRecoveryService } from '../services/jobRecoveryService';
 
 export interface UseAsyncJobState {
   isLoading: boolean;
@@ -35,8 +35,101 @@ export function useAsyncJob(): UseAsyncJobReturn {
   const abortControllerRef = useRef<AbortController | null>(null);
   const jobContext = useAsyncJobContext();
 
+  // Helper function to resume an existing job
+  const resumeJob = useCallback(async (jobId: string, url: string) => {
+    console.log('[useAsyncJob] Resuming job:', jobId);
+
+    setState({
+      isLoading: true,
+      progress: 0,
+      job: null,
+      error: null,
+      canCancel: true,
+    });
+
+    // Create new abort controller for resuming
+    abortControllerRef.current = new AbortController();
+    jobContext.setActiveJobController(abortControllerRef.current);
+
+    try {
+      // Check current status
+      const currentJob = await checkJobStatus(jobId);
+
+      if (currentJob.status === 'completed' && currentJob.result) {
+        console.log('[useAsyncJob] Job already completed');
+        setState({
+          isLoading: false,
+          progress: 100,
+          job: currentJob,
+          error: null,
+          canCancel: false,
+        });
+        return currentJob.result;
+      }
+
+      if (currentJob.status === 'failed') {
+        throw new Error(currentJob.error || 'Job failed');
+      }
+
+      // Resume polling
+      const result = await pollJobUntilComplete(
+        jobId,
+        (job: XAsyncJob) => {
+          console.log('[useAsyncJob] Resumed job progress:', job.progress, '%');
+          setState(prev => ({
+            ...prev,
+            progress: job.progress,
+            job,
+          }));
+        },
+        5000,
+        120,
+        abortControllerRef.current
+      );
+
+      console.log('[useAsyncJob] Resumed job completed');
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        progress: 100,
+        canCancel: false,
+      }));
+
+      return result;
+    } catch (error: any) {
+      console.error('[useAsyncJob] Resumed job failed:', error);
+
+      const isCancelled = error.message === 'Job cancelled by user';
+
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: isCancelled ? null : error.message,
+        canCancel: false,
+      }));
+
+      if (isCancelled) {
+        return null;
+      }
+
+      throw error;
+    } finally {
+      abortControllerRef.current = null;
+      jobContext.setActiveJobController(null);
+    }
+  }, [jobContext]);
+
   const startJob = useCallback(async (url: string, itemId?: string) => {
     console.log('[useAsyncJob] Starting job for:', url);
+
+    // Check if there's already an active job for this URL
+    const existingJob = await jobRecoveryService.getActiveJobForUrl(url);
+    if (existingJob) {
+      console.log('[useAsyncJob] Found existing job for URL, resuming:', existingJob.jobId);
+      // Resume the existing job instead of creating a new one
+      return await resumeJob(existingJob.jobId, url);
+    }
 
     // Reset state
     setState({
@@ -56,20 +149,12 @@ export function useAsyncJob(): UseAsyncJobReturn {
     let jobId: string | undefined;
 
     try {
-      // Start the job and get job ID
+      // Start the job and get job ID (now includes guest_id/user_id automatically)
       const { startXProcessing } = require('../services/xAsyncService');
       jobId = await startXProcessing(url);
 
-      // Persist the job
-      const persistedJob: PersistedJob = {
-        jobId,
-        url,
-        startTime: Date.now(),
-        lastCheck: Date.now(),
-        platform: 'x',
-        itemId,
-      };
-      await jobPersistence.saveJob(persistedJob);
+      // Job is now persisted on server automatically with guest_id/user_id
+      console.log('[useAsyncJob] Job persisted on server:', jobId);
 
       // Poll for completion
       const result = await pollJobUntilComplete(
@@ -81,8 +166,6 @@ export function useAsyncJob(): UseAsyncJobReturn {
             progress: job.progress,
             job,
           }));
-          // Update last check time
-          jobPersistence.updateJobLastCheck(jobId).catch(console.warn);
         },
         5000, // poll interval
         120,  // max attempts
@@ -90,9 +173,6 @@ export function useAsyncJob(): UseAsyncJobReturn {
       );
 
       console.log('[useAsyncJob] Job completed successfully');
-
-      // Remove from persistence
-      await jobPersistence.removeJob(jobId);
 
       setState(prev => ({
         ...prev,
@@ -106,11 +186,6 @@ export function useAsyncJob(): UseAsyncJobReturn {
       console.error('[useAsyncJob] Job failed:', error);
 
       const isCancelled = error.message === 'Job cancelled by user';
-
-      // Clean up persistence for any error
-      if (jobId) {
-        await jobPersistence.removeJob(jobId);
-      }
 
       setState(prev => ({
         ...prev,
@@ -165,7 +240,7 @@ export function useAsyncJob(): UseAsyncJobReturn {
   const checkForExistingJob = useCallback(async (url: string) => {
     console.log('[useAsyncJob] Checking for existing job for:', url);
 
-    const existingJob = await jobPersistence.getJobByUrl(url);
+    const existingJob = await jobRecoveryService.getActiveJobForUrl(url);
     if (!existingJob) {
       console.log('[useAsyncJob] No existing job found');
       return;
@@ -173,99 +248,15 @@ export function useAsyncJob(): UseAsyncJobReturn {
 
     console.log('[useAsyncJob] Found existing job:', existingJob.jobId);
 
-    // Check if job is still active
+    // Resume the existing job
     try {
-      const jobStatus = await checkJobStatus(existingJob.jobId);
-
-      if (jobStatus.status === 'completed' && jobStatus.result) {
-        console.log('[useAsyncJob] Existing job completed - cleaning up');
-        await jobPersistence.removeJob(existingJob.jobId);
-
-        setState({
-          isLoading: false,
-          progress: 100,
-          job: jobStatus,
-          error: null,
-          canCancel: false,
-        });
-
-        return jobStatus.result;
-      } else if (jobStatus.status === 'failed') {
-        console.log('[useAsyncJob] Existing job failed - cleaning up');
-        await jobPersistence.removeJob(existingJob.jobId);
-
-        setState({
-          isLoading: false,
-          progress: 0,
-          job: jobStatus,
-          error: jobStatus.error || 'Job failed',
-          canCancel: false,
-        });
-      } else {
-        console.log('[useAsyncJob] Existing job still in progress - resuming');
-
-        setState({
-          isLoading: true,
-          progress: jobStatus.progress,
-          job: jobStatus,
-          error: null,
-          canCancel: true,
-        });
-
-        // Create new abort controller for existing job
-        abortControllerRef.current = new AbortController();
-        jobContext.setActiveJobController(abortControllerRef.current);
-
-        // Resume polling
-        try {
-          const result = await pollJobUntilComplete(
-            existingJob.jobId,
-            (job: XAsyncJob) => {
-              console.log('[useAsyncJob] Resumed job progress:', job.progress, '%');
-              setState(prev => ({
-                ...prev,
-                progress: job.progress,
-                job,
-              }));
-              jobPersistence.updateJobLastCheck(existingJob.jobId).catch(console.warn);
-            },
-            5000,
-            120,
-            abortControllerRef.current
-          );
-
-          console.log('[useAsyncJob] Resumed job completed');
-          await jobPersistence.removeJob(existingJob.jobId);
-
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            progress: 100,
-            canCancel: false,
-          }));
-
-          return result;
-        } catch (error: any) {
-          console.error('[useAsyncJob] Resumed job failed:', error);
-          await jobPersistence.removeJob(existingJob.jobId);
-
-          setState(prev => ({
-            ...prev,
-            isLoading: false,
-            error: error.message,
-            canCancel: false,
-          }));
-        } finally {
-          abortControllerRef.current = null;
-          jobContext.setActiveJobController(null);
-        }
-      }
+      const result = await resumeJob(existingJob.jobId, url);
+      return result;
     } catch (error) {
-      console.error('[useAsyncJob] Failed to check existing job status:', error);
-      // Clean up dead job
-      await jobPersistence.removeJob(existingJob.jobId);
+      console.error('[useAsyncJob] Failed to resume existing job:', error);
+      // Don't throw - just log the error
     }
-  }, [jobContext]);
+  }, [resumeJob]);
 
   return {
     state,

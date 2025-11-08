@@ -79,7 +79,8 @@ export default function SavedItemCard({
     if ((item.platform === 'twitter' || platformEff === 'x') && !xAnalysisInfo?.summary && !xAnalysisInfo?.transcript) {
       asyncJob.checkForExistingJob(item.url).catch(console.warn);
     }
-  }, [item.url, item.platform, platformEff, xAnalysisInfo, asyncJob]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.url, item.platform]); // Only run when URL or platform changes
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;

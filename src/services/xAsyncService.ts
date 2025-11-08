@@ -5,6 +5,7 @@
 
 import { getApiUrl } from '../config/backend';
 import { ExtractedEntity } from '../types/entities';
+import { guestSessionManager } from './guestSessionManager';
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
 
@@ -66,12 +67,19 @@ export async function startXProcessing(url: string): Promise<string> {
 
   const apiUrl = getApiUrl('/api/x/process-async', 'extractorw');
 
+  // Get session headers (includes guest_id or user_id)
+  const headers = await guestSessionManager.getApiHeaders();
+  const jobIdentifier = await guestSessionManager.getJobIdentifier();
+
+  console.log('[X Async] Job identifier:', jobIdentifier);
+
   const response = await fetch(apiUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ url }),
+    headers,
+    body: JSON.stringify({
+      url,
+      ...jobIdentifier, // Include guest_id or user_id in request body
+    }),
   });
 
   if (!response.ok) {
@@ -96,11 +104,12 @@ export async function startXProcessing(url: string): Promise<string> {
 export async function checkJobStatus(jobId: string): Promise<XAsyncJob> {
   const apiUrl = getApiUrl(`/api/x/job-status/${jobId}`, 'extractorw');
 
+  // Get session headers (includes guest_id or user_id)
+  const headers = await guestSessionManager.getApiHeaders();
+
   const response = await fetch(apiUrl, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -235,12 +244,13 @@ export async function cancelJob(jobId: string): Promise<void> {
 
   const apiUrl = getApiUrl(`/api/x/cancel-job/${jobId}`, 'extractorw');
 
+  // Get session headers (includes guest_id or user_id)
+  const headers = await guestSessionManager.getApiHeaders();
+
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
     });
 
     if (!response.ok) {
