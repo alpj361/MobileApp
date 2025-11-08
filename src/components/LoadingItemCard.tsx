@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import MorphLoading from './MorphLoading';
 import { textStyles } from '../utils/typography';
 
@@ -19,18 +19,50 @@ export default function LoadingItemCard({ url }: LoadingItemCardProps) {
   };
 
   return (
-    <View className="bg-white rounded-3xl p-6 mb-4 shadow-sm border border-gray-100">
+    <View style={styles.card}>
       {/* Loading Animation Container */}
-      <View className="items-center justify-center py-8">
+      <View style={styles.content}>
         <MorphLoading size="md" />
-        <Text className={`${textStyles.helper} text-gray-500 mt-4`}>
+        <Text style={[styles.processingText, { marginTop: 16 }]}>
           Procesando enlace...
         </Text>
-        <Text className={`${textStyles.badge} text-gray-400 mt-1`} numberOfLines={1}>
+        <Text style={[styles.domainText, { marginTop: 4 }]} numberOfLines={1}>
           {getDomain(url)}
         </Text>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  content: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+  },
+  processingText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  domainText: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+});
 
