@@ -32,6 +32,23 @@ config.cacheVersion = metroCacheVersion;
 // Disable NativeWind in Netlify builds to avoid lightningcss issues
 if (process.env.DISABLE_NATIVEWIND === "true") {
   console.log("⚠️ NativeWind disabled via DISABLE_NATIVEWIND env var");
+
+  // Add custom resolver to redirect global.css to empty stub
+  // This prevents Metro from trying to transform the CSS file which requires lightningcss
+  const originalResolveRequest = config.resolver.resolveRequest;
+  config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (moduleName === "./global.css" || moduleName.endsWith("/global.css")) {
+      return {
+        type: "sourceFile",
+        filePath: path.resolve(__dirname, "global.css.stub.js"),
+      };
+    }
+    if (originalResolveRequest) {
+      return originalResolveRequest(context, moduleName, platform);
+    }
+    return context.resolveRequest(context, moduleName, platform);
+  };
+
   module.exports = config;
 } else {
   // Only require NativeWind when not disabled
