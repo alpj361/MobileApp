@@ -2,16 +2,16 @@
 # Expo + React Native Web Deployment
 
 [build]
-  # Command to build the web version
-  # Note: .npmrc sets legacy-peer-deps=true globally for all npm operations
-  command = "npm run web:build"
-  
+  # Skip build - deploy pre-built dist/ directory
+  # Build locally with: npm run web:build
+  # Deploy with: netlify deploy --prod --dir=dist
+  command = "echo 'Skipping build - using pre-built dist/'"
+
   # Directory where the static files are generated
   publish = "dist"
-  
+
   # Environment variables
-  # DISABLE_NATIVEWIND tells metro.config.js to skip NativeWind (avoids lightningcss compilation)
-  environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true" }
+  environment = { NODE_VERSION = "18" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
