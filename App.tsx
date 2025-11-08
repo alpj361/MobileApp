@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Platform } from "react-native";
 import DrawerNavigator from "./src/navigation/TabNavigator";
 import { WebContainer } from "./src/components/WebContainer";
+import { AsyncJobProvider } from "./src/context/AsyncJobContext";
 
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
@@ -31,12 +32,14 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <WebContainer>
-          <NavigationContainer>
-            <DrawerNavigator />
-            <StatusBar style="dark" />
-          </NavigationContainer>
-        </WebContainer>
+        <AsyncJobProvider>
+          <WebContainer>
+            <NavigationContainer>
+              <DrawerNavigator />
+              <StatusBar style="dark" />
+            </NavigationContainer>
+          </WebContainer>
+        </AsyncJobProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
