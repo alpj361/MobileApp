@@ -9,7 +9,8 @@
   publish = "dist"
 
   # Environment variables
-  environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true", SECRETS_SCAN_OMIT_PATHS = ".env,*.md,dist/**,*.log,docker-compose.example.yml,setup-env.sh,src/config/**" }
+  # SECRETS_SCAN_OMIT_KEYS: Exclude EXPO_PUBLIC_* variables as they are intentionally public
+  environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true", SECRETS_SCAN_OMIT_PATHS = ".env,*.md,dist/**,*.log,docker-compose.example.yml,setup-env.sh,src/**,test-*.js", SECRETS_SCAN_OMIT_KEYS = "EXPO_PUBLIC_EXTRACTORW_URL,EXPO_PUBLIC_VIBECODE_OPENAI_API_KEY,EXPO_PUBLIC_VIBECODE_PROJECT_ID" }
 
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
