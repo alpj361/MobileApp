@@ -80,9 +80,17 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
     try {
       // Import async service dynamically using require for better compatibility
       const xAsyncService = require('./xAsyncService');
+
+      // Create abort controller for the async job
+      const abortController = new AbortController();
+
+      // Store abort controller for potential cancellation
+      // Note: This should be exposed via a hook or context for UI components to access
+      (globalThis as any).currentXJobAbortController = abortController;
+
       const asyncResult = await xAsyncService.processXPostAsync(url, (job: any) => {
         console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
-      });
+      }, abortController);
 
       // Transform async result to XCompleteData format
       const result: XCompleteData = {

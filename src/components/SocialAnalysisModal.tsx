@@ -28,6 +28,8 @@ interface SocialAnalysisModalProps {
   onClose: () => void;
   analysis?: SavedItem['analysisInfo'] | SavedItem['xAnalysisInfo'];
   onRefresh?: () => void;
+  onCancel?: () => void;
+  canCancel?: boolean;
   platform?: 'instagram' | 'twitter' | 'x' | 'tiktok' | 'youtube';
   url?: string;
 }
@@ -37,6 +39,8 @@ export default function SocialAnalysisModal({
   onClose,
   analysis,
   onRefresh,
+  onCancel,
+  canCancel = false,
   platform = 'instagram',
   url,
 }: SocialAnalysisModalProps) {
@@ -319,18 +323,46 @@ export default function SocialAnalysisModal({
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#2563EB" />
             <Text style={styles.loadingText}>Analizando contenido...</Text>
+            {canCancel && onCancel && (
+              <Pressable
+                onPress={onCancel}
+                style={({ pressed }) => [
+                  styles.cancelButton,
+                  pressed && styles.cancelButtonPressed,
+                ]}
+              >
+                <Ionicons name="stop-circle-outline" size={20} color="#EF4444" />
+                <Text style={styles.cancelButtonText}>Cancelar análisis</Text>
+              </Pressable>
+            )}
           </View>
         ) : hasError ? (
           <View style={styles.errorContainer}>
             <View style={styles.errorCard}>
               <View style={styles.errorIconContainer}>
-                <Ionicons name="warning-outline" size={30} color="#F59E0B" />
-                <Text style={styles.errorTitle}>No se pudo analizar el post</Text>
+                <Ionicons
+                  name={analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long') ? 'time-outline' : 'warning-outline'}
+                  size={30}
+                  color={analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long') ? '#EF4444' : '#F59E0B'}
+                />
+                <Text style={styles.errorTitle}>
+                  {analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long')
+                    ? 'Tiempo de espera agotado'
+                    : analysis?.error?.includes('cancelled') || analysis?.error?.includes('canceled')
+                    ? 'Análisis cancelado'
+                    : 'No se pudo analizar el post'
+                  }
+                </Text>
               </View>
               <Text style={styles.errorText}>
-                {analysis?.error || 'Intenta de nuevo más tarde.'}
+                {analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long')
+                  ? 'El servidor tardó demasiado en procesar el contenido. Esto puede deberse a un video muy largo o problemas temporales del servicio.'
+                  : analysis?.error?.includes('cancelled') || analysis?.error?.includes('canceled')
+                  ? 'El análisis fue cancelado por el usuario.'
+                  : analysis?.error || 'Intenta de nuevo más tarde.'
+                }
               </Text>
-              {onRefresh && (
+              {onRefresh && !analysis?.error?.includes('cancelled') && !analysis?.error?.includes('canceled') && (
                 <Pressable onPress={() => onRefresh()} style={styles.retryButton}>
                   <Text style={styles.retryButtonText}>Reintentar</Text>
                 </Pressable>
@@ -784,6 +816,27 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 14,
     color: '#6B7280',
+  },
+  cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    marginTop: 24,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  cancelButtonPressed: {
+    backgroundColor: '#FEE2E2',
+    transform: [{ scale: 0.95 }],
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#EF4444',
+    marginLeft: 8,
   },
   errorContainer: {
     flex: 1,
