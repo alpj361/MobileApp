@@ -7,7 +7,7 @@ import { getApiUrl } from '../config/backend';
 import { ExtractedEntity } from '../types/entities';
 import { guestSessionManager } from './guestSessionManager';
 
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed';
+export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface XAsyncJob {
   jobId: string;
@@ -179,6 +179,12 @@ export async function pollJobUntilComplete(
       // Job failed
       if (job.status === 'failed') {
         throw new Error(job.error || 'Job failed');
+      }
+
+      // Job cancelled
+      if (job.status === 'cancelled') {
+        console.log('[X Async] Job was cancelled');
+        throw new Error('Job cancelled by user');
       }
 
       // Still processing, wait and poll again (with abort check)
