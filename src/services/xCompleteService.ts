@@ -3,6 +3,7 @@ import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
 import { XMedia, XMediaType } from './xMediaService';
 import { Platform } from 'react-native';
 import { ExtractedEntity } from '../types/entities';
+import { jobRecoveryService } from './jobRecoveryService';
 
 const EXTRACTORT_URL = process.env.EXPO_PUBLIC_EXTRACTORT_URL ?? 'https://api.standatpd.com';
 
@@ -53,20 +54,24 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
     throw new Error('Invalid X URL');
   }
 
-  // ✅ CACHE: Verificar caché primero
+  // ✅ DETECCIÓN DE PLATAFORMA: En web, usar async service
+  // Usar detección más confiable que Platform.OS para evitar problemas de bundling
+  const isWeb = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+
+  // ✅ CACHE: Solo usar caché para mobile; en web siempre ejecutar async job
   const cacheKey = `complete:${url}`;
   const cached = getXDataFromCache(cacheKey);
-  if (cached) {
-    console.log('[X Complete] 🎯 Cache HIT - returning cached data');
+  if (!isWeb && cached) {
+    console.log('[X Complete] 🎯 Cache HIT (mobile) - returning cached data');
     console.log('[X Complete] ========== END fetchXComplete (cached) ==========');
     return cached;
   }
 
-  console.log('[X Complete] Cache MISS - fetching from ExtractorT');
-
-  // ✅ DETECCIÓN DE PLATAFORMA: En web, usar async service
-  // Usar detección más confiable que Platform.OS para evitar problemas de bundling
-  const isWeb = typeof window !== 'undefined' && typeof window.document !== 'undefined';
+  if (!cached) {
+    console.log('[X Complete] Cache MISS');
+  } else if (isWeb) {
+    console.log('[X Complete] Cache exists but WEB requires async job → ignoring cached');
+  }
   console.log('[X Complete] 🔍 Platform detection:', {
     platformOS: Platform.OS,
     hasWindow: typeof window !== 'undefined',
@@ -75,44 +80,61 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
   });
 
   if (isWeb) {
-    console.log('[X Complete] 🌐 Web platform detected - using async service to avoid timeouts');
+    console.log('[X Complete] 🌐 Web platform detected - always using async job');
 
     try {
-      // Import async service dynamically using require for better compatibility
+      // Import async service dynamically for compatibility
       const xAsyncService = require('./xAsyncService');
 
       // Create abort controller for the async job
       const abortController = new AbortController();
-
-      // Store abort controller for potential cancellation
-      // Note: This should be exposed via a hook or context for UI components to access
       (globalThis as any).currentXJobAbortController = abortController;
 
-      const asyncResult = await xAsyncService.processXPostAsync(url, (job: any) => {
-        console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
-      }, abortController);
+      // Try to resume an existing job for this URL to avoid duplicates
+      const active = await jobRecoveryService.getActiveJobForUrl(url);
+      let asyncPayload: any;
+      if (active) {
+        console.log('[X Complete] 🔄 Resuming active job:', active.jobId);
+        asyncPayload = await xAsyncService.pollJobUntilComplete(
+          active.jobId,
+          (job: any) => {
+            console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
+          },
+          5000,
+          120,
+          abortController
+        );
+      } else {
+        asyncPayload = await xAsyncService.processXPostAsync(
+          url,
+          (job: any) => {
+            console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
+          },
+          abortController
+        );
+      }
 
-      // Transform async result to XCompleteData format
+      // Transform async payload to XCompleteData format
       const result: XCompleteData = {
         success: true,
         media: {
-          type: asyncResult.media.type,
-          url: asyncResult.media.video_url || asyncResult.media.images?.[0],
-          urls: asyncResult.media.images,
-          thumbnail: asyncResult.media.thumbnail_url,
+          type: asyncPayload.media.type,
+          url: asyncPayload.media.video_url || asyncPayload.media.images?.[0],
+          urls: asyncPayload.media.images,
+          thumbnail: asyncPayload.media.thumbnail_url,
         },
-        comments: asyncResult.comments.map((c: any) => ({
+        comments: asyncPayload.comments.map((c: any) => ({
           user: c.author || c.user || 'Unknown',
           text: c.text || '',
           likes: c.likes || 0,
           timestamp: c.timestamp,
         })),
-        metrics: asyncResult.metrics,
-        transcription: asyncResult.transcription,
-        vision: asyncResult.vision,
-        entities: asyncResult.entities || [],  // ✅ Include extracted entities
-        tweet: asyncResult.tweet,
-        thumbnail_url: asyncResult.media.thumbnail_url,
+        metrics: asyncPayload.metrics,
+        transcription: asyncPayload.transcription,
+        vision: asyncPayload.vision,
+        entities: asyncPayload.entities || [],  // ✅ Include extracted entities
+        tweet: asyncPayload.tweet,
+        thumbnail_url: asyncPayload.media.thumbnail_url,
       };
 
       console.log('[X Complete] ✅ Entities included:', result.entities?.length || 0, 'entities');
