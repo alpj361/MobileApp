@@ -1,24 +1,24 @@
 {
   "expo": {
-    "name": "vibecode",
-    "slug": "vibecode",
-    "scheme": "com.vibecode.app",
-    "version": "1.0.0",
+    "name": "vizta",
+    "slug": "vizta",
+    "scheme": "com.vizta.app",
+    "version": "0.0011",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vibecode.app",
+      "bundleIdentifier": "com.vizta.app",
       "infoPlist": {
-        "NSCalendarsUsageDescription": "Vibecode uses your calendar to show and manage the events you create.",
-        "NSRemindersUsageDescription": "Vibecode uses reminders to notify you about upcoming events you save.",
+        "NSCalendarsUsageDescription": "Vizta uses your calendar to show and manage the events you create.",
+        "NSRemindersUsageDescription": "Vizta uses reminders to notify you about upcoming events you save.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "package": "com.vibecode.app"
+      "package": "com.vizta.app"
     },
     "web": {
       "bundler": "metro",

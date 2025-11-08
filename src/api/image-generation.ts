@@ -1,6 +1,6 @@
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
-This is a custom asset generation service that uses a custom API endpoint maintained by Vibecode. If the user wants to build an app that generates images, assets, icons, or anything else, you must use this internal endpoint. Do not attempt to use replicate or chatgpt.
+This is a custom asset generation service that uses an internal API endpoint. If the user wants to build an app that generates images, assets, icons, or anything else, you must use this internal endpoint. Do not attempt to use replicate or chatgpt.
 You may update this service, but you should not need to.
 This endpoint uses openai's latest image generation API, AKA gpt4o, AKA gpt-image-1, so if the user is asking for that, this is the right service to use.
 Does not support video and audio generation.

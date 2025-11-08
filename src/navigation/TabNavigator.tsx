@@ -46,7 +46,7 @@ function CustomDrawerContent({ navigation }: any) {
       
       {/* Footer */}
       <View className="px-6 py-4 border-t border-gray-100">
-        <Text className={textStyles.helper}>vizta v1.0</Text>
+        <Text className={textStyles.helper}>vizta v0.0011</Text>
       </View>
     </View>
   );

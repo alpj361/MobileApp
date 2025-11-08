@@ -151,9 +151,9 @@ export default function SettingsScreen() {
         {/* App Info */}
         <View className="px-5 pb-8">
           <View className="items-center py-6">
-            <Text className={textStyles.helper}>vizta v1.0.0</Text>
+            <Text className={textStyles.helper}>vizta v0.0011</Text>
             <Text className={textStyles.helper + " text-gray-400 mt-1"}>
-              © 2025 Vibecode. Todos los derechos reservados.
+              © 2025 Vizta. Todos los derechos reservados.
             </Text>
           </View>
         </View>

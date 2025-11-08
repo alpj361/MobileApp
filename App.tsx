@@ -14,17 +14,17 @@ Before telling the user to add them, check if you already have access to the req
 Directly access them with process.env.${key}
 
 Correct usage:
-process.env.EXPO_PUBLIC_VIBECODE_{key}
+process.env.EXPO_PUBLIC_{key}
 //directly access the key
 
 Incorrect usage:
 import { OPENAI_API_KEY } from '@env';
-//don't use @env, its depreicated
+//don't use @env, it's deprecated
 
 Incorrect usage:
 import Constants from 'expo-constants';
 const openai_api_key = Constants.expoConfig.extra.apikey;
-//don't use expo-constants, its depreicated
+//don't use expo-constants, it's deprecated
 
 */
 

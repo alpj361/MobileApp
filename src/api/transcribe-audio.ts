@@ -1,6 +1,6 @@
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
-This is a custom audio transcription service that uses a custom API endpoint maintained by Vibecode.
+This is a custom audio transcription service that uses an internal API endpoint.
 You can use this function to transcribe audio files, and it will return the text of the audio file.
 */
 
