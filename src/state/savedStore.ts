@@ -20,6 +20,8 @@ export interface SavedItem extends LinkData {
   source: 'chat' | 'clipboard' | 'manual';
   isFavorite?: boolean;
   isPending?: boolean; // Item is being processed
+  // Outer error indicator for initial insertion failures
+  outerErrorMessage?: string;
   // Codex relationship
   codex_id?: string; // ID from codex_items table when saved to codex
   // ✨ NUEVO: Categorización para nueva estructura de Codex
@@ -592,12 +594,17 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         console.log('[SavedStore] Improved processing failed, using original data:', error);
         // ✅ NO eliminamos el item - lo guardamos con datos básicos
         // Actualizar item pending con datos básicos de la URL
+        const detectedPlatform = detectPostPlatform(linkData.url, null);
         const basicItem: SavedItem = {
           ...pendingItem,
           title: linkData.url,
           description: `Contenido de ${linkData.url}`,
           isPending: false,
-          platform: detectPostPlatform(linkData.url, null),
+          platform: detectedPlatform,
+          // Mostrar un modal de error cuando falle la inserción para X/Twitter
+          ...(detectedPlatform === 'x'
+            ? { outerErrorMessage: 'There is an error processing this X post.' }
+            : {}),
         };
 
         set((state) => ({

@@ -11,6 +11,7 @@ import SocialAnalysisModal from './SocialAnalysisModal';
 import XCommentsModal from './XCommentsModal';
 import { useSavedStore } from '../state/savedStore';
 import { useAsyncJob } from '../hooks/useAsyncJob';
+import ExtractionErrorModal from './ExtractionErrorModal';
 
 interface SavedItemCardProps {
   item: SavedItem;
@@ -57,6 +58,7 @@ export default function SavedItemCard({
   const [showXCommentsModal, setShowXCommentsModal] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
+  const [showOuterErrorModal, setShowOuterErrorModal] = useState(false);
 
   // Async job management for X analysis (web platform timeouts)
   const asyncJob = useAsyncJob();
@@ -81,6 +83,13 @@ export default function SavedItemCard({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.url, item.platform]); // Only run when URL or platform changes
+
+  // If insertion failed and store marked an outer error, show modal automatically
+  React.useEffect(() => {
+    if ((item.platform === 'twitter' || platformEff === 'x') && item.outerErrorMessage) {
+      setShowOuterErrorModal(true);
+    }
+  }, [item.outerErrorMessage, item.platform, platformEff]);
 
   // Check if item is saved in codex by looking at codex_id
   const isSavedInCodex = !!item.codex_id;
@@ -545,7 +554,7 @@ export default function SavedItemCard({
               </View>
               
               {/* Indicador de análisis en progreso (X/Twitter) */}
-              {(platformEff === 'x' || item.platform === 'twitter') && xAnalysisLoading && (
+              {(platformEff === 'x' || item.platform === 'twitter') && (xAnalysisLoading || asyncJob.state.isLoading) && (
                 <View className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full">
                   <ActivityIndicator size="small" color="#3B82F6" />
                   <Text className={`${textStyles.helper} text-blue-600 ml-1.5 font-medium`}>
@@ -703,6 +712,17 @@ export default function SavedItemCard({
           canCancel={asyncJob.state.canCancel}
           platform="x"
           url={item.url}
+        />
+      )}
+
+      {/* Outer error modal for failed insertions */}
+      {(item.platform === 'twitter' || platformEff === 'x') && (
+        <ExtractionErrorModal
+          visible={showOuterErrorModal}
+          onClose={() => setShowOuterErrorModal(false)}
+          url={item.url}
+          platform="x"
+          message={item.outerErrorMessage || 'There is an error'}
         />
       )}
     </Pressable>

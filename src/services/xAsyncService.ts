@@ -66,6 +66,7 @@ export async function startXProcessing(url: string): Promise<string> {
   console.log('[X Async] Starting async processing for:', url);
 
   const apiUrl = getApiUrl('/api/x/process-async', 'extractorw');
+  console.log('[X Async] API URL:', apiUrl);
 
   // Get session headers (includes guest_id or user_id)
   const headers = await guestSessionManager.getApiHeaders();
@@ -73,28 +74,47 @@ export async function startXProcessing(url: string): Promise<string> {
 
   console.log('[X Async] Job identifier:', jobIdentifier);
 
-  const response = await fetch(apiUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      url,
-      ...jobIdentifier, // Include guest_id or user_id in request body
-    }),
-  });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        url,
+        ...jobIdentifier, // Include guest_id or user_id in request body
+      }),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
-    throw new Error(error.error?.message || 'Failed to start processing');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+      throw new Error(error.error?.message || 'Failed to start processing');
+    }
+
+    const data = await response.json();
+
+    if (!data.success || !data.jobId) {
+      throw new Error('Invalid response from server');
+    }
+
+    console.log('[X Async] Job created:', data.jobId);
+    return data.jobId;
+  } catch (error) {
+    // Handle network/DNS errors specifically
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      const errorMsg = `Cannot connect to server: ${apiUrl}. ` +
+        `This usually means:\n` +
+        `1. DNS resolution failed (server.standatpd.com cannot be resolved)\n` +
+        `2. Server is down or unreachable\n` +
+        `3. Network connectivity issue\n\n` +
+        `Please check:\n` +
+        `- Is the server running?\n` +
+        `- Can you access ${apiUrl} in your browser?\n` +
+        `- Is your network connection working?`;
+      
+      console.error('[X Async] Network error:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  if (!data.success || !data.jobId) {
-    throw new Error('Invalid response from server');
-  }
-
-  console.log('[X Async] Job created:', data.jobId);
-  return data.jobId;
 }
 
 /**
@@ -107,31 +127,41 @@ export async function checkJobStatus(jobId: string): Promise<XAsyncJob> {
   // Get session headers (includes guest_id or user_id)
   const headers = await guestSessionManager.getApiHeaders();
 
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers,
-  });
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'GET',
+      headers,
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
-    throw new Error(error.error?.message || 'Failed to check job status');
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }));
+      throw new Error(error.error?.message || 'Failed to check job status');
+    }
+
+    const data = await response.json();
+
+    if (!data.success) {
+      throw new Error(data.error?.message || 'Failed to check job status');
+    }
+
+    return {
+      jobId: data.jobId,
+      status: data.status,
+      progress: data.progress,
+      result: data.result,
+      error: data.error,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    };
+  } catch (error) {
+    // Handle network/DNS errors specifically
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      const errorMsg = `Cannot connect to server: ${apiUrl}. Network or DNS error.`;
+      console.error('[X Async] Network error checking job status:', errorMsg);
+      throw new Error(errorMsg);
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  if (!data.success) {
-    throw new Error(data.error?.message || 'Failed to check job status');
-  }
-
-  return {
-    jobId: data.jobId,
-    status: data.status,
-    progress: data.progress,
-    result: data.result,
-    error: data.error,
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-  };
 }
 
 /**
@@ -212,8 +242,16 @@ export async function pollJobUntilComplete(
         throw new Error('Job cancelled by user');
       }
 
+      // Handle network/DNS errors - fail fast instead of retrying
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        const errorMsg = `Cannot connect to server. Network or DNS error. ` +
+          `Please check if the server is accessible and DNS is resolving correctly.`;
+        console.error('[X Async] Network error during polling:', errorMsg);
+        throw new Error(errorMsg);
+      }
+
       console.error('[X Async] Polling error:', error);
-      // If it's a network error, retry
+      // If it's a network error, retry (but we already handled DNS errors above)
       if (attempts < maxAttempts) {
         await new Promise((resolve, reject) => {
           const timeoutId = setTimeout(resolve, pollIntervalMs);
