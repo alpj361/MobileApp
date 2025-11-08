@@ -11,6 +11,11 @@
   # Environment variables
   environment = { NODE_VERSION = "18", DISABLE_NATIVEWIND = "true" }
 
+# Configure secrets scanning to exclude certain paths
+# Documentation and build output contain expected public environment variables
+[build.environment]
+  SECRETS_SCAN_OMIT_PATHS = ".env,*.md,dist/**,*.log,docker-compose.example.yml,setup-env.sh,src/config/**"
+
 # Redirect rules for SPA (Single Page Application)
 [[redirects]]
   from = "/*"
