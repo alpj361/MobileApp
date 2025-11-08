@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
-// Tailwind config for web builds (with NativeWind preset for proper className support)
+// Tailwind config for web builds (without NativeWind preset)
+// NativeWind is disabled for web to avoid lightningcss compatibility issues
 const plugin = require("tailwindcss/plugin");
 
 module.exports = {
@@ -8,8 +9,8 @@ module.exports = {
     "./app/**/*.{js,jsx,ts,tsx}",
     "./src/**/*.{js,jsx,ts,tsx}"
   ],
-  // Include NativeWind preset to properly convert React Native className props to CSS
-  presets: [require("nativewind/preset")],
+  // No nativewind preset for web - use standard Tailwind
+  // Web styles are compiled separately and injected into HTML
   corePlugins: {
     space: false,
   },
