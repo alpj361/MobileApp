@@ -1,5 +1,4 @@
 const { getDefaultConfig } = require("expo/metro-config");
-const { withNativeWind } = require("nativewind/metro");
 
 const path = require("node:path");
 const os = require("node:os");
@@ -35,5 +34,7 @@ if (process.env.DISABLE_NATIVEWIND === "true") {
   console.log("⚠️ NativeWind disabled via DISABLE_NATIVEWIND env var");
   module.exports = config;
 } else {
+  // Only require NativeWind when not disabled
+  const { withNativeWind } = require("nativewind/metro");
   module.exports = withNativeWind(config, { input: "./global.css" });
 }
