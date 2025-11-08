@@ -30,4 +30,10 @@ config.cacheStores = ({ FileStore, HttpStore }) => {
 config.cacheVersion = metroCacheVersion;
 
 // Integrate NativeWind with the Metro configuration.
-module.exports = withNativeWind(config, { input: "./global.css" });
+// Disable NativeWind in Netlify builds to avoid lightningcss issues
+if (process.env.DISABLE_NATIVEWIND === "true") {
+  console.log("⚠️ NativeWind disabled via DISABLE_NATIVEWIND env var");
+  module.exports = config;
+} else {
+  module.exports = withNativeWind(config, { input: "./global.css" });
+}
