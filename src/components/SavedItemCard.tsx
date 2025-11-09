@@ -295,7 +295,8 @@ export default function SavedItemCard({
           }
         }
         
-        if (imageUrl) {
+        // Evitar pasar videos como imagen (por si la URL apunta a .mp4)
+        if (imageUrl && !/\.mp4(\?.*)?$/i.test(imageUrl)) {
           return (
             <View className="relative">
               <Image
@@ -558,7 +559,7 @@ export default function SavedItemCard({
                 <View className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full">
                   <ActivityIndicator size="small" color="#3B82F6" />
                   <Text className={`${textStyles.helper} text-blue-600 ml-1.5 font-medium`}>
-                    Analizando...
+                    {`Analizando${asyncJob.state.progress ? `… ${asyncJob.state.progress}%` : '...'}`}
                   </Text>
                 </View>
               )}

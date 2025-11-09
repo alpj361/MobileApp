@@ -42,8 +42,8 @@ export const ENV = {
 } as const;
 
 // ExtractorW Configuration (Backend Services)
-// Uses EXPO_PUBLIC_EXTRACTORW_URL from .env file
-export const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL;
+// Uses EXPO_PUBLIC_EXTRACTORW_URL from .env file with fallback to production
+export const EXTRACTORW_URL = process.env.EXPO_PUBLIC_EXTRACTORW_URL || 'https://server.standatpd.com';
 export const BEARER_TOKEN = process.env.SUPABASE_ANON_KEY || SUPABASE_ANON_KEY;
 
 // Function to check if Supabase is enabled (compatibility)
