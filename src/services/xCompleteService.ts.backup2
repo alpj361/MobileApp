@@ -90,33 +90,25 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
       const abortController = new AbortController();
       (globalThis as any).currentXJobAbortController = abortController;
 
-      // ✅ CRITICAL: Check for existing active job BEFORE creating new one
-      console.log('[X Complete] 🔍 Checking for existing active job for URL...');
+      // Try to resume an existing job for this URL to avoid duplicates
       const active = await jobRecoveryService.getActiveJobForUrl(url);
-      
       let asyncPayload: any;
       if (active) {
-        console.log('[X Complete] ✅ Found existing active job - resuming instead of creating new:', active.jobId);
-        console.log('[X Complete] Job status:', active.status, 'Progress:', active.progress + '%');
-        
-        // Resume the existing job instead of creating a duplicate
+        console.log('[X Complete] 🔄 Resuming active job:', active.jobId);
         asyncPayload = await xAsyncService.pollJobUntilComplete(
           active.jobId,
           (job: any) => {
-            console.log(`[X Complete] Resumed job progress: ${job.progress}% (${job.status})`);
+            console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
           },
           5000,
           120,
           abortController
         );
       } else {
-        console.log('[X Complete] ❌ No existing job found - creating new job');
-        
-        // No existing job, create a new one
         asyncPayload = await xAsyncService.processXPostAsync(
           url,
           (job: any) => {
-            console.log(`[X Complete] New job progress: ${job.progress}% (${job.status})`);
+            console.log(`[X Complete] Async job progress: ${job.progress}% (${job.status})`);
           },
           abortController
         );

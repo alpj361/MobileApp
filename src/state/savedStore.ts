@@ -1,6 +1,6 @@
 import { create, StateCreator } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../storage/platform-storage';
 import { LinkData } from '../api/link-processor';
 import { ImprovedLinkData, processImprovedLink } from '../api/improved-link-processor';
 import { extractInstagramPostId } from '../utils/instagram';
@@ -14,6 +14,7 @@ import { fetchXComments } from '../services/xCommentService';
 import { analyzeXPost as runXAnalysis } from '../services/xAnalysisService';
 import { loadXAnalysis } from '../storage/xAnalysisRepo';
 import { ExtractedEntity } from '../types/entities';
+import { getXDataFromCache } from '../storage/xDataCache';
 
 export interface SavedItem extends LinkData {
   id: string;
@@ -462,6 +463,80 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
   };
 
   const runXAnalysisForItem = async (itemId: string, url: string, text?: string, force = false) => {
+    const postId = extractXPostId(url);
+    if (!postId) {
+      console.error('[SavedStore] Cannot extract post ID from URL:', url);
+      return;
+    }
+
+    // If force=true (from refresh), try to load from cache first instead of re-processing
+    if (force) {
+      console.log('[SavedStore] Refresh requested - checking cache first before re-processing');
+
+      // Step 1: Check in-memory cache (xDataCache) first - this is where completed jobs are stored
+      const cacheKey = `complete:${url}`;
+      const cachedComplete = getXDataFromCache(cacheKey);
+      if (cachedComplete) {
+        console.log('[SavedStore] ✅ Found completed job data in xDataCache - using it');
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  xAnalysisInfo: {
+                    postId: postId,
+                    type: cachedComplete.media?.type === 'video' ? 'video' : cachedComplete.media?.type === 'image' ? 'image' : 'text',
+                    summary: cachedComplete.vision || undefined,
+                    transcript: cachedComplete.transcription || undefined,
+                    images: cachedComplete.media?.urls?.map((url: string) => ({ url, description: '' })),
+                    text: cachedComplete.tweet?.text || text,
+                    topic: undefined,
+                    sentiment: 'neutral',
+                    entities: cachedComplete.entities || [],
+                    loading: false,
+                    error: null,
+                    lastUpdated: Date.now(),
+                  },
+                }
+              : item,
+          ),
+        }));
+        return;
+      }
+      console.log('[SavedStore] No completed job data in xDataCache');
+
+      // Step 2: Check database cache (x_analyses table)
+      const cachedAnalysis = await loadXAnalysis(postId);
+      if (cachedAnalysis) {
+        console.log('[SavedStore] ✅ Found cached analysis in database - using it instead of re-processing');
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === itemId
+              ? {
+                  ...item,
+                  xAnalysisInfo: {
+                    postId: cachedAnalysis.postId,
+                    type: cachedAnalysis.type,
+                    summary: cachedAnalysis.summary,
+                    transcript: cachedAnalysis.transcript,
+                    images: cachedAnalysis.images,
+                    text: cachedAnalysis.text,
+                    topic: cachedAnalysis.topic,
+                    sentiment: cachedAnalysis.sentiment,
+                    entities: cachedAnalysis.entities || [],
+                    loading: false,
+                    error: null,
+                    lastUpdated: cachedAnalysis.createdAt,
+                  },
+                }
+              : item,
+          ),
+        }));
+        return;
+      }
+      console.log('[SavedStore] No cached analysis found in database - will re-process');
+    }
+
     set((state) => ({
       items: state.items.map((item) =>
         item.id === itemId
@@ -470,7 +545,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
               xAnalysisInfo: item.xAnalysisInfo
                 ? { ...item.xAnalysisInfo, loading: true, error: null }
                 : {
-                    postId: extractXPostId(url) ?? '',
+                    postId: postId,
                     type: 'text',
                     loading: true,
                     summary: undefined,
@@ -972,7 +1047,7 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
 export const useSavedStore = create<SavedState>()(
   persist(createSavedState, {
     name: 'saved-storage',
-    storage: createJSONStorage(() => AsyncStorage),
+    storage: createJSONStorage(() => asyncStorageAdapter),
     partialize: (state) => ({ 
       items: state.items,
       // Don't persist loading state

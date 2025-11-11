@@ -2,6 +2,9 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { XAsyncJob, processXPostAsync, pollJobUntilComplete, checkJobStatus } from '../services/xAsyncService';
 import { useAsyncJobContext } from '../context/AsyncJobContext';
 import { jobRecoveryService } from '../services/jobRecoveryService';
+import { jobPersistence } from '../services/jobPersistence';
+import { emitJobCompleted, emitJobFailed, emitJobProgress, emitJobCancelled } from '../services/jobEventEmitter';
+import { isJobBeingPolled, registerPollingJob, unregisterPollingJob } from '../components/JobRecoveryListener';
 
 export interface UseAsyncJobState {
   isLoading: boolean;
@@ -39,6 +42,12 @@ export function useAsyncJob(): UseAsyncJobReturn {
   const resumeJob = useCallback(async (jobId: string, url: string) => {
     console.log('[useAsyncJob] Resuming job:', jobId);
 
+    // ✅ Check if job is already being polled
+    if (isJobBeingPolled(jobId)) {
+      console.log('[useAsyncJob] ⚠️ Job is already being polled by JobRecoveryListener, skipping duplicate polling');
+      return null;
+    }
+
     setState({
       isLoading: true,
       progress: 0,
@@ -64,12 +73,18 @@ export function useAsyncJob(): UseAsyncJobReturn {
           error: null,
           canCancel: false,
         });
+        emitJobCompleted(jobId, url, currentJob.result);
         return currentJob.result;
       }
 
       if (currentJob.status === 'failed') {
-        throw new Error(currentJob.error || 'Job failed');
+        const errorMsg = currentJob.error || 'Job failed';
+        emitJobFailed(jobId, url, errorMsg);
+        throw new Error(errorMsg);
       }
+
+      // ✅ Register polling to prevent duplicates
+      registerPollingJob(jobId);
 
       // Resume polling
       const result = await pollJobUntilComplete(
@@ -81,6 +96,7 @@ export function useAsyncJob(): UseAsyncJobReturn {
             progress: job.progress,
             job,
           }));
+          emitJobProgress(jobId, url, job.progress);
         },
         5000,
         120,
@@ -89,6 +105,9 @@ export function useAsyncJob(): UseAsyncJobReturn {
 
       console.log('[useAsyncJob] Resumed job completed');
 
+      // ✅ Unregister polling
+      unregisterPollingJob(jobId);
+
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -96,9 +115,13 @@ export function useAsyncJob(): UseAsyncJobReturn {
         canCancel: false,
       }));
 
+      emitJobCompleted(jobId, url, result);
       return result;
     } catch (error: any) {
       console.error('[useAsyncJob] Resumed job failed:', error);
+
+      // ✅ Unregister polling
+      unregisterPollingJob(jobId);
 
       const isCancelled = error.message === 'Job cancelled by user';
 
@@ -110,9 +133,11 @@ export function useAsyncJob(): UseAsyncJobReturn {
       }));
 
       if (isCancelled) {
+        emitJobCancelled(jobId, url);
         return null;
       }
 
+      emitJobFailed(jobId, url, error.message || 'Failed to resume job');
       throw error;
     } finally {
       abortControllerRef.current = null;
@@ -146,15 +171,27 @@ export function useAsyncJob(): UseAsyncJobReturn {
     // Register with job context for global cancellation
     jobContext.setActiveJobController(abortControllerRef.current);
 
-    let jobId: string | undefined;
-
     try {
       // Start the job and get job ID (now includes guest_id/user_id automatically)
       const { startXProcessing } = require('../services/xAsyncService');
-      jobId = await startXProcessing(url);
+      const jobId: string = await startXProcessing(url);
 
       // Job is now persisted on server automatically with guest_id/user_id
       console.log('[useAsyncJob] Job persisted on server:', jobId);
+
+      // Also save to localStorage for recovery after page reload
+      await jobPersistence.saveJob({
+        jobId,
+        url,
+        startTime: Date.now(),
+        lastCheck: Date.now(),
+        platform: 'x',
+        itemId,
+      });
+      console.log('[useAsyncJob] Job also saved to localStorage for recovery');
+
+      // ✅ Register polling to prevent duplicates
+      registerPollingJob(jobId);
 
       // Poll for completion
       const result = await pollJobUntilComplete(
@@ -166,6 +203,7 @@ export function useAsyncJob(): UseAsyncJobReturn {
             progress: job.progress,
             job,
           }));
+          emitJobProgress(jobId, url, job.progress);
         },
         5000, // poll interval
         120,  // max attempts
@@ -174,6 +212,13 @@ export function useAsyncJob(): UseAsyncJobReturn {
 
       console.log('[useAsyncJob] Job completed successfully');
 
+      // ✅ Unregister polling
+      unregisterPollingJob(jobId);
+
+      // Remove from localStorage when completed
+      await jobPersistence.removeJob(jobId);
+      console.log('[useAsyncJob] Job removed from localStorage (completed)');
+
       setState(prev => ({
         ...prev,
         isLoading: false,
@@ -181,9 +226,16 @@ export function useAsyncJob(): UseAsyncJobReturn {
         canCancel: false,
       }));
 
+      emitJobCompleted(jobId, url, result);
       return result;
     } catch (error: any) {
       console.error('[useAsyncJob] Job failed:', error);
+
+      // ✅ Unregister polling if we have a jobId
+      const currentJobId = state.job?.jobId || '';
+      if (currentJobId) {
+        unregisterPollingJob(currentJobId);
+      }
 
       const isCancelled = error.message === 'Job cancelled by user';
 
@@ -196,7 +248,17 @@ export function useAsyncJob(): UseAsyncJobReturn {
 
       if (isCancelled) {
         console.log('[useAsyncJob] Job was cancelled by user');
+        // Use the currentJobId we already declared above
+        if (currentJobId) {
+          emitJobCancelled(currentJobId, url);
+        }
         return null; // Return null for cancelled jobs
+      }
+
+      // Emit failure event
+      // Use the currentJobId we already declared above
+      if (currentJobId) {
+        emitJobFailed(currentJobId, url, error.message || 'Job failed');
       }
 
       throw error;

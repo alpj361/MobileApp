@@ -46,9 +46,25 @@ class JobPersistenceService {
       const updatedJobs = [...filteredJobs, job];
 
       await storage.setItem(STORAGE_KEY, JSON.stringify(updatedJobs));
-      console.log('[JobPersistence] Saved job:', job.jobId);
+      console.log('[JobPersistence] ✅ Saved job to storage:', {
+        jobId: job.jobId,
+        url: job.url,
+        platform: job.platform,
+        totalJobs: updatedJobs.length,
+        storageType: typeof window !== 'undefined' ? 'localStorage' : 'AsyncStorage'
+      });
     } catch (error) {
-      console.error('[JobPersistence] Failed to save job:', error);
+      console.error('[JobPersistence] ❌ Failed to save job:', error);
+      // On web, check if localStorage is available
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('test', 'test');
+          localStorage.removeItem('test');
+        } catch (storageError) {
+          console.error('[JobPersistence] ⚠️ localStorage not available:', storageError);
+        }
+      }
+      throw error;
     }
   }
 
@@ -57,25 +73,45 @@ class JobPersistenceService {
       const storage = this.getStorage();
       const data = await storage.getItem(STORAGE_KEY);
 
-      if (!data) return [];
+      if (!data) {
+        console.log('[JobPersistence] 📭 No jobs in storage');
+        return [];
+      }
 
       const jobs: PersistedJob[] = JSON.parse(data);
       const now = Date.now();
 
+      console.log('[JobPersistence] 📦 Raw jobs in storage:', jobs.length);
+
       // Filter out old jobs
       const activeJobs = jobs.filter(job => {
         const age = now - job.startTime;
-        return age < MAX_JOB_AGE;
+        const isActive = age < MAX_JOB_AGE;
+        if (!isActive) {
+          console.log('[JobPersistence] 🗑️ Removing old job:', job.jobId, 'Age:', Math.floor(age / 1000 / 60), 'minutes');
+        }
+        return isActive;
       });
 
       // Save back filtered list if we removed any
       if (activeJobs.length !== jobs.length) {
         await storage.setItem(STORAGE_KEY, JSON.stringify(activeJobs));
+        console.log('[JobPersistence] 🧹 Cleaned up', jobs.length - activeJobs.length, 'old job(s)');
       }
 
+      console.log('[JobPersistence] ✅ Active jobs:', activeJobs.length);
       return activeJobs;
     } catch (error) {
-      console.error('[JobPersistence] Failed to get active jobs:', error);
+      console.error('[JobPersistence] ❌ Failed to get active jobs:', error);
+      // Try to recover from corrupted data
+      if (typeof window !== 'undefined') {
+        try {
+          console.log('[JobPersistence] 🔧 Attempting to clear corrupted storage');
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (clearError) {
+          console.error('[JobPersistence] Failed to clear storage:', clearError);
+        }
+      }
       return [];
     }
   }

@@ -4,7 +4,7 @@
  * This allows jobs and data to persist across sessions without authentication
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { asyncStorageAdapter } from '../storage/platform-storage';
 import { Platform } from 'react-native';
 
 const DEVICE_ID_KEY = 'pulse_device_id';
@@ -22,20 +22,11 @@ class DeviceIdService {
   private deviceInfo: DeviceInfo | null = null;
 
   /**
-   * Get storage adapter (localStorage for web, AsyncStorage for mobile)
+   * Get storage adapter (uses platform-aware storage)
+   * Web: localStorage, Mobile: AsyncStorage
    */
   private getStorage() {
-    const isWeb = typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
-
-    if (isWeb) {
-      return {
-        getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
-        setItem: (key: string, value: string) => Promise.resolve(localStorage.setItem(key, value)),
-        removeItem: (key: string) => Promise.resolve(localStorage.removeItem(key)),
-      };
-    } else {
-      return AsyncStorage;
-    }
+    return asyncStorageAdapter;
   }
 
   /**

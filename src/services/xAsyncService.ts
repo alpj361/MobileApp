@@ -6,6 +6,7 @@
 import { getApiUrl } from '../config/backend';
 import { ExtractedEntity } from '../types/entities';
 import { guestSessionManager } from './guestSessionManager';
+import { jobPersistence } from './jobPersistence';
 
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
@@ -96,6 +97,16 @@ export async function startXProcessing(url: string): Promise<string> {
     }
 
     console.log('[X Async] Job created:', data.jobId);
+
+    // Save to localStorage for recovery after page reload
+    await jobPersistence.saveJob({
+      jobId: data.jobId,
+      url,
+      startTime: Date.now(),
+      lastCheck: Date.now(),
+      platform: 'x',
+    });
+
     return data.jobId;
   } catch (error) {
     // Handle network/DNS errors specifically
@@ -143,6 +154,14 @@ export async function checkJobStatus(jobId: string): Promise<XAsyncJob> {
     if (!data.success) {
       throw new Error(data.error?.message || 'Failed to check job status');
     }
+
+    console.log(`[X Async] checkJobStatus response:`, {
+      jobId: data.jobId,
+      status: data.status,
+      progress: data.progress,
+      hasResult: !!data.result,
+      resultKeys: data.result ? Object.keys(data.result) : []
+    });
 
     return {
       jobId: data.jobId,
@@ -201,19 +220,40 @@ export async function pollJobUntilComplete(
       console.log(`[X Async] Job ${jobId} status:`, job.status, `(${job.progress}%)`);
 
       // Job completed successfully
-      if (job.status === 'completed' && job.result) {
-        console.log('[X Async] Job completed successfully');
-        return job.result;
+      if (job.status === 'completed') {
+        if (job.result) {
+          console.log('[X Async] ✅ Job completed successfully with result');
+          // Clean up from localStorage
+          await jobPersistence.removeJob(jobId);
+          // ✅ Clean up from backend
+          await cleanupCompletedJob(jobId);
+          return job.result;
+        } else {
+          console.warn('[X Async] ⚠️ Job status is "completed" but result is missing!', job);
+          // Clean up from localStorage
+          await jobPersistence.removeJob(jobId);
+          // Still return to prevent infinite loop
+          throw new Error('Job completed but result is missing');
+        }
       }
 
       // Job failed
       if (job.status === 'failed') {
+        console.error('[X Async] ❌ Job failed:', job.error);
+        // Clean up from localStorage
+        await jobPersistence.removeJob(jobId);
+        // ✅ Clean up from backend
+        await cleanupCompletedJob(jobId);
         throw new Error(job.error || 'Job failed');
       }
 
       // Job cancelled
       if (job.status === 'cancelled') {
-        console.log('[X Async] Job was cancelled');
+        console.log('[X Async] 🚫 Job was cancelled');
+        // Clean up from localStorage
+        await jobPersistence.removeJob(jobId);
+        // ✅ Clean up from backend
+        await cleanupCompletedJob(jobId);
         throw new Error('Job cancelled by user');
       }
 
@@ -306,6 +346,36 @@ export async function cancelJob(jobId: string): Promise<void> {
   } catch (error) {
     console.warn('[X Async] Failed to cancel job on server:', error);
     // Don't throw - cancellation is best effort
+  }
+}
+
+/**
+ * Clean up a completed job from the backend
+ * This removes the job from the server's active jobs list
+ */
+export async function cleanupCompletedJob(jobId: string): Promise<void> {
+  console.log('[X Async] Cleaning up completed job:', jobId);
+
+  const apiUrl = getApiUrl(`/api/jobs/cleanup/${jobId}`, 'extractorw');
+
+  // Get session headers (includes guest_id or user_id)
+  const headers = await guestSessionManager.getApiHeaders();
+
+  try {
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers,
+    });
+
+    if (!response.ok) {
+      console.warn('[X Async] Failed to cleanup job on server:', response.status);
+      // Don't throw - cleanup is best effort
+    } else {
+      console.log('[X Async] ✅ Job cleaned up from backend');
+    }
+  } catch (error) {
+    console.warn('[X Async] Failed to cleanup job on server:', error);
+    // Don't throw - cleanup is best effort
   }
 }
 

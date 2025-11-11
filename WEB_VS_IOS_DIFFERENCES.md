@@ -362,3 +362,6 @@ const EXTRACTORT_URL = Platform.OS === 'web'
 
 **¿Ves error de CORS en Network tab?** Ese es el culpable. 🎯
 
+
+
+

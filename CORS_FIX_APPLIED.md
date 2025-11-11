@@ -183,3 +183,6 @@ pkill -9 -f "expo" && npx expo start --web --clear
 
 **CORS fix aplicado! Reinicia Docker y prueba.** 🚀
 
+
+
+

@@ -11,6 +11,7 @@ import SocialAnalysisModal from './SocialAnalysisModal';
 import XCommentsModal from './XCommentsModal';
 import { useSavedStore } from '../state/savedStore';
 import { useAsyncJob } from '../hooks/useAsyncJob';
+import { useJobCompletion } from '../hooks/useJobCompletion';
 import ExtractionErrorModal from './ExtractionErrorModal';
 
 interface SavedItemCardProps {
@@ -62,7 +63,23 @@ export default function SavedItemCard({
 
   // Async job management for X analysis (web platform timeouts)
   const asyncJob = useAsyncJob();
-  
+
+  // Listen for job completion events (for jobs that complete while page is closed)
+  useJobCompletion({
+    url: item.url,
+    onCompleted: (event) => {
+      console.log('[SavedItemCard] 🎉 Job completed via event:', event.jobId);
+      // Refresh X analysis to load the completed data
+      if (item.platform === 'twitter' || platformEff === 'x') {
+        refreshXAnalysis(item.id);
+      }
+    },
+    onFailed: (event) => {
+      console.log('[SavedItemCard] ❌ Job failed via event:', event.error);
+      asyncJob.reset();
+    }
+  });
+
   // Debug logging para verificar estado de carga
   React.useEffect(() => {
     if (xAnalysisLoading) {
@@ -78,11 +95,26 @@ export default function SavedItemCard({
 
   // Check for existing job when component mounts
   React.useEffect(() => {
-    if ((item.platform === 'twitter' || platformEff === 'x') && !xAnalysisInfo?.summary && !xAnalysisInfo?.transcript) {
-      asyncJob.checkForExistingJob(item.url).catch(console.warn);
-    }
+    const checkAndRefresh = async () => {
+      if (item.platform === 'twitter' || platformEff === 'x') {
+        // If showing loading but no content, assume job may have completed while page was closed
+        if (xAnalysisLoading && !xAnalysisInfo?.summary && !xAnalysisInfo?.transcript) {
+          console.log('[SavedItemCard] 🔍 Mounted with loading state. URL:', item.url);
+          console.log('[SavedItemCard] xAnalysisInfo:', xAnalysisInfo);
+
+          // Force refresh after a delay to allow system to initialize
+          console.log('[SavedItemCard] ⚡ Forcing refresh in 2s to check for completed job...');
+          setTimeout(() => {
+            console.log('[SavedItemCard] 🔄 Calling refreshXAnalysis now...');
+            refreshXAnalysis(item.id);
+          }, 2000);
+        }
+      }
+    };
+
+    checkAndRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.url, item.platform]); // Only run when URL or platform changes
+  }, []); // Only run once on mount
 
   // If insertion failed and store marked an outer error, show modal automatically
   React.useEffect(() => {

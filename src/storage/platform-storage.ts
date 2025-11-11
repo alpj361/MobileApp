@@ -375,6 +375,39 @@ export const StorageUtils = {
 };
 
 /**
+ * Async Storage Adapter for Zustand Persist
+ * Wraps the synchronous PlatformStorage with an async interface
+ * This is required for Zustand's createJSONStorage which expects async methods
+ */
+export const asyncStorageAdapter = {
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      const value = storage.getString(key);
+      return value ?? null;
+    } catch (error) {
+      console.error('[AsyncStorageAdapter] getItem error:', error);
+      return null;
+    }
+  },
+  
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      storage.setString(key, value);
+    } catch (error) {
+      console.error('[AsyncStorageAdapter] setItem error:', error);
+    }
+  },
+  
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      storage.delete(key);
+    } catch (error) {
+      console.error('[AsyncStorageAdapter] removeItem error:', error);
+    }
+  },
+};
+
+/**
  * Hook for React components (optional, for future use)
  */
 export function useStorage<T>(

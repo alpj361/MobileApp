@@ -300,3 +300,6 @@ for (const table of tables) {
 
 **Todo listo! Reinicia y debería cargar los datos desde Supabase.** 🎉
 
+
+
+
