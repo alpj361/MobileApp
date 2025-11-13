@@ -12,7 +12,7 @@ import { loadInstagramAnalysis } from '../storage/instagramAnalysisRepo';
 import { loadXComments, StoredXComments } from '../storage/xCommentsRepo';
 import { fetchXComments } from '../services/xCommentService';
 import { analyzeXPost as runXAnalysis } from '../services/xAnalysisService';
-import { loadXAnalysis } from '../storage/xAnalysisRepo';
+import { loadXAnalysis, loadXAnalysisFromUrl } from '../storage/xAnalysisRepo';
 import { ExtractedEntity } from '../types/entities';
 import { getXDataFromCache } from '../storage/xDataCache';
 
@@ -469,72 +469,77 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
       return;
     }
 
-    // If force=true (from refresh), try to load from cache first instead of re-processing
-    if (force) {
-      console.log('[SavedStore] Refresh requested - checking cache first before re-processing');
+    // ✅ ALWAYS check cache first, regardless of force flag
+    console.log('[SavedStore] Checking cache for completed data (force=' + force + ')');
 
-      // Step 1: Check in-memory cache (xDataCache) first - this is where completed jobs are stored
-      const cacheKey = `complete:${url}`;
-      const cachedComplete = getXDataFromCache(cacheKey);
-      if (cachedComplete) {
-        console.log('[SavedStore] ✅ Found completed job data in xDataCache - using it');
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  xAnalysisInfo: {
-                    postId: postId,
-                    type: cachedComplete.media?.type === 'video' ? 'video' : cachedComplete.media?.type === 'image' ? 'image' : 'text',
-                    summary: cachedComplete.vision || undefined,
-                    transcript: cachedComplete.transcription || undefined,
-                    images: cachedComplete.media?.urls?.map((url: string) => ({ url, description: '' })),
-                    text: cachedComplete.tweet?.text || text,
-                    topic: undefined,
-                    sentiment: 'neutral',
-                    entities: cachedComplete.entities || [],
-                    loading: false,
-                    error: null,
-                    lastUpdated: Date.now(),
-                  },
-                }
-              : item,
-          ),
-        }));
-        return;
-      }
-      console.log('[SavedStore] No completed job data in xDataCache');
+    // Step 1: Check in-memory cache (xDataCache) first - this is where completed jobs are stored
+    const cacheKey = `complete:${url}`;
+    const cachedComplete = getXDataFromCache(cacheKey);
+    if (cachedComplete) {
+      console.log('[SavedStore] ✅ Found completed job data in xDataCache - updating UI immediately');
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                xAnalysisInfo: {
+                  postId: postId,
+                  type: cachedComplete.media?.type === 'video' ? 'video' : cachedComplete.media?.type === 'image' ? 'image' : 'text',
+                  summary: cachedComplete.vision || undefined,
+                  transcript: cachedComplete.transcription || undefined,
+                  images: cachedComplete.media?.urls?.map((url: string) => ({ url, description: '' })),
+                  text: cachedComplete.tweet?.text || text,
+                  topic: undefined,
+                  sentiment: 'neutral',
+                  entities: cachedComplete.entities || [],
+                  loading: false, // ✅ CRITICAL: Set loading to false
+                  error: null,
+                  lastUpdated: Date.now(),
+                },
+              }
+            : item,
+        ),
+      }));
+      console.log('[SavedStore] ✅ UI updated with cached data, loading=false');
+      return; // ✅ Exit early - data found in cache
+    }
+    console.log('[SavedStore] No completed job data in xDataCache');
 
-      // Step 2: Check database cache (x_analyses table)
-      const cachedAnalysis = await loadXAnalysis(postId);
-      if (cachedAnalysis) {
-        console.log('[SavedStore] ✅ Found cached analysis in database - using it instead of re-processing');
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  xAnalysisInfo: {
-                    postId: cachedAnalysis.postId,
-                    type: cachedAnalysis.type,
-                    summary: cachedAnalysis.summary,
-                    transcript: cachedAnalysis.transcript,
-                    images: cachedAnalysis.images,
-                    text: cachedAnalysis.text,
-                    topic: cachedAnalysis.topic,
-                    sentiment: cachedAnalysis.sentiment,
-                    entities: cachedAnalysis.entities || [],
-                    loading: false,
-                    error: null,
-                    lastUpdated: cachedAnalysis.createdAt,
-                  },
-                }
-              : item,
-          ),
-        }));
-        return;
-      }
-      console.log('[SavedStore] No cached analysis found in database - will re-process');
+    // Step 2: Check Supabase first, then database cache (x_analyses table)
+    const cachedAnalysis = await loadXAnalysisFromUrl(url);
+    if (cachedAnalysis) {
+      console.log('[SavedStore] ✅ Found cached analysis in database - updating UI immediately');
+      set((state) => ({
+        items: state.items.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                xAnalysisInfo: {
+                  postId: cachedAnalysis.postId,
+                  type: cachedAnalysis.type,
+                  summary: cachedAnalysis.summary,
+                  transcript: cachedAnalysis.transcript,
+                  images: cachedAnalysis.images,
+                  text: cachedAnalysis.text,
+                  topic: cachedAnalysis.topic,
+                  sentiment: cachedAnalysis.sentiment,
+                  entities: cachedAnalysis.entities || [],
+                  loading: false, // ✅ CRITICAL: Set loading to false
+                  error: null,
+                  lastUpdated: cachedAnalysis.createdAt,
+                },
+              }
+            : item,
+        ),
+      }));
+      console.log('[SavedStore] ✅ UI updated with database cache, loading=false');
+      return; // ✅ Exit early - data found in database
+    }
+    console.log('[SavedStore] No cached analysis found in database');
+
+    // If force=true and no cache found, proceed with re-processing
+    if (!force) {
+      console.log('[SavedStore] Not forcing re-process and no cache found - will start new analysis');
     }
 
     set((state) => ({
@@ -728,7 +733,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
           }
 
           try {
-            cachedXAnalysis = await loadXAnalysis(postId);
+            // Try new Supabase-first approach, fallback to old postId method
+            cachedXAnalysis = await loadXAnalysisFromUrl(linkData.url) || await loadXAnalysis(postId);
           } catch (error) {
             console.log('Failed to load cached X analysis:', error);
           }
@@ -821,6 +827,8 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
         id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
         source,
         isFavorite: false,
+        // Keep isPending: true for X posts without cached analysis (still being processed)
+        isPending: platform === 'x' && postId && !cachedXAnalysis ? true : false,
         commentsInfo,
         analysisInfo: cachedAnalysis
           ? {

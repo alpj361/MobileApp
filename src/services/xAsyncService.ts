@@ -195,6 +195,7 @@ export async function pollJobUntilComplete(
   pollIntervalMs: number = 5000,
   maxAttempts: number = 120, // 10 minutes max (5s * 120)
   abortController?: AbortController,
+  url?: string, // Optional URL for event emission
 ): Promise<XCompleteData> {
   console.log('[X Async] Starting polling for job:', jobId);
 
@@ -227,6 +228,11 @@ export async function pollJobUntilComplete(
           await jobPersistence.removeJob(jobId);
           // ✅ Clean up from backend
           await cleanupCompletedJob(jobId);
+          // 🔔 Emit job completion event if URL is provided
+          if (url) {
+            const { emitJobCompleted } = await import('./jobEventEmitter');
+            emitJobCompleted(jobId, url, job.result);
+          }
           return job.result;
         } else {
           console.warn('[X Async] ⚠️ Job status is "completed" but result is missing!', job);
@@ -244,6 +250,11 @@ export async function pollJobUntilComplete(
         await jobPersistence.removeJob(jobId);
         // ✅ Clean up from backend
         await cleanupCompletedJob(jobId);
+        // 🔔 Emit job failed event if URL is provided
+        if (url) {
+          const { emitJobFailed } = await import('./jobEventEmitter');
+          emitJobFailed(jobId, url, job.error || 'Job failed');
+        }
         throw new Error(job.error || 'Job failed');
       }
 
@@ -398,5 +409,5 @@ export async function processXPostAsync(
     }, { once: true });
   }
 
-  return await pollJobUntilComplete(jobId, onProgress, 5000, 120, abortController);
+  return await pollJobUntilComplete(jobId, onProgress, 5000, 120, abortController, url);
 }

@@ -135,12 +135,16 @@ export const jobEventEmitter = new JobEventEmitter();
 
 /**
  * Helper to emit job completion
+ * ✅ Ensures complete data is included in the event
  */
 export function emitJobCompleted(jobId: string, url: string, result: any): void {
+  console.log('[JobEventEmitter] Emitting job:completed with complete result data');
+  console.log('[JobEventEmitter] Result keys:', result ? Object.keys(result) : 'null');
+  
   jobEventEmitter.emit('job:completed', {
     jobId,
     url,
-    result,
+    result, // ✅ Complete result object with all data (transcription, vision, entities, etc.)
     timestamp: Date.now(),
   });
 }
@@ -178,6 +182,17 @@ export function emitJobRecovered(jobId: string, url: string, status: 'completed'
     jobId,
     url,
     status,
+    timestamp: Date.now(),
+  });
+}
+
+/**
+ * Helper to emit job cancellation
+ */
+export function emitJobCancelled(jobId: string, url: string): void {
+  jobEventEmitter.emit('job:cancelled', {
+    jobId,
+    url,
     timestamp: Date.now(),
   });
 }

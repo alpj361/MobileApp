@@ -2,6 +2,12 @@
  * Backend Configuration
  * Centralized configuration for all backend services
  * Works on both mobile and web platforms
+ *
+ * 🔧 LOCAL DEVELOPMENT MODE:
+ * - Create a .env.local file with localhost URLs
+ * - Copy .env.local to .env for local testing
+ * - Start ExtractorW: cd "../Pulse Journal/ExtractorW" && npm start
+ * - Start ExtractorT: cd "../Pulse Journal/ExtractorT" && docker-compose -f docker-compose.local.yaml up
  */
 
 // Helper to get env var that works on web and mobile
@@ -10,7 +16,7 @@ function getEnvVar(key: string, fallback: string): string {
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
     return process.env[key] as string;
   }
-  
+
   // Fallback to fallback value
   return fallback;
 }
@@ -21,10 +27,24 @@ function getEnvVar(key: string, fallback: string): string {
 const isWeb = typeof window !== 'undefined';
 
 /**
+ * Detect if running in local development mode
+ */
+function isLocalDevelopment(): boolean {
+  const extractorwUrl = getEnvVar('EXPO_PUBLIC_EXTRACTORW_URL', '');
+  const extractortUrl = getEnvVar('EXPO_PUBLIC_EXTRACTORT_URL', '');
+
+  return extractorwUrl.includes('localhost') ||
+         extractorwUrl.includes('127.0.0.1') ||
+         extractortUrl.includes('localhost') ||
+         extractortUrl.includes('127.0.0.1');
+}
+
+/**
  * ExtractorW Backend URL
  * Main backend service for content extraction
  *
- * ✅ Web y Mobile: Ambos usan servidor de producción
+ * 🌐 Production: https://server.standatpd.com
+ * 💻 Local Dev: http://localhost:3456 (configure in .env)
  */
 export const EXTRACTORW_URL = getEnvVar('EXPO_PUBLIC_EXTRACTORW_URL', 'https://server.standatpd.com');
 
@@ -32,10 +52,15 @@ export const EXTRACTORW_URL = getEnvVar('EXPO_PUBLIC_EXTRACTORW_URL', 'https://s
  * ExtractorT Backend URL
  * Twitter/X specific backend service
  *
- * ✅ IMPORTANTE: ExtractorT siempre usa el servidor remoto
- * porque maneja credenciales de Twitter y lógica compleja
+ * 🌐 Production: https://api.standatpd.com
+ * 💻 Local Dev: http://localhost:8000 (configure in .env)
  */
 export const EXTRACTORT_URL = getEnvVar('EXPO_PUBLIC_EXTRACTORT_URL', 'https://api.standatpd.com');
+
+/**
+ * Check if running in local development mode
+ */
+export const IS_LOCAL_DEV = isLocalDevelopment();
 
 /**
  * Check if running in development mode
@@ -66,9 +91,11 @@ export function getApiUrl(path?: string, service: 'extractorw' | 'extractort' = 
  * Log configuration (useful for debugging)
  */
 export function logBackendConfig() {
-  console.log('[Backend Config]', {
+  const mode = IS_LOCAL_DEV ? '💻 LOCAL DEV' : '🌐 PRODUCTION';
+  console.log(`[Backend Config] ${mode}`, {
     extractorW: EXTRACTORW_URL,
     extractorT: EXTRACTORT_URL,
+    isLocalDev: IS_LOCAL_DEV,
     isDev: isDevelopment(),
     platform: typeof window !== 'undefined' ? 'web' : 'native',
   });

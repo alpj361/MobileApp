@@ -68,14 +68,32 @@ export default function SavedItemCard({
   useJobCompletion({
     url: item.url,
     onCompleted: (event) => {
-      console.log('[SavedItemCard] 🎉 Job completed via event:', event.jobId);
-      // Refresh X analysis to load the completed data
+      console.log('[SavedItemCard] �� Job completed via event:', event.jobId);
+      console.log('[SavedItemCard] Event result:', event.result);
+
+      // Mark item as no longer pending
+      if (item.isPending) {
+        console.log('[SavedItemCard] Marking item as no longer pending');
+        useSavedStore.getState().updateSavedItem(item.id, { isPending: false });
+      }
+
+      // Refresh X analysis to load the completed data from cache
       if (item.platform === 'twitter' || platformEff === 'x') {
+        console.log('[SavedItemCard] Calling refreshXAnalysis to update UI with completed data');
         refreshXAnalysis(item.id);
+
+        // Force component re-render by resetting async job state
+        asyncJob.reset();
       }
     },
     onFailed: (event) => {
       console.log('[SavedItemCard] ❌ Job failed via event:', event.error);
+
+      // Mark item as no longer pending even on failure
+      if (item.isPending) {
+        useSavedStore.getState().updateSavedItem(item.id, { isPending: false });
+      }
+
       asyncJob.reset();
     }
   });
@@ -115,6 +133,25 @@ export default function SavedItemCard({
     checkAndRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
+
+  // ✅ FALLBACK: Force refresh if loading state persists for too long
+  React.useEffect(() => {
+    if (item.platform === 'twitter' || platformEff === 'x') {
+      if (xAnalysisLoading) {
+        console.log('[SavedItemCard] ⏱️ Loading state detected, setting 10s fallback timeout');
+        
+        const fallbackTimeout = setTimeout(() => {
+          console.log('[SavedItemCard] ⚠️ FALLBACK TRIGGERED: Loading state persisted for 10s');
+          console.log('[SavedItemCard] Forcing refresh from cache to resolve infinite loading');
+          refreshXAnalysis(item.id);
+        }, 10000); // 10 second fallback
+
+        return () => {
+          clearTimeout(fallbackTimeout);
+        };
+      }
+    }
+  }, [xAnalysisLoading, item.platform, platformEff, item.id, refreshXAnalysis]);
 
   // If insertion failed and store marked an outer error, show modal automatically
   React.useEffect(() => {
