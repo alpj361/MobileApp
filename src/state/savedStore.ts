@@ -477,6 +477,51 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
     const cachedComplete = getXDataFromCache(cacheKey);
     if (cachedComplete) {
       console.log('[SavedStore] ✅ Found completed job data in xDataCache - updating UI immediately');
+      console.log('[SavedStore] 🔍 Cache data structure:', {
+        hasVision: !!cachedComplete.vision,
+        hasTranscription: !!cachedComplete.transcription,
+        hasTranscript: !!cachedComplete.transcript,
+        mediaType: cachedComplete.media?.type,
+        hasThumbnail: !!cachedComplete.media?.thumbnail,
+        hasMediaUrls: !!cachedComplete.media?.urls,
+        entitiesCount: cachedComplete.entities?.length || 0,
+      });
+
+      // Extract transcript from various possible locations
+      const transcript = cachedComplete.transcript ||
+                        cachedComplete.transcription ||
+                        cachedComplete.media?.transcript ||
+                        cachedComplete.media?.transcription ||
+                        undefined;
+
+      // Extract summary from various possible locations, or generate basic one
+      let summary = cachedComplete.vision ||
+                    cachedComplete.summary ||
+                    cachedComplete.description ||
+                    undefined;
+
+      // Generate basic summary if none exists
+      if (!summary && (cachedComplete.tweet?.text || cachedComplete.entities?.length)) {
+        const tweetText = cachedComplete.tweet?.text || '';
+        const entityCount = cachedComplete.entities?.length || 0;
+        const mediaType = cachedComplete.media?.type || 'contenido';
+        summary = `Post de ${cachedComplete.tweet?.author_name || 'X'} con ${mediaType}${entityCount > 0 ? ` que menciona ${entityCount} entidad(es)` : ''}. ${tweetText.substring(0, 150)}${tweetText.length > 150 ? '...' : ''}`;
+      }
+
+      // For videos, use thumbnail; for images, use urls array
+      let images: Array<{ url: string; description: string }> | undefined;
+      if (cachedComplete.media?.type === 'video' && cachedComplete.media.thumbnail) {
+        images = [{
+          url: cachedComplete.media.thumbnail,
+          description: `Video thumbnail de ${cachedComplete.tweet?.author_name || 'X post'}`
+        }];
+      } else if (cachedComplete.media?.urls && cachedComplete.media.urls.length > 0) {
+        images = cachedComplete.media.urls.map((url: string, idx: number) => ({
+          url,
+          description: `Imagen ${idx + 1} del post`
+        }));
+      }
+
       set((state) => ({
         items: state.items.map((item) =>
           item.id === itemId
@@ -485,12 +530,12 @@ const createSavedState: StateCreator<SavedState> = (set, get) => {
                 xAnalysisInfo: {
                   postId: postId,
                   type: cachedComplete.media?.type === 'video' ? 'video' : cachedComplete.media?.type === 'image' ? 'image' : 'text',
-                  summary: cachedComplete.vision || undefined,
-                  transcript: cachedComplete.transcription || undefined,
-                  images: cachedComplete.media?.urls?.map((url: string) => ({ url, description: '' })),
+                  summary,
+                  transcript,
+                  images,
                   text: cachedComplete.tweet?.text || text,
                   topic: undefined,
-                  sentiment: 'neutral',
+                  sentiment: 'neutral',  // TODO: Implement sentiment analysis
                   entities: cachedComplete.entities || [],
                   loading: false, // ✅ CRITICAL: Set loading to false
                   error: null,
