@@ -1,763 +1,521 @@
+/**
+ * Simple Saved Item Card
+ * Simplified component without complex job management
+ * Shows posts with immediate status and optional analysis results
+ */
+
 import React, { useState } from 'react';
-import { View, Text, Pressable, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Linking from 'expo-linking';
-import { SavedItem } from '../state/savedStore';
-import { textStyles } from '../utils/typography';
-import { usePulseConnectionStore } from '../state/pulseConnectionStore';
-import { saveLinkToCodex } from '../services/codexService';
-import InstagramCommentsModal from './InstagramCommentsModal';
+import { SavedItem, useSavedStore } from '../state/savedStore';
+import { formatTimeAgo } from '../utils/time';
 import SocialAnalysisModal from './SocialAnalysisModal';
-import XCommentsModal from './XCommentsModal';
-import { useSavedStore } from '../state/savedStore';
-import { useAsyncJob } from '../hooks/useAsyncJob';
-import { useJobCompletion } from '../hooks/useJobCompletion';
-import ExtractionErrorModal from './ExtractionErrorModal';
 
 interface SavedItemCardProps {
   item: SavedItem;
-  onPress?: () => void;
-  onToggleFavorite?: () => void;
-  onDelete?: () => void;
+  onPress?: (item: SavedItem) => void;
 }
 
-export default function SavedItemCard({
+export const SavedItemCard: React.FC<SavedItemCardProps> = ({
   item,
-  onPress,
-  onToggleFavorite,
-  onDelete
-}: SavedItemCardProps) {
-  const { isConnected, connectedUser } = usePulseConnectionStore();
-  
-  // Zustand store hooks
-  const fetchCommentsForItem = useSavedStore((state) => state.fetchCommentsForItem);
-  const refreshCommentsCount = useSavedStore((state) => state.refreshCommentsCount);
-  const analyzeInstagramPost = useSavedStore((state) => state.analyzeInstagramPost);
-  const refreshInstagramAnalysis = useSavedStore((state) => state.refreshInstagramAnalysis);
-  const analyzeXPost = useSavedStore((state) => state.analyzeXPost);
-  const refreshXAnalysis = useSavedStore((state) => state.refreshXAnalysis);
-
-  // Extraer info del item (DEBE ir ANTES de los useEffects)
-  const commentsInfo = item.commentsInfo;
-  const postId = commentsInfo?.postId;
-  const totalComments = commentsInfo?.totalCount ?? item.engagement?.comments ?? 0;
-  const commentsLoading = commentsInfo?.loading ?? false;
-  const commentsRefreshing = commentsInfo?.refreshing ?? false;
-  const commentsBusy = commentsLoading || commentsRefreshing;
-  const commentsError = commentsInfo?.error ?? null;
-  const platformEff = commentsInfo?.platform ?? (item.platform === 'twitter' ? 'x' : item.platform);
-
-  const analysisInfo = item.analysisInfo;
-  const analysisLoading = analysisInfo?.loading ?? false;
-  
-  const xAnalysisInfo = item.xAnalysisInfo;
-  const xAnalysisLoading = xAnalysisInfo?.loading ?? false;
-  
-  // Local state
-  const [isCheckingCodex, setIsCheckingCodex] = useState(false);
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
-  const [showXCommentsModal, setShowXCommentsModal] = useState(false);
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
-  const [showXAnalysisModal, setShowXAnalysisModal] = useState(false);
-  const [showOuterErrorModal, setShowOuterErrorModal] = useState(false);
-
-  // Async job management for X analysis (web platform timeouts)
-  const asyncJob = useAsyncJob();
-
-  // Listen for job completion events (for jobs that complete while page is closed)
-  useJobCompletion({
-    url: item.url,
-    onCompleted: (event) => {
-      console.log('[SavedItemCard] 🎉 Job completed via event:', event.jobId);
-      // Refresh X analysis to load the completed data
-      if (item.platform === 'twitter' || platformEff === 'x') {
-        refreshXAnalysis(item.id);
-      }
-    },
-    onFailed: (event) => {
-      console.log('[SavedItemCard] ❌ Job failed via event:', event.error);
-      asyncJob.reset();
-    }
-  });
-
-  // Debug logging para verificar estado de carga
-  React.useEffect(() => {
-    if (xAnalysisLoading) {
-      console.log('[SavedItemCard] 🔄 X Analysis is LOADING - should show "Analizando..." indicator');
-    }
-  }, [xAnalysisLoading]);
-  
-  React.useEffect(() => {
-    if (analysisLoading) {
-      console.log('[SavedItemCard] 🔄 Instagram Analysis is LOADING - should show "Analizando..." indicator');
-    }
-  }, [analysisLoading]);
-
-  // Check for existing job when component mounts
-  React.useEffect(() => {
-    const checkAndRefresh = async () => {
-      if (item.platform === 'twitter' || platformEff === 'x') {
-        // If showing loading but no content, assume job may have completed while page was closed
-        if (xAnalysisLoading && !xAnalysisInfo?.summary && !xAnalysisInfo?.transcript) {
-          console.log('[SavedItemCard] 🔍 Mounted with loading state. URL:', item.url);
-          console.log('[SavedItemCard] xAnalysisInfo:', xAnalysisInfo);
-
-          // Force refresh after a delay to allow system to initialize
-          console.log('[SavedItemCard] ⚡ Forcing refresh in 2s to check for completed job...');
-          setTimeout(() => {
-            console.log('[SavedItemCard] 🔄 Calling refreshXAnalysis now...');
-            refreshXAnalysis(item.id);
-          }, 2000);
-        }
-      }
-    };
-
-    checkAndRefresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
-
-  // If insertion failed and store marked an outer error, show modal automatically
-  React.useEffect(() => {
-    if ((item.platform === 'twitter' || platformEff === 'x') && item.outerErrorMessage) {
-      setShowOuterErrorModal(true);
-    }
-  }, [item.outerErrorMessage, item.platform, platformEff]);
-
-  // Check if item is saved in codex by looking at codex_id
-  const isSavedInCodex = !!item.codex_id;
-
-  const handleRefreshComments = () => {
-    if (commentsBusy || !postId) {
-      return;
-    }
-    refreshCommentsCount(item.id);
-  };
-
-  const handleOpenAnalysis = () => {
-    if (item.platform !== 'instagram') {
-      return;
-    }
-    setShowAnalysisModal(true);
-    if (!analysisInfo || (!analysisInfo.summary && !analysisInfo.transcript && !analysisInfo.loading)) {
-      analyzeInstagramPost(item.id);
-    }
-  };
-
-  const handleOpenXAnalysis = async () => {
-    if (item.platform !== 'twitter' && platformEff !== 'x') {
-      return;
-    }
-    setShowXAnalysisModal(true);
-
-    // Check for existing job first
-    await asyncJob.checkForExistingJob(item.url);
-
-    if (!xAnalysisInfo || (!xAnalysisInfo.summary && !xAnalysisInfo.transcript && !xAnalysisInfo.loading && !asyncJob.state.isLoading)) {
-      analyzeXPost(item.id);
-    }
-  };
+  onPress
+}) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
+  const removeSavedItem = useSavedStore(state => state.removeSavedItem);
+  const toggleFavorite = useSavedStore(state => state.toggleFavorite);
+  const startAnalysis = useSavedStore(state => state.startAnalysis);
 
   const handlePress = () => {
-    if (onPress) {
-      onPress();
-    } else if (item.platform === 'audio') {
-      // For audio items, don't try to open URL - just show a message
-      Alert.alert('Grabación de Audio', 'Esta es una grabación de audio guardada en tu Codex.');
-    } else if (item.platform === 'instagram') {
-      // For Instagram posts, open analysis modal instead of URL
-      handleOpenAnalysis();
-    } else if (item.platform === 'twitter' || platformEff === 'x') {
-      // For X/Twitter posts, open analysis modal instead of URL
-      handleOpenXAnalysis();
+    if (item.status === 'completed' && item.analysisResult) {
+      setModalVisible(true);
+    } else if (onPress) {
+      onPress(item);
     } else {
-      Linking.openURL(item.url);
+      setIsExpanded(!isExpanded);
     }
   };
 
-  const getPlatformIcon = () => {
-    switch (item.platform) {
-      case 'instagram':
-        return '📷';
-      case 'tiktok':
-        return '🎵';
-      case 'twitter':
-        return '🐦';
-      case 'youtube':
-        return '▶️';
-      case 'audio':
-        return '🎤';
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Post',
+      'Are you sure you want to delete this saved post?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => removeSavedItem(item.id)
+        }
+      ]
+    );
+  };
+
+  const handleFavorite = () => {
+    toggleFavorite(item.id);
+  };
+
+  const handleAnalysis = () => {
+    if (item.status === 'processing') {
+      Alert.alert('Analysis in Progress', 'This post is currently being analyzed. Please wait...');
+      return;
+    }
+
+    if (item.status === 'completed' && item.analysisResult) {
+      Alert.alert('Analysis Complete', 'This post has already been analyzed. Check the results below.');
+      return;
+    }
+
+    Alert.alert(
+      'Start Analysis',
+      'Would you like to analyze this post? This will extract content, entities, and insights.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Analyze',
+          onPress: () => startAnalysis(item.id)
+        }
+      ]
+    );
+  };
+
+  const handleOpenUrl = () => {
+    if (item.url) {
+      Linking.openURL(item.url).catch(error => {
+        console.error('Failed to open URL:', error);
+        Alert.alert('Error', 'Failed to open the link');
+      });
+    }
+  };
+
+  const getStatusIcon = () => {
+    switch (item.status) {
+      case 'processing':
+        return <ActivityIndicator size="small" color="#007AFF" />;
+      case 'completed':
+        return <Ionicons name="checkmark-circle" size={16} color="#34C759" />;
+      case 'failed':
+        return <Ionicons name="close-circle" size={16} color="#FF3B30" />;
       default:
-        return '🔗';
+        return <Ionicons name="document" size={16} color="#8E8E93" />;
     }
   };
 
-  const getPlatformColor = () => {
-    switch (item.platform) {
-      case 'instagram':
-        return '#E4405F';
-      case 'tiktok':
-        return '#000000';
-      case 'twitter':
-        return '#1DA1F2';
-      case 'youtube':
-        return '#FF0000';
-      case 'audio':
-        return '#10B981';
+  const getStatusText = () => {
+    if (item.isPending) return 'Saving...';
+
+    switch (item.status) {
+      case 'processing':
+        return 'Analyzing...';
+      case 'completed':
+        return 'Analysis Complete';
+      case 'failed':
+        return item.analysisError || 'Analysis Failed';
       default:
-        return '#6B7280';
+        return 'Saved';
     }
   };
 
-  const getSourceIcon = () => {
-    switch (item.source) {
-      case 'chat':
-        return 'chatbubble-outline';
-      case 'clipboard':
-        return 'clipboard-outline';
-      case 'manual':
-        return 'add-circle-outline';
-      default:
-        return 'link-outline';
-    }
+  const formatDescription = (text: string, maxLength: number = 150) => {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
-  const getSourceColor = () => {
-    switch (item.source) {
-      case 'chat':
-        return '#3B82F6';
-      case 'clipboard':
-        return '#10B981';
-      case 'manual':
-        return '#8B5CF6';
-      default:
-        return '#6B7280';
-    }
-  };
+  // Handle both structures: direct object (new) or wrapped in data (legacy/potential wrapper)
+  const rawData = item.analysisResult?.data || item.analysisResult;
 
-  const getSourceLabel = () => {
-    switch (item.source) {
-      case 'chat':
-        return 'Del Chat';
-      case 'clipboard':
-        return 'Del Portapapeles';
-      case 'manual':
-        return 'Manual';
-      default:
-        return 'Fuente Desconocida';
+  // Debug logging for data availability
+  if (item.status === 'completed') {
+    if (!rawData) {
+      console.warn(`[SavedItemCard] ⚠️ Item ${item.id} (${item.url}) is completed but rawData is missing/falsy. AnalysisResult:`, JSON.stringify(item.analysisResult));
+    } else {
+      // Check for specific fields
+      const hasAi = !!rawData.ai_generated;
+      const hasTrans = !!rawData.transcription?.length;
+      console.log(`[SavedItemCard] ✅ Item ${item.id} has data. AI: ${hasAi}, Trans: ${hasTrans}, Keys: ${Object.keys(rawData).join(', ')}`);
     }
-  };
+  }
 
+  const analysisInfo = rawData ? {
+    loading: false,
+    summary: rawData.ai_generated?.description || '',
+    transcript: '', // Will use transcription array instead
+    transcription: rawData.transcription || [],
+    media_analysis: rawData.media_analysis || [],
+    topic: rawData.ai_generated?.category || '',
+    sentiment: rawData.ai_generated?.sentiment || 'neutral',
+    type: item.type || 'text',
+    entities: rawData.entities || [],
+    images: [],
+    lastUpdated: item.lastUpdated || Date.now()
+  } : undefined;
 
   return (
-    <Pressable
-      onPress={handlePress}
-      className="bg-white rounded-3xl overflow-hidden border border-gray-100 active:bg-gray-50 mb-4 shadow-sm"
-      style={({ pressed }) => [
-        {
-          transform: [{ scale: pressed ? 0.98 : 1 }],
-        }
-      ]}
-    >
-      {/* Overlay de loading para items pending */}
-      {item.isPending && (
-        <View className="absolute inset-0 bg-white/80 z-50 items-center justify-center">
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text className={`${textStyles.body} text-gray-600 mt-3`}>
-            Obteniendo información...
+    <View style={{
+      backgroundColor: '#FFFFFF',
+      borderRadius: 12,
+      margin: 8,
+      padding: 16,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+      borderLeftWidth: 4,
+      borderLeftColor: item.isFavorite ? '#FF9500' : '#E5E5EA',
+    }}>
+      {/* Header */}
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+          <View style={{ flex: 1, paddingRight: 12 }}>
+            <Text style={{
+              fontSize: 16,
+              fontWeight: '600',
+              color: '#1C1C1E',
+              lineHeight: 22
+            }} numberOfLines={2}>
+              {item.title || 'Untitled Post'}
+            </Text>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+              {getStatusIcon()}
+              <Text style={{
+                fontSize: 12,
+                color: '#8E8E93',
+                marginLeft: 6
+              }}>
+                {getStatusText()}
+              </Text>
+              {item.lastUpdated && (
+                <Text style={{ fontSize: 12, color: '#C7C7CC', marginLeft: 8 }}>
+                  • {formatTimeAgo(item.lastUpdated)}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* Platform indicator */}
+          <View style={{
+            backgroundColor: (item.platform as any) === 'x' ? '#000' : item.platform === 'instagram' ? '#E4405F' : '#007AFF',
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            borderRadius: 6
+          }}>
+            <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '600' }}>
+              {item.platform?.toUpperCase() || 'WEB'}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {/* Content Preview */}
+      {item.description && (
+        <Text style={{
+          fontSize: 14,
+          color: '#3C3C43',
+          lineHeight: 20,
+          marginBottom: 12
+        }}>
+          {isExpanded ? item.description : formatDescription(item.description)}
+        </Text>
+      )}
+
+      {/* Error Message */}
+      {item.outerErrorMessage && (
+        <View style={{
+          backgroundColor: '#FFEBEE',
+          padding: 12,
+          borderRadius: 8,
+          marginBottom: 12,
+          borderLeftWidth: 3,
+          borderLeftColor: '#FF3B30'
+        }}>
+          <Text style={{ color: '#D32F2F', fontSize: 12, fontWeight: '500' }}>
+            Error: {item.outerErrorMessage}
           </Text>
         </View>
       )}
 
-      {/* Header con plataforma y fuente */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-gray-50 border-b border-gray-100">
-        <View className="flex-row items-center">
-          <Text className="text-xl mr-3">{getPlatformIcon()}</Text>
-          <View>
-            <Text className={`${textStyles.badge} text-gray-700 uppercase tracking-wide`}>
-              {item.platform === 'generic' ? item.domain : item.platform}
-            </Text>
-          </View>
-        </View>
-        
-        <View className="flex-row items-center gap-2">
-          {/* Indicador de guardado en Codex */}
-          {isConnected && isSavedInCodex && (
-            <View className="flex-row items-center px-2 py-1 rounded-full bg-green-100">
-              <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-              <Text className={`${textStyles.helper} font-medium text-green-700 ml-1`}>
-                En Codex
-              </Text>
+      {/* Analysis Results */}
+      {item.status === 'completed' && rawData && isExpanded && (
+        <View style={{
+          backgroundColor: '#F2F2F7',
+          padding: 12,
+          borderRadius: 8,
+          marginBottom: 12
+        }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: '#1C1C1E', marginBottom: 8 }}>
+            🤖 AI Analysis Results
+          </Text>
+
+          {/* AI Generated Content */}
+          {rawData.ai_generated && (
+            <View>
+              {/* Title */}
+              {rawData.ai_generated.title && (
+                <View style={{ marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 2 }}>
+                    📝 Generated Title:
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#1C1C1E', fontWeight: '500' }}>
+                    {rawData.ai_generated.title}
+                  </Text>
+                </View>
+              )}
+
+              {/* Description */}
+              {rawData.ai_generated.description && (
+                <View style={{ marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 2 }}>
+                    📋 Summary:
+                  </Text>
+                  <Text style={{ fontSize: 12, color: '#3C3C43', lineHeight: 16 }}>
+                    {rawData.ai_generated.description}
+                  </Text>
+                </View>
+              )}
+
+              {/* Key Points */}
+              {rawData.ai_generated.summary_bullets && (
+                <View style={{ marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 2 }}>
+                    🔍 Key Points:
+                  </Text>
+                  {rawData.ai_generated.summary_bullets.map((point: string, index: number) => (
+                    <Text key={index} style={{ fontSize: 11, color: '#3C3C43', lineHeight: 14, marginBottom: 1 }}>
+                      • {point}
+                    </Text>
+                  ))}
+                </View>
+              )}
+
+              {/* Engagement Metrics */}
+              {rawData.engagement && (
+                <View style={{ marginBottom: 6 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 2 }}>
+                    📊 Engagement:
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#3C3C43' }}>
+                    👍 {rawData.engagement.likes} •
+                    🔄 {rawData.engagement.shares} •
+                    💬 {rawData.engagement.comments}
+                    {rawData.engagement.engagement_rate &&
+                      ` • ${rawData.engagement.engagement_rate}% rate`
+                    }
+                  </Text>
+                </View>
+              )}
+
+              {/* Category & Sentiment */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                {rawData.ai_generated.category && (
+                  <Text style={{ fontSize: 10, color: '#8E8E93', backgroundColor: '#E8E8ED', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    📂 {rawData.ai_generated.category}
+                  </Text>
+                )}
+                {rawData.ai_generated.sentiment && (
+                  <Text style={{
+                    fontSize: 10,
+                    color: rawData.ai_generated.sentiment === 'positive' ? '#34C759' :
+                      rawData.ai_generated.sentiment === 'negative' ? '#FF3B30' : '#8E8E93',
+                    backgroundColor: '#F2F2F7',
+                    paddingHorizontal: 6,
+                    paddingVertical: 2,
+                    borderRadius: 4
+                  }}>
+                    {rawData.ai_generated.sentiment === 'positive' ? '😊' :
+                      rawData.ai_generated.sentiment === 'negative' ? '😔' : '😐'}
+                    {rawData.ai_generated.sentiment}
+                  </Text>
+                )}
+              </View>
             </View>
           )}
-          
-          {/* Indicador de fuente */}
-          <View className="flex-row items-center bg-gray-100 px-2 py-1 rounded-full">
-            <Ionicons 
-              name={getSourceIcon() as any} 
-              size={12} 
-              color={getSourceColor()} 
+
+          {/* Video/Audio Transcriptions */}
+          {rawData.transcription && Array.isArray(rawData.transcription) && rawData.transcription.length > 0 && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E5EA' }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 6 }}>
+                🎬 Video/Audio Transcriptions ({rawData.transcription.length})
+              </Text>
+              {rawData.transcription.slice(0, 2).map((trans: any, idx: number) => (
+                <View key={idx} style={{ marginBottom: 8, backgroundColor: '#F8F9FA', padding: 8, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#6B7280', marginBottom: 4 }}>
+                    {trans.type === 'video' ? '🎥' : '🎵'} {trans.type?.toUpperCase()} {idx + 1}
+                    {trans.metadata?.words_count && ` • ${trans.metadata.words_count} palabras`}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#3C3C43', lineHeight: 14 }} numberOfLines={3}>
+                    {trans.transcription}
+                  </Text>
+                </View>
+              ))}
+              {rawData.transcription.length > 2 && (
+                <Text style={{ fontSize: 10, color: '#8E8E93', fontStyle: 'italic' }}>
+                  +{rawData.transcription.length - 2} more
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Image Analysis */}
+          {rawData.media_analysis && Array.isArray(rawData.media_analysis) && rawData.media_analysis.length > 0 && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#E5E5EA' }}>
+              <Text style={{ fontSize: 11, fontWeight: '600', color: '#007AFF', marginBottom: 6 }}>
+                🖼️ Image Analysis ({rawData.media_analysis.length})
+              </Text>
+              {rawData.media_analysis.slice(0, 2).map((media: any, idx: number) => (
+                <View key={idx} style={{ marginBottom: 8, backgroundColor: '#F8F9FA', padding: 8, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#6B7280', marginBottom: 4 }}>
+                    📸 IMAGE {idx + 1}
+                    {media.metadata?.words_count && ` • ${media.metadata.words_count} palabras`}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#3C3C43', lineHeight: 14 }} numberOfLines={3}>
+                    {media.description}
+                  </Text>
+                </View>
+              ))}
+              {rawData.media_analysis.length > 2 && (
+                <Text style={{ fontSize: 10, color: '#8E8E93', fontStyle: 'italic' }}>
+                  +{rawData.media_analysis.length - 2} more
+                </Text>
+              )}
+            </View>
+          )}
+
+          {/* Fallback for simple analysis */}
+          {(!rawData.ai_generated && item.analysisResult) && (
+            <Text style={{ fontSize: 12, color: '#3C3C43', lineHeight: 16 }}>
+              {typeof item.analysisResult === 'string'
+                ? item.analysisResult
+                : item.analysisResult.summary || 'Analysis completed successfully'
+              }
+            </Text>
+          )}
+        </View>
+      )}
+
+      {/* Action Buttons */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {/* Favorite Button */}
+          <TouchableOpacity
+            onPress={handleFavorite}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+              backgroundColor: item.isFavorite ? '#FFF3E0' : '#F2F2F7',
+              marginRight: 8
+            }}
+          >
+            <Ionicons
+              name={item.isFavorite ? 'heart' : 'heart-outline'}
+              size={16}
+              color={item.isFavorite ? '#FF9500' : '#8E8E93'}
             />
-            <Text className={`${textStyles.helper} text-gray-500 ml-1`}>
-              {getSourceLabel()}
+            <Text style={{
+              fontSize: 12,
+              color: item.isFavorite ? '#FF9500' : '#8E8E93',
+              marginLeft: 4,
+              fontWeight: '500'
+            }}>
+              {item.isFavorite ? 'Favorited' : 'Favorite'}
             </Text>
-          </View>
+          </TouchableOpacity>
+
+          {/* Analysis Button */}
+          <TouchableOpacity
+            onPress={handleAnalysis}
+            disabled={item.status === 'processing'}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              paddingVertical: 8,
+              paddingHorizontal: 12,
+              borderRadius: 8,
+              backgroundColor: item.status === 'completed' ? '#E8F5E8' : '#F2F2F7',
+              marginRight: 8,
+              opacity: item.status === 'processing' ? 0.6 : 1
+            }}
+          >
+            <Ionicons
+              name={
+                item.status === 'completed' ? 'checkmark-circle' :
+                  item.status === 'processing' ? 'hourglass' :
+                    'analytics'
+              }
+              size={16}
+              color={
+                item.status === 'completed' ? '#34C759' :
+                  item.status === 'processing' ? '#FF9500' :
+                    '#007AFF'
+              }
+            />
+            <Text style={{
+              fontSize: 12,
+              color: item.status === 'completed' ? '#34C759' : '#007AFF',
+              marginLeft: 4,
+              fontWeight: '500'
+            }}>
+              {item.status === 'completed' ? 'Analyzed' :
+                item.status === 'processing' ? 'Analyzing' : 'Analyze'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Action Menu */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {/* Open URL */}
+          <TouchableOpacity
+            onPress={handleOpenUrl}
+            style={{ padding: 8, marginRight: 4 }}
+          >
+            <Ionicons name="open-outline" size={18} color="#007AFF" />
+          </TouchableOpacity>
+
+          {/* Delete */}
+          <TouchableOpacity
+            onPress={handleDelete}
+            style={{ padding: 8 }}
+          >
+            <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Imagen o placeholder mejorado - Prioriza datos de análisis */}
-      {(() => {
-        // Determinar imagen a mostrar (prioridad: análisis > item.image)
-        let imageUrl = item.image;
-        
-        // Para X/Twitter: intentar obtener imagen del análisis
-        if ((platformEff === 'x' || item.platform === 'twitter') && xAnalysisInfo) {
-          const analysisImage = xAnalysisInfo.images?.[0]?.url || 
-                               xAnalysisInfo.metadata?.media?.url ||
-                               xAnalysisInfo.metadata?.media?.thumbnail;
-          if (analysisImage) {
-            imageUrl = analysisImage;
-          }
-        }
-        
-        // Para Instagram: intentar obtener imagen del análisis
-        if (item.platform === 'instagram' && analysisInfo) {
-          const analysisImage = analysisInfo.images?.[0]?.url;
-          if (analysisImage) {
-            imageUrl = analysisImage;
-          }
-        }
-        
-        // Evitar pasar videos como imagen (por si la URL apunta a .mp4)
-        if (imageUrl && !/\.mp4(\?.*)?$/i.test(imageUrl)) {
-          return (
-            <View className="relative">
-              <Image
-                source={{ uri: imageUrl }}
-                className="w-full h-48"
-                resizeMode="cover"
-                onError={() => {
-                  console.log("Image failed to load:", imageUrl);
-                }}
-                onLoad={() => {
-                  console.log("Image loaded successfully:", imageUrl);
-                }}
-              />
-            </View>
-          );
-        }
-        
-        return (
-          <View className="w-full h-36 bg-gradient-to-br from-gray-100 to-gray-200 flex-row items-center justify-center">
-            <View className="items-center">
-              <Text className="text-5xl mb-3 opacity-60">{getPlatformIcon()}</Text>
-              <Text className={`${textStyles.helper} text-gray-500`}>Sin miniatura disponible</Text>
-            </View>
-          </View>
-        );
-      })()}
-      
-      {/* Contenido mejorado */}
-      <View className="p-5">
-        {/* Título con indicador de fuente */}
-        <View className="flex-row items-start justify-between mb-3">
-          <Text className={`${textStyles.cardTitle} flex-1 mr-2`} numberOfLines={2}>
-            {item.title}
-          </Text>
-        </View>
-        
-        {/* Descripción mejorada - Prioriza datos de análisis */}
-        {(() => {
-          // Para X/Twitter: usar datos de análisis si están disponibles
-          if ((platformEff === 'x' || item.platform === 'twitter') && xAnalysisInfo) {
-            const content = xAnalysisInfo.text || xAnalysisInfo.summary;
-            if (content && content !== 'No description available') {
-              return (
-                <View className="mb-4">
-                  <Text className={`${textStyles.description} mb-2`} numberOfLines={4}>
-                    {content}
-                  </Text>
-                  {xAnalysisInfo.transcript && (
-                    <View className="mt-2 p-3 bg-blue-50 rounded-lg">
-                      <Text className={`${textStyles.helper} text-blue-700 font-medium mb-1`}>
-                        📝 Transcripción:
-                      </Text>
-                      <Text className={`${textStyles.helper} text-gray-700`} numberOfLines={3}>
-                        {xAnalysisInfo.transcript}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            }
-          }
-          
-          // Para Instagram: usar datos de análisis si están disponibles
-          if (item.platform === 'instagram' && analysisInfo) {
-            const content = analysisInfo.caption || analysisInfo.summary;
-            if (content && content !== 'No description available') {
-              return (
-                <View className="mb-4">
-                  <Text className={`${textStyles.description} mb-2`} numberOfLines={4}>
-                    {content}
-                  </Text>
-                  {analysisInfo.transcript && (
-                    <View className="mt-2 p-3 bg-pink-50 rounded-lg">
-                      <Text className={`${textStyles.helper} text-pink-700 font-medium mb-1`}>
-                        📝 Transcripción:
-                      </Text>
-                      <Text className={`${textStyles.helper} text-gray-700`} numberOfLines={3}>
-                        {analysisInfo.transcript}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              );
-            }
-          }
-          
-          // Fallback: usar descripción original
-          if (item.description && item.description !== 'No description available' && item.description !== 'Vista previa no disponible') {
-            return (
-              <Text className={`${textStyles.description} mb-4`} numberOfLines={3}>
-                {item.description}
-              </Text>
-            );
-          }
-          
-          // Sin contenido disponible
-          return (
-            <Text className={`${textStyles.helper} text-gray-400 mb-4 italic`}>
-              Descripción no disponible
-            </Text>
-          );
-        })()}
-        
-        {/* Metadatos adicionales */}
-        <View className="flex-row items-center justify-between mb-3">
-          {item.author && (
-            <View className="flex-row items-center">
-              <Ionicons name="person-outline" size={14} color="#6B7280" />
-              <Text className="text-gray-500 text-xs ml-1" numberOfLines={1}>
-                {typeof item.author === 'string' 
-                  ? item.author 
-                  : item.author.handle ? `@${item.author.handle}` : item.author.name || 'Unknown'
-                }
-              </Text>
-            </View>
-          )}
-          
-          {(item.engagement || platformEff === 'instagram' || platformEff === 'x') && (
-            <View className="flex-row items-center justify-between">
-              <View className="flex-row items-center space-x-3">
-                {/* DEBUG: Log engagement data */}
-                {console.log('[DEBUG] SavedItemCard engagement:', JSON.stringify(item.engagement))}
-                {console.log('[DEBUG] Likes condition:', item.engagement?.likes !== undefined && item.engagement.likes > 0)}
-                {console.log('[DEBUG] Shares condition:', item.engagement?.shares !== undefined && item.engagement.shares > 0)}
-                {console.log('[DEBUG] Comments condition:', item.engagement?.comments !== undefined && item.engagement.comments > 0)}
-                
-                {/* PROTECCIÓN: Mostrar métricas solo si tienen valores válidos */}
-                {item.engagement?.likes !== undefined && item.engagement.likes > 0 && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="heart-outline" size={14} color="#EF4444" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement.likes}
-                    </Text>
-                  </View>
-                )}
-                {item.engagement?.shares !== undefined && item.engagement.shares > 0 && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="repeat-outline" size={14} color="#10B981" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement.shares}
-                    </Text>
-                  </View>
-                )}
-                {(platformEff === 'instagram' || platformEff === 'x') && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="chatbubble-outline" size={14} color="#3B82F6" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement?.comments !== undefined && item.engagement.comments > 0 ? `${item.engagement.comments}` : (totalComments && totalComments > 0 ? `${totalComments}` : '—')}
-                    </Text>
-                    {commentsError && !commentsBusy && (
-                      <Ionicons name="warning-outline" size={12} color="#F59E0B" style={{ marginLeft: 6 }} />
-                    )}
-                    <Pressable
-                      onPress={handleRefreshComments}
-                      disabled={commentsBusy}
-                      className="ml-2 p-1 rounded-full active:bg-blue-100"
-                    >
-                      {commentsBusy ? (
-                        <ActivityIndicator size="small" color="#3B82F6" />
-                      ) : (
-                        <Ionicons name="refresh-outline" size={14} color="#3B82F6" />
-                      )}
-                    </Pressable>
-                  </View>
-                )}
-                {/* Views for Instagram and Twitter */}
-                {(platformEff === 'instagram' || platformEff === 'x') && item.engagement?.views !== undefined && item.engagement.views > 0 && (
-                  <View className="flex-row items-center">
-                    <Ionicons name="eye-outline" size={14} color="#6B7280" />
-                    <Text className="text-gray-500 text-xs ml-1">
-                      {item.engagement?.views}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Comments Button for Instagram posts */}
-              {platformEff === 'instagram' && (
-                <View className="flex-row items-center gap-2">
-                  <Pressable
-                    onPress={() => setShowCommentsModal(true)}
-                    className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed ? 0.95 : 1 }],
-                      }
-                    ]}
-                    disabled={commentsBusy}
-                  >
-                    {commentsBusy ? (
-                      <ActivityIndicator size="small" color="#3B82F6" />
-                    ) : (
-                      <>
-                        <Ionicons name="chatbubbles-outline" size={12} color="#3B82F6" />
-                        <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
-                          Ver comentarios
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              )}
-
-              {/* Comments Button for X/Twitter posts - Analysis button removed, tap card to view analysis */}
-              {platformEff === 'x' && (
-                <View className="flex-row items-center gap-2">
-                  <Pressable
-                    onPress={() => setShowXCommentsModal(true)}
-                    className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full border border-blue-200 active:bg-blue-100"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed ? 0.95 : 1 }],
-                      }
-                    ]}
-                    disabled={commentsBusy}
-                  >
-                    {commentsBusy ? (
-                      <ActivityIndicator size="small" color="#1DA1F2" />
-                    ) : (
-                      <>
-                        <Ionicons name="chatbubbles-outline" size={12} color="#1DA1F2" />
-                        <Text className={`${textStyles.helper} text-blue-600 ml-1 font-medium`}>
-                          Ver comentarios
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-              )}
-            </View>
-          )}
-        </View>
-        
-        {/* Footer mejorado con más información */}
-        <View className="pt-4 border-t border-gray-100">
-          {/* Información de procesamiento */}
-          {/* Información secundaria removida para UI más limpia */}
-          
-          {/* Fila principal del footer */}
-          <View className="flex-row items-center justify-between">
-            <View className="flex-row items-center gap-4">
-              {/* Fecha */}
-              <View className="flex-row items-center">
-                <Ionicons name="time-outline" size={14} color="#9CA3AF" />
-                <Text className={`${textStyles.helper} text-gray-400 ml-1`}>
-                  {new Date(item.timestamp).toLocaleDateString()}
-                </Text>
-              </View>
-              
-              {/* Indicador de plataforma */}
-              <View className="flex-row items-center">
-                <View className="w-2 h-2 rounded-full mr-1" style={{ backgroundColor: getPlatformColor() }} />
-                <Text className={`${textStyles.helper} text-gray-400`}>
-                  {item.platform === 'generic' ? item.domain : item.platform}
-                </Text>
-              </View>
-              
-              {/* Indicador de análisis en progreso (X/Twitter) */}
-              {(platformEff === 'x' || item.platform === 'twitter') && (xAnalysisLoading || asyncJob.state.isLoading) && (
-                <View className="flex-row items-center bg-blue-50 px-2 py-1 rounded-full">
-                  <ActivityIndicator size="small" color="#3B82F6" />
-                  <Text className={`${textStyles.helper} text-blue-600 ml-1.5 font-medium`}>
-                    {`Analizando${asyncJob.state.progress ? `… ${asyncJob.state.progress}%` : '...'}`}
-                  </Text>
-                </View>
-              )}
-              
-              {/* Indicador de análisis en progreso (Instagram) */}
-              {item.platform === 'instagram' && analysisLoading && (
-                <View className="flex-row items-center bg-pink-50 px-2 py-1 rounded-full">
-                  <ActivityIndicator size="small" color="#E1306C" />
-                  <Text className={`${textStyles.helper} text-pink-600 ml-1.5 font-medium`}>
-                    Analizando...
-                  </Text>
-                </View>
-              )}
-            </View>
-            
-            {/* Acciones */}
-            <View className="flex-row items-center gap-2">
-              {/* Guardar en Codex (sólo si conectado a Pulse Journal) */}
-              {isConnected && connectedUser?.id && (
-                <Pressable
-                  onPress={async () => {
-                    if (isSavedInCodex) {
-                      Alert.alert('Ya guardado', 'Este elemento ya está guardado en tu Codex.');
-                      return;
-                    }
-
-                    // For audio items, they should already be saved to codex when created
-                    if (item.platform === 'audio') {
-                      Alert.alert('Audio guardado', 'Las grabaciones de audio se guardan automáticamente en el Codex.');
-                      return;
-                    }
-
-                    try {
-                      const res = await saveLinkToCodex(connectedUser.id, item);
-                      if (res.success) {
-                        // The codex_id will be automatically updated in the saved item
-                        // Check if it's a duplicate message
-                        if (res.error && res.error.includes('ya está guardado')) {
-                          Alert.alert('Ya guardado', res.error);
-                        } else {
-                          Alert.alert('Guardado en Codex', 'El elemento se guardó correctamente.');
-                        }
-                      } else {
-                        Alert.alert('Error', res.error || 'No se pudo guardar en Codex');
-                      }
-                    } catch (e) {
-                      Alert.alert('Error', 'No se pudo guardar en Codex');
-                    }
-                  }}
-                  className="p-2 rounded-full active:bg-gray-100"
-                  style={({ pressed }) => [
-                    {
-                      transform: [{ scale: pressed ? 0.95 : 1 }],
-                    }
-                  ]}
-                  disabled={isCheckingCodex}
-                >
-                  {isCheckingCodex ? (
-                    <Ionicons name="hourglass-outline" size={20} color="#9CA3AF" />
-                  ) : isSavedInCodex ? (
-                    <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                  ) : (
-                    <Ionicons name="save-outline" size={20} color="#3B82F6" />
-                  )}
-                </Pressable>
-              )}
-              {/* Botón de favorito */}
-              <Pressable
-                onPress={onToggleFavorite}
-                className="p-2 rounded-full active:bg-gray-100"
-                style={({ pressed }) => [
-                  {
-                    transform: [{ scale: pressed ? 0.95 : 1 }],
-                  }
-                ]}
-              >
-                <Ionicons 
-                  name={item.isFavorite ? "heart" : "heart-outline"} 
-                  size={20} 
-                  color={item.isFavorite ? "#EF4444" : "#9CA3AF"} 
-                />
-              </Pressable>
-              
-              {/* Botón de eliminar */}
-              <Pressable
-                onPress={onDelete}
-                className="p-2 rounded-full active:bg-gray-100"
-                style={({ pressed }) => [
-                  {
-                    transform: [{ scale: pressed ? 0.95 : 1 }],
-                  }
-                ]}
-              >
-                <Ionicons name="trash-outline" size={20} color="#EF4444" />
-              </Pressable>
-            </View>
-          </View>
-        </View>
+      {/* Source and Type Info */}
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#F2F2F7'
+      }}>
+        <Text style={{ fontSize: 11, color: '#8E8E93' }}>
+          Source: {item.source} • Type: {item.type}
+          {item.quality && ` • Quality: ${item.quality}`}
+        </Text>
+        <TouchableOpacity onPress={handlePress}>
+          <Ionicons
+            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color="#8E8E93"
+          />
+        </TouchableOpacity>
       </View>
 
-      {/* Instagram Comments Modal */}
-      {item.platform === 'instagram' && (
-        <InstagramCommentsModal
-          visible={showCommentsModal}
-          onClose={() => setShowCommentsModal(false)}
-          url={item.url}
-          postId={postId}
-          commentCount={totalComments}
-          isLoading={commentsLoading}
-          initialComments={item.comments ?? []}
-          onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
-        />
-      )}
-      {item.platform === 'instagram' && (
-        <SocialAnalysisModal
-          visible={showAnalysisModal}
-          onClose={() => setShowAnalysisModal(false)}
-          analysis={analysisInfo}
-          onRefresh={() => refreshInstagramAnalysis(item.id)}
-          platform="instagram"
-          url={item.url}
-        />
-      )}
-
-      {/* X Comments Modal */}
-      {(item.platform === 'twitter' || platformEff === 'x') && (
-        <XCommentsModal
-          visible={showXCommentsModal}
-          onClose={() => setShowXCommentsModal(false)}
-          url={item.url}
-          postId={postId}
-          commentCount={totalComments}
-          isLoading={commentsLoading}
-          initialComments={item.comments ?? []}
-          onRetry={postId ? () => fetchCommentsForItem(item.id) : undefined}
-        />
-      )}
-
-      {/* X Analysis Modal */}
-      {(item.platform === 'twitter' || platformEff === 'x') && (
-        <SocialAnalysisModal
-          visible={showXAnalysisModal}
-          onClose={() => setShowXAnalysisModal(false)}
-          analysis={asyncJob.state.isLoading ? {
-            ...xAnalysisInfo,
-            loading: true,
-            error: asyncJob.state.error || undefined,
-          } : xAnalysisInfo}
-          onRefresh={() => refreshXAnalysis(item.id)}
-          onCancel={asyncJob.state.canCancel ? asyncJob.cancelJob : undefined}
-          canCancel={asyncJob.state.canCancel}
-          platform="x"
-          url={item.url}
-        />
-      )}
-
-      {/* Outer error modal for failed insertions */}
-      {(item.platform === 'twitter' || platformEff === 'x') && (
-        <ExtractionErrorModal
-          visible={showOuterErrorModal}
-          onClose={() => setShowOuterErrorModal(false)}
-          url={item.url}
-          platform="x"
-          message={item.outerErrorMessage || 'There is an error'}
-        />
-      )}
-    </Pressable>
+      {/* Analysis Modal */}
+      <SocialAnalysisModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        analysis={analysisInfo as any}
+        platform={item.platform as any}
+        url={item.url}
+      />
+    </View>
   );
-}
+};

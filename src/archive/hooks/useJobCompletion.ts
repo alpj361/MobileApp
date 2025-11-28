@@ -69,9 +69,13 @@ export function useJobCompletion({
 }: UseJobCompletionOptions) {
 
   useEffect(() => {
+    console.log('[useJobCompletion] Setting up listeners for URL:', url);
+
     // Create filtered event listeners
     const completedListener = (event: any) => {
+      console.log('[useJobCompletion] Received job:completed event:', { eventUrl: event.url, listenUrl: url, matches: !url || event.url === url });
       if (!url || event.url === url) {
+        console.log('[useJobCompletion] ✅ Triggering onCompleted callback');
         onCompleted?.(event as JobCompletedEvent);
       }
     };

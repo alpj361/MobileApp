@@ -3,7 +3,7 @@ import { getXDataFromCache, setXDataToCache } from '../storage/xDataCache';
 import { XMedia, XMediaType } from './xMediaService';
 import { Platform } from 'react-native';
 import { ExtractedEntity } from '../types/entities';
-import { jobRecoveryService } from './jobRecoveryService';
+import { jobRecoveryService } from '../archive/services/jobRecoveryService';
 
 const EXTRACTORT_URL = process.env.EXPO_PUBLIC_EXTRACTORT_URL ?? 'https://api.standatpd.com';
 

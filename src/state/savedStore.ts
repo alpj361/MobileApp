@@ -1,1056 +1,482 @@
-import { create, StateCreator } from 'zustand';
+/**
+ * Simplified Saved Store
+ * Uses direct database persistence without complex job management
+ * Replaces the complex savedStore with a simpler approach
+ */
+
+import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { asyncStorageAdapter } from '../storage/platform-storage';
 import { LinkData } from '../api/link-processor';
-import { ImprovedLinkData, processImprovedLink } from '../api/improved-link-processor';
-import { extractInstagramPostId } from '../utils/instagram';
-import { extractXPostId } from '../utils/x';
-import { loadInstagramComments as loadIgComments, StoredInstagramComments } from '../storage/commentsRepo';
-import { fetchAndStoreInstagramComments } from '../services/extractorTService';
-import { analyzeInstagramPost as runInstagramAnalysis } from '../services/instagramAnalysisService';
-import { loadInstagramAnalysis } from '../storage/instagramAnalysisRepo';
-import { loadXComments, StoredXComments } from '../storage/xCommentsRepo';
-import { fetchXComments } from '../services/xCommentService';
-import { analyzeXPost as runXAnalysis } from '../services/xAnalysisService';
-import { loadXAnalysis } from '../storage/xAnalysisRepo';
-import { ExtractedEntity } from '../types/entities';
-import { getXDataFromCache } from '../storage/xDataCache';
+import { simplePostService, SimplePostResponse } from '../services/postPersistenceService';
 
 export interface SavedItem extends LinkData {
   id: string;
   source: 'chat' | 'clipboard' | 'manual';
   isFavorite?: boolean;
-  isPending?: boolean; // Item is being processed
-  // Outer error indicator for initial insertion failures
+  isPending?: boolean; // Only for immediate UI feedback during save
+  status?: 'saved' | 'processing' | 'completed' | 'failed'; // Database status
+  lastUpdated?: number;
+
+  // Keep existing fields for backward compatibility
   outerErrorMessage?: string;
-  // Codex relationship
-  codex_id?: string; // ID from codex_items table when saved to codex
-  // ✨ NUEVO: Categorización para nueva estructura de Codex
+  codex_id?: string;
   codex_category?: 'general' | 'monitoring' | 'wiki';
   codex_subcategory?: string;
   codex_metadata?: Record<string, any>;
-  // Improved metadata fields
   quality?: 'excellent' | 'good' | 'fair' | 'poor';
   contentScore?: number;
   hasCleanDescription?: boolean;
   imageQuality?: 'high' | 'medium' | 'low' | 'none';
   processingTime?: number;
-  lastUpdated?: number;
-  commentsInfo?: {
-    platform: 'instagram' | 'x';
-    postId: string;
-    totalCount?: number;
-    loadedCount: number;
-    loading: boolean;
-    lastUpdated?: number;
-    error?: string | null;
-    refreshing?: boolean;
-  };
-  analysisInfo?: {
-    postId: string;
-    type: 'video' | 'image' | 'carousel' | 'unknown';
-    summary?: string;
-    transcript?: string;
-    images?: Array<{ url: string; description: string }>;
-    caption?: string;
-    topic?: string;
-    sentiment?: 'positive' | 'negative' | 'neutral';
-    entities?: ExtractedEntity[];  // ✅ Extracted entities
-    loading: boolean;
-    error?: string | null;
-    lastUpdated?: number;
-  };
-  xAnalysisInfo?: {
-    postId: string;
-    type: 'video' | 'image' | 'text';
-    summary?: string;
-    transcript?: string;
-    images?: Array<{ url: string; description: string }>;
-    text?: string;
-    topic?: string;
-    sentiment?: 'positive' | 'negative' | 'neutral';
-    entities?: ExtractedEntity[];  // ✅ Extracted entities
-    loading: boolean;
-    error?: string | null;
-    lastUpdated?: number;
-  };
+
+  // Analysis fields (simplified)
+  analysisResult?: any; // Analysis data when completed
+  analysisError?: string;
 }
 
-interface SavedState {
+interface SimpleSavedState {
   items: SavedItem[];
   isLoading: boolean;
+  isInitialized: boolean;
+
+  // Analysis modal state
+  analysisModal: {
+    visible: boolean;
+    postUrl?: string;
+    stage: 'saving' | 'extracting' | 'analyzing' | 'completed' | 'error';
+    itemId?: string;
+  };
+
+  // Core actions
+  initializeStore: () => Promise<void>;
   addSavedItem: (linkData: LinkData, source?: SavedItem['source']) => Promise<boolean>;
   removeSavedItem: (id: string) => void;
-  toggleFavorite: (id: string) => void;
   updateSavedItem: (id: string, patch: Partial<SavedItem>) => void;
-  reprocessSavedItem: (id: string) => Promise<void>;
+  clearSavedItems: () => void;
+
+  // Analysis actions (simplified)
+  startAnalysis: (id: string) => Promise<void>;
+  pollForAnalysisCompletion: (id: string) => void;
+
+  // Modal actions
+  showAnalysisModal: (postUrl: string, itemId: string) => void;
+  hideAnalysisModal: () => void;
+  updateAnalysisStage: (stage: SimpleSavedState['analysisModal']['stage']) => void;
+
+  // Utility actions
+  toggleFavorite: (id: string) => void;
   setCodexId: (id: string, codex_id: string) => void;
+  setLoading: (loading: boolean) => void;
+
+  // Getters
   getSavedItems: () => SavedItem[];
   getSavedItemsByType: (type: LinkData['type']) => SavedItem[];
   getSavedItemsByQuality: (quality: SavedItem['quality']) => SavedItem[];
-  clearSavedItems: () => void;
-  setLoading: (loading: boolean) => void;
   getQualityStats: () => { excellent: number; good: number; fair: number; poor: number };
-  fetchCommentsForItem: (id: string) => Promise<void>;
-  refreshCommentsCount: (id: string) => Promise<void>;
-  analyzeInstagramPost: (id: string) => Promise<void>;
-  refreshInstagramAnalysis: (id: string) => Promise<void>;
-  analyzeXPost: (id: string) => Promise<void>;
-  refreshXAnalysis: (id: string) => Promise<void>;
 }
 
-const runningCommentFetches = new Set<string>();
-const runningItemProcessing = new Set<string>(); // Track items being processed to prevent duplicates
+export const useSavedStore = create<SimpleSavedState>()(
+  persist(
+    (set, get) => ({
+      items: [],
+      isLoading: false,
+      isInitialized: false,
 
-type SocialPlatform = 'instagram' | 'x';
+      // Analysis modal state
+      analysisModal: {
+        visible: false,
+        stage: 'saving'
+      },
 
-function detectPostPlatform(url: string, hint?: string | null): SocialPlatform | null {
-  const normalizedHint = hint?.toLowerCase();
-  if (normalizedHint === 'instagram') return 'instagram';
-  if (normalizedHint === 'twitter' || normalizedHint === 'x') return 'x';
+      /**
+       * Initialize store - load posts from backend
+       */
+      initializeStore: async () => {
+        if (get().isInitialized) return;
 
-  const lowerUrl = url.toLowerCase();
-  if (lowerUrl.includes('instagram.com') || lowerUrl.includes('instagr.am')) {
-    return 'instagram';
-  }
-  if (lowerUrl.includes('twitter.com') || lowerUrl.includes('x.com')) {
-    return 'x';
-  }
-  return null;
-}
+        console.log('[SimpleSavedStore] Initializing store...');
+        set({ isLoading: true });
 
-const createSavedState: StateCreator<SavedState> = (set, get) => {
-  const resolveItemPlatform = (item: SavedItem): SocialPlatform | null => {
-    if (item.commentsInfo?.platform) {
-      return item.commentsInfo.platform;
-    }
-    return detectPostPlatform(item.url, item.platform);
-  };
+        try {
+          const backendPosts = await simplePostService.loadPosts();
+          console.log(`[SimpleSavedStore] 📥 Loaded ${backendPosts.length} posts from backend`);
 
-  const startCommentFetch = async (
-    itemId: string,
-    url: string,
-    platform: SocialPlatform,
-    postId: string,
-    hintedTotal?: number,
-  ) => {
-    const fetchKey = `${platform}:${postId}`;
-    if (runningCommentFetches.has(fetchKey)) {
-      return;
-    }
+          // Log status distribution
+          const statusCounts = backendPosts.reduce((acc, post) => {
+            acc[post.status || 'unknown'] = (acc[post.status || 'unknown'] || 0) + 1;
+            return acc;
+          }, {} as Record<string, number>);
+          console.log('[SimpleSavedStore] Post statuses:', statusCounts);
 
-    runningCommentFetches.add(fetchKey);
-
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              commentsInfo: item.commentsInfo
-                ? { ...item.commentsInfo, platform, loading: true, error: null }
-                : {
-                    platform,
-                    postId,
-                    totalCount: hintedTotal,
-                    loadedCount: 0,
-                    loading: true,
-                    lastUpdated: undefined,
-                    error: null,
-                    refreshing: false,
-                  },
-            }
-          : item,
-      ),
-    }));
-
-    try {
-      const payload = platform === 'instagram'
-        ? await fetchAndStoreInstagramComments(url, postId, {
-            includeReplies: true,
-            commentLimit: 120,
-          })
-        : await fetchXComments(url, {
-            includeReplies: true,
-            limit: 120,
-            force: true,
-            fallbackCommentCount: hintedTotal,
+          set({
+            items: backendPosts,
+            isInitialized: true
           });
 
-      const previewComments = payload.comments.slice(0, 3);
-
-      set((state) => ({
-        items: state.items.map((item) => {
-          if (item.id !== itemId) return item;
-
-          const previousTotal = item.commentsInfo?.totalCount && item.commentsInfo.totalCount > 0
-            ? item.commentsInfo.totalCount
-            : (hintedTotal && hintedTotal > 0 ? hintedTotal : undefined);
-
-          const payloadTotal = payload.totalCount ?? hintedTotal ?? payload.extractedCount;
-          const stableTotal = (() => {
-            if (previousTotal && payloadTotal) {
-              return Math.max(previousTotal, payloadTotal);
+          // Recovery mechanism
+          backendPosts.forEach(post => {
+            if (post.status === 'saved' || post.status === 'processing') {
+              console.log(`[SimpleSavedStore] 🔄 RECOVERY NEEDED for: ${post.url} (ID: ${post.id}, Status: ${post.status})`);
+              get().startAnalysis(post.id);
             }
-            return previousTotal ?? payloadTotal;
-          })();
+          });
+        } catch (error) {
+          console.error('[SimpleSavedStore] ❌ Initialization failed:', error);
+          set({ isInitialized: true });
+        } finally {
+          set({ isLoading: false });
+        }
+      },
 
-          const nextEngagement = platform === 'x' && (payload as StoredXComments).engagement
-            ? (() => {
-                const base = { ...item.engagement };
-                const payloadEng = (payload as StoredXComments).engagement;
-                
-                // Solo actualizar si el nuevo valor es > 0 Y mayor que el actual
-                Object.keys(payloadEng).forEach(key => {
-                  const newVal = payloadEng[key];
-                  const oldVal = base[key] || 0;
-                  if (newVal > 0 && newVal > oldVal) {
-                    base[key] = newVal;
-                  }
-                });
-                
-                return {
-                  ...base,
-                  comments: stableTotal ??
-                    payloadEng?.comments ??
-                    item.engagement?.comments,
-                };
-              })()
-            : item.engagement;
+      /**
+       * Add a new saved item with immediate database persistence
+       */
+      addSavedItem: async (linkData: LinkData, source: SavedItem['source'] = 'manual') => {
+        const tempId = `temp_${Date.now()}`;
+        console.log(`[SimpleSavedStore] ➕ Adding new item: ${linkData.url} (TempID: ${tempId})`);
 
-          return {
-            ...item,
-            comments: previewComments,
-            commentsLoaded: payload.extractedCount > 0,
-            commentsInfo: {
-              platform,
-              postId,
-              totalCount: stableTotal,
-              loadedCount: payload.extractedCount,
-              loading: false,
-              lastUpdated: payload.savedAt,
-              error: null,
-              refreshing: false,
-            },
-            engagement: nextEngagement,
-          };
-        }),
-      }));
-    } catch (error) {
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                commentsInfo: item.commentsInfo
-                  ? {
-                      ...item.commentsInfo,
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo cargar comentarios',
-                      refreshing: false,
-                    }
-                  : item.commentsInfo,
-              }
-            : item,
-        ),
-      }));
-    } finally {
-      runningCommentFetches.delete(fetchKey);
-    }
-  };
-
-  const refreshCommentCount = async (itemId: string, url: string, platform: SocialPlatform, postId: string) => {
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              commentsInfo: item.commentsInfo
-                ? { ...item.commentsInfo, platform, refreshing: true, error: null }
-                : {
-                    platform,
-                    postId,
-                    totalCount: undefined,
-                    loadedCount: 0,
-                    loading: false,
-                    lastUpdated: undefined,
-                    error: null,
-                    refreshing: true,
-                  },
-            }
-          : item,
-      ),
-    }));
-
-    try {
-      if (platform === 'x') {
-        const payload = await fetchXComments(url, {
-          includeReplies: true,
-          limit: 120,
-          force: true,
-        });
-
-        const total = payload.totalCount ?? payload.extractedCount;
-
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  engagement: {
-                    ...item.engagement,
-                    comments: total ?? payload.engagement?.comments ?? item.engagement?.comments,
-                  },
-                  commentsInfo: item.commentsInfo
-                    ? {
-                        ...item.commentsInfo,
-                        platform,
-                        totalCount: total ?? item.commentsInfo.totalCount ?? 0,
-                        loadedCount: payload.extractedCount,
-                        lastUpdated: Date.now(),
-                        error: null,
-                      }
-                    : {
-                        platform,
-                        postId,
-                        totalCount: total,
-                        loadedCount: payload.extractedCount,
-                        loading: false,
-                        lastUpdated: Date.now(),
-                        error: null,
-                        refreshing: false,
-                      },
-                  comments: payload.comments.slice(0, 3),
-                  commentsLoaded: payload.extractedCount > 0,
-                }
-              : item,
-          ),
-        }));
-        return;
-      }
-
-      const refreshed = await processImprovedLink(url);
-      const refreshedCount = refreshed.engagement?.comments ?? 0;
-
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-                ? {
-                    ...item,
-                    engagement: refreshed.engagement ?? item.engagement,
-                    commentsInfo: item.commentsInfo
-                      ? {
-                          ...item.commentsInfo,
-                          platform,
-                          totalCount: Math.max(item.commentsInfo.totalCount ?? 0, refreshedCount),
-                          lastUpdated: Date.now(),
-                          refreshing: false,
-                          error: null,
-                        }
-                      : {
-                          platform,
-                          postId,
-                          totalCount: refreshedCount,
-                          loadedCount: 0,
-                          loading: false,
-                          lastUpdated: Date.now(),
-                          error: null,
-                          refreshing: false,
-                        },
-                  }
-                : item,
-        ),
-      }));
-    } catch (error) {
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                commentsInfo: item.commentsInfo
-                  ? {
-                      ...item.commentsInfo,
-                      refreshing: false,
-                      error: error instanceof Error ? error.message : 'No se pudo actualizar contador',
-                    }
-                  : item.commentsInfo,
-              }
-            : item,
-        ),
-      }));
-    }
-  };
-
-  const runAnalysisForItem = async (itemId: string, url: string, caption?: string, force = false) => {
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              analysisInfo: item.analysisInfo
-                ? { ...item.analysisInfo, loading: true, error: null }
-                : {
-                    postId: extractInstagramPostId(url) ?? '',
-                    type: 'unknown',
-                    loading: true,
-                    summary: undefined,
-                    transcript: undefined,
-                    images: undefined,
-                    caption,
-                    topic: undefined,
-                    sentiment: undefined,
-                    lastUpdated: undefined,
-                    error: null,
-                  },
-            }
-          : item,
-      ),
-    }));
-
-    try {
-      const analysis = await runInstagramAnalysis(url, caption, { force });
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                analysisInfo: {
-                  postId: analysis.postId,
-                  type: analysis.type,
-                  summary: analysis.summary,
-                  transcript: analysis.transcript,
-                  images: analysis.images,
-                  caption: analysis.caption,
-                  topic: analysis.topic,
-                  sentiment: analysis.sentiment,
-                  loading: false,
-                  error: null,
-                  lastUpdated: analysis.createdAt,
-                },
-              }
-            : item,
-        ),
-      }));
-    } catch (error) {
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                analysisInfo: item.analysisInfo
-                  ? {
-                      ...item.analysisInfo,
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo analizar el post',
-                    }
-                  : {
-                      postId: extractInstagramPostId(url) ?? '',
-                      type: 'unknown',
-                      summary: undefined,
-                      transcript: undefined,
-                      images: undefined,
-                      caption,
-                      topic: undefined,
-                      sentiment: undefined,
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo analizar el post',
-                      lastUpdated: undefined,
-                    },
-              }
-            : item,
-        ),
-      }));
-    }
-  };
-
-  const runXAnalysisForItem = async (itemId: string, url: string, text?: string, force = false) => {
-    const postId = extractXPostId(url);
-    if (!postId) {
-      console.error('[SavedStore] Cannot extract post ID from URL:', url);
-      return;
-    }
-
-    // If force=true (from refresh), try to load from cache first instead of re-processing
-    if (force) {
-      console.log('[SavedStore] Refresh requested - checking cache first before re-processing');
-
-      // Step 1: Check in-memory cache (xDataCache) first - this is where completed jobs are stored
-      const cacheKey = `complete:${url}`;
-      const cachedComplete = getXDataFromCache(cacheKey);
-      if (cachedComplete) {
-        console.log('[SavedStore] ✅ Found completed job data in xDataCache - using it');
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  xAnalysisInfo: {
-                    postId: postId,
-                    type: cachedComplete.media?.type === 'video' ? 'video' : cachedComplete.media?.type === 'image' ? 'image' : 'text',
-                    summary: cachedComplete.vision || undefined,
-                    transcript: cachedComplete.transcription || undefined,
-                    images: cachedComplete.media?.urls?.map((url: string) => ({ url, description: '' })),
-                    text: cachedComplete.tweet?.text || text,
-                    topic: undefined,
-                    sentiment: 'neutral',
-                    entities: cachedComplete.entities || [],
-                    loading: false,
-                    error: null,
-                    lastUpdated: Date.now(),
-                  },
-                }
-              : item,
-          ),
-        }));
-        return;
-      }
-      console.log('[SavedStore] No completed job data in xDataCache');
-
-      // Step 2: Check database cache (x_analyses table)
-      const cachedAnalysis = await loadXAnalysis(postId);
-      if (cachedAnalysis) {
-        console.log('[SavedStore] ✅ Found cached analysis in database - using it instead of re-processing');
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === itemId
-              ? {
-                  ...item,
-                  xAnalysisInfo: {
-                    postId: cachedAnalysis.postId,
-                    type: cachedAnalysis.type,
-                    summary: cachedAnalysis.summary,
-                    transcript: cachedAnalysis.transcript,
-                    images: cachedAnalysis.images,
-                    text: cachedAnalysis.text,
-                    topic: cachedAnalysis.topic,
-                    sentiment: cachedAnalysis.sentiment,
-                    entities: cachedAnalysis.entities || [],
-                    loading: false,
-                    error: null,
-                    lastUpdated: cachedAnalysis.createdAt,
-                  },
-                }
-              : item,
-          ),
-        }));
-        return;
-      }
-      console.log('[SavedStore] No cached analysis found in database - will re-process');
-    }
-
-    set((state) => ({
-      items: state.items.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              xAnalysisInfo: item.xAnalysisInfo
-                ? { ...item.xAnalysisInfo, loading: true, error: null }
-                : {
-                    postId: postId,
-                    type: 'text',
-                    loading: true,
-                    summary: undefined,
-                    transcript: undefined,
-                    images: undefined,
-                    text,
-                    topic: undefined,
-                    sentiment: 'neutral',
-                    lastUpdated: undefined,
-                    error: null,
-                  },
-            }
-          : item,
-      ),
-    }));
-
-    try {
-      const analysis = await runXAnalysis(url, text, { force });
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                xAnalysisInfo: {
-                  postId: analysis.postId,
-                  type: analysis.type,
-                  summary: analysis.summary,
-                  transcript: analysis.transcript,
-                  images: analysis.images,
-                  text: analysis.text,
-                  topic: analysis.topic,
-                  sentiment: analysis.sentiment,
-                  entities: analysis.entities || [],  // ✅ Include entities
-                  loading: false,
-                  error: null,
-                  lastUpdated: analysis.createdAt,
-                },
-              }
-            : item,
-        ),
-      }));
-    } catch (error) {
-      set((state) => ({
-        items: state.items.map((item) =>
-          item.id === itemId
-            ? {
-                ...item,
-                xAnalysisInfo: item.xAnalysisInfo
-                  ? {
-                      ...item.xAnalysisInfo,
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo analizar el post de X',
-                    }
-                  : {
-                      postId: extractXPostId(url) ?? '',
-                      type: 'text',
-                      summary: undefined,
-                      transcript: undefined,
-                      images: undefined,
-                      text,
-                      topic: undefined,
-                      sentiment: 'neutral',
-                      loading: false,
-                      error: error instanceof Error ? error.message : 'No se pudo analizar el post de X',
-                      lastUpdated: undefined,
-                    },
-              }
-            : item,
-        ),
-      }));
-    }
-  };
-
-  return {
-    items: [],
-    isLoading: false,
-
-    addSavedItem: async (linkData, source = 'manual') => {
-      // Check if already saved
-      const existingItem = get().items.find((item) => item.url === linkData.url);
-      if (existingItem) {
-        console.log('[SavedStore] Link already saved:', linkData.url);
-        return false;
-      }
-
-      // Check if currently being processed to prevent duplicates
-      if (runningItemProcessing.has(linkData.url)) {
-        console.log('[SavedStore] Link is already being processed:', linkData.url);
-        return false;
-      }
-
-      // Mark as being processed
-      runningItemProcessing.add(linkData.url);
-
-      // Create a pending placeholder item to show loading state
-      const pendingId = `pending-${Date.now()}-${Math.random()}`;
-      const pendingItem: SavedItem = {
-        id: pendingId,
-        url: linkData.url,
-        title: 'Procesando...',
-        description: '',
-        domain: new URL(linkData.url).hostname.replace('www.', ''),
-        type: 'article',
-        platform: null,
-        imageData: { url: '', quality: 'none' },
-        engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
-        source,
-        isPending: true, // Mark as pending
-        timestamp: Date.now(),
-      };
-
-      // Add pending item immediately for instant UI feedback
-      set((state) => ({
-        items: [pendingItem, ...state.items],
-      }));
-
-      let improvedData: ImprovedLinkData | LinkData = linkData;
-      try {
-        improvedData = await processImprovedLink(linkData.url);
-      } catch (error) {
-        console.log('[SavedStore] Improved processing failed, using original data:', error);
-        // ✅ NO eliminamos el item - lo guardamos con datos básicos
-        // Actualizar item pending con datos básicos de la URL
-        const detectedPlatform = detectPostPlatform(linkData.url, null);
-        const basicItem: SavedItem = {
-          ...pendingItem,
-          title: linkData.url,
-          description: `Contenido de ${linkData.url}`,
-          isPending: false,
-          platform: detectedPlatform,
-          // Mostrar un modal de error cuando falle la inserción para X/Twitter
-          ...(detectedPlatform === 'x'
-            ? { outerErrorMessage: 'There is an error processing this X post.' }
-            : {}),
+        const newItem: SavedItem = {
+          ...linkData,
+          id: tempId,
+          source,
+          isPending: true,
+          status: 'saved',
+          lastUpdated: Date.now(),
         };
 
-        set((state) => ({
-          items: state.items.map((item) =>
-            item.id === pendingId ? basicItem : item
-          ),
-        }));
+        // Optimistic update
+        set(state => ({ items: [newItem, ...state.items] }));
+        get().showAnalysisModal(newItem.url, newItem.id);
 
-        // Remove from processing set
-        runningItemProcessing.delete(linkData.url);
-        return true; // ✅ Return true porque sí guardamos el item
-      } finally {
-        // Always remove from processing set when done
-        runningItemProcessing.delete(linkData.url);
-      }
+        try {
+          const response = await simplePostService.savePost(newItem);
 
-      const baseData = improvedData as LinkData;
-      const platform = detectPostPlatform(linkData.url, baseData.platform);
-      let postId = '';
-      let cachedComments: StoredInstagramComments | StoredXComments | null = null;
-      let cachedAnalysis = null;
-      let cachedXAnalysis = null;
-
-      if (platform === 'instagram') {
-        postId = extractInstagramPostId(linkData.url) ?? '';
-        if (postId) {
-          try {
-            cachedComments = await loadIgComments(postId);
-          } catch (error) {
-            console.log('Failed to load cached Instagram comments:', error);
+          if (!response.success || !response.post) {
+            throw new Error(response.error || 'Failed to save to backend');
           }
 
-          try {
-            cachedAnalysis = await loadInstagramAnalysis(postId);
-          } catch (error) {
-            console.log('Failed to load cached Instagram analysis:', error);
-          }
-        }
-      } else if (platform === 'x') {
-        postId = extractXPostId(linkData.url) ?? '';
-        if (postId) {
-          try {
-            cachedComments = await loadXComments(postId);
-          } catch (error) {
-            console.log('Failed to load cached X comments:', error);
-          }
+          const realId = response.post.id;
+          console.log(`[SimpleSavedStore] ✅ Saved to backend. TempID: ${tempId} -> RealID: ${realId}`);
 
-          try {
-            cachedXAnalysis = await loadXAnalysis(postId);
-          } catch (error) {
-            console.log('Failed to load cached X analysis:', error);
-          }
-        }
-      }
+          // Update with real ID from backend
+          set(state => ({
+            items: state.items.map(item =>
+              item.id === tempId
+                ? { ...item, id: realId, isPending: false }
+                : item
+            )
+          }));
 
-      // Construir engagement de forma segura sin sobrescribir con undefined
-      const candidateEngagement: SavedItem['engagement'] = {
-        ...(linkData.engagement || {}),
-        ...(baseData.engagement || {}),
-      };
-      console.log('[DEBUG] linkData.engagement:', linkData.engagement);
-      console.log('[DEBUG] baseData.engagement:', baseData.engagement);
-      console.log('[DEBUG] candidateEngagement AFTER merge:', candidateEngagement);
-      console.log('[DEBUG] cachedComments?.engagement:', cachedComments?.engagement);
-      
-      // BLOQUEAR: No permitir que cachedComments sobrescriba métricas válidas
-      if (cachedComments && 'engagement' in cachedComments && cachedComments.engagement) {
-        console.log('[DEBUG] cachedComments.engagement detected:', cachedComments.engagement);
-        
-        // Verificar si cachedComments tiene métricas válidas (no todas en 0)
-        const cachedHasValidMetrics = Object.values(cachedComments.engagement).some(v => typeof v === 'number' && v > 0);
-        const currentHasValidMetrics = Object.values(candidateEngagement).some(v => typeof v === 'number' && v > 0);
-        
-        if (cachedHasValidMetrics && !currentHasValidMetrics) {
-          console.log('[DEBUG] Using cachedComments metrics (current has no valid metrics)');
-          Object.assign(candidateEngagement, cachedComments.engagement);
-        } else if (currentHasValidMetrics) {
-          console.log('[DEBUG] BLOCKING cachedComments - current metrics are valid');
-          // NO hacer nada - mantener las métricas actuales
-        } else {
-          console.log('[DEBUG] Both sources have no valid metrics - keeping current');
-        }
-      }
-      
-      // PROTECCIÓN: Si linkData tiene métricas válidas, priorizarlas
-      if (linkData.engagement && Object.values(linkData.engagement).some(v => typeof v === 'number' && v > 0)) {
-        console.log('[DEBUG] PROTECTING linkData.engagement - overriding candidateEngagement');
-        Object.assign(candidateEngagement, linkData.engagement);
-        console.log('[DEBUG] FINAL PROTECTED candidateEngagement:', candidateEngagement);
-      }
-      
-      // FORZAR: Si tenemos métricas válidas, NO permitir que se sobrescriban
-      const hasValidMetrics = Object.values(candidateEngagement).some(v => typeof v === 'number' && v > 0);
-      if (hasValidMetrics) {
-        console.log('[DEBUG] FORCING valid metrics - blocking any overwrites');
-        // Marcar como protegido para evitar sobrescritura posterior
-        candidateEngagement._protected = true;
-      }
-      const engagementComments = candidateEngagement?.comments;
-      if (typeof engagementComments !== 'number' && typeof cachedComments?.totalCount === 'number') {
-        candidateEngagement.comments = cachedComments.totalCount;
-      }
-      const hasEngagement = Object.values(candidateEngagement ?? {}).some((value) => typeof value === 'number' && !Number.isNaN(value));
-      const engagement = hasEngagement ? candidateEngagement : undefined;
-      const cachedTotal = cachedComments?.totalCount ?? cachedComments?.extractedCount;
-      const totalCount = postId
-        ? (engagementComments ?? cachedTotal)
-        : engagementComments;
-      const loadedCount = cachedComments?.extractedCount ?? 0;
-      const now = Date.now();
-      const shouldRefetch = Boolean(
-        postId && platform &&
-          (!cachedComments ||
-            loadedCount === 0 ||
-            (engagement?.comments && loadedCount < engagement.comments) ||
-            (cachedComments.savedAt && now - cachedComments.savedAt > 6 * 60 * 60 * 1000))
-      );
-
-      const commentsInfo = postId && platform
-        ? {
-            platform,
-            postId,
-            totalCount,
-            loadedCount,
-            loading: shouldRefetch,
-            lastUpdated: cachedComments?.savedAt,
-            error: null,
-            refreshing: false,
-          }
-        : undefined;
-
-      const previewComments = cachedComments?.comments?.slice(0, 3) ?? baseData.comments?.slice(0, 3) ?? [];
-
-      const newItem: SavedItem = {
-        ...baseData,
-        engagement,
-        comments: previewComments,
-        commentsLoaded: cachedComments ? cachedComments.extractedCount > 0 : baseData.commentsLoaded ?? false,
-        id: Date.now().toString() + Math.random().toString(36).substring(2, 11),
-        source,
-        isFavorite: false,
-        commentsInfo,
-        analysisInfo: cachedAnalysis
-          ? {
-              postId: cachedAnalysis.postId,
-              type: cachedAnalysis.type,
-              summary: cachedAnalysis.summary,
-              transcript: cachedAnalysis.transcript,
-              images: cachedAnalysis.images,
-              caption: cachedAnalysis.caption,
-              topic: cachedAnalysis.topic,
-              sentiment: cachedAnalysis.sentiment,
-              loading: false,
-              error: null,
-              lastUpdated: cachedAnalysis.createdAt,
+          // Update modal with real ID
+          set(state => ({
+            analysisModal: {
+              ...state.analysisModal,
+              itemId: realId
             }
-          : undefined,
-        xAnalysisInfo: cachedXAnalysis
-          ? {
-              postId: cachedXAnalysis.postId,
-              type: cachedXAnalysis.type,
-              summary: cachedXAnalysis.summary,
-              transcript: cachedXAnalysis.transcript,
-              images: cachedXAnalysis.images,
-              text: cachedXAnalysis.text,
-              topic: cachedXAnalysis.topic,
-              sentiment: cachedXAnalysis.sentiment,
-              entities: cachedXAnalysis.entities || [],  // ✅ Load cached entities
-              loading: false,
-              error: null,
-              lastUpdated: cachedXAnalysis.createdAt,
-            }
-          : undefined,
-      };
+          }));
 
-      // Replace pending item with actual processed item
-      set((state) => ({
-        items: state.items.map((item) => 
-          item.id === pendingId ? newItem : item
-        ),
-      }));
+          // Start analysis with REAL ID
+          console.log(`[SimpleSavedStore] 🚀 Triggering analysis for RealID: ${realId}`);
+          get().startAnalysis(realId);
 
-      if (postId && platform && shouldRefetch) {
-        startCommentFetch(newItem.id, linkData.url, platform, postId, totalCount);
-      }
+          return true;
+        } catch (error) {
+          console.error('[SimpleSavedStore] ❌ Failed to save item:', error);
+          // Revert optimistic update
+          set(state => ({
+            items: state.items.filter(i => i.id !== tempId)
+          }));
+          get().hideAnalysisModal();
+          return false;
+        }
+      },
 
-      // Auto-analyze Instagram posts in background
-      if (platform === 'instagram' && postId && !cachedAnalysis) {
-        console.log('[SavedStore] Auto-analyzing Instagram post:', postId);
-        runAnalysisForItem(newItem.id, linkData.url, baseData.description).catch((error) => {
-          console.error('[SavedStore] Auto-analysis failed for Instagram post:', error);
-        });
-      }
-
-      // Auto-analyze X posts DISABLED - analysis takes too long and times out in browser
-      // Users can manually trigger analysis by clicking on the post
-      if (platform === 'x' && postId && !cachedXAnalysis) {
-        console.log('[SavedStore] X post saved - analysis available on demand');
-        // Analysis will be triggered manually by user clicking on the card
-      }
-
-      return true;
-    },
-
-    removeSavedItem: (id) => {
-      set((state) => ({
-        items: state.items.filter(item => item.id !== id),
-      }));
-    },
-
-    toggleFavorite: (id) => {
-      set((state) => ({
-        items: state.items.map(item =>
-          item.id === id ? { ...item, isFavorite: !item.isFavorite } : item
-        ),
-      }));
-    },
-
-    updateSavedItem: (id, patch) => {
-      set((state) => ({
-        items: state.items.map(item => item.id === id ? { ...item, ...patch } : item),
-      }));
-    },
-
-    reprocessSavedItem: async (id) => {
-      const item = get().items.find(i => i.id === id);
-      if (!item) return;
-      
-      try {
-        // Use improved processing
-        const fresh = await processImprovedLink(item.url);
-        
-        set((state) => ({
-          items: state.items.map(i => 
-            i.id === id 
-              ? { ...i, 
-                  ...fresh,
-                  id: i.id, // Keep original ID
-                  source: i.source, // Keep original source
-                  isFavorite: i.isFavorite, // Keep favorite status
-                  lastUpdated: Date.now() } 
-              : i),
+      removeSavedItem: async (id: string) => {
+        console.log(`[SimpleSavedStore] 🗑️ Removing item: ${id}`);
+        set(state => ({
+          items: state.items.filter(i => i.id !== id)
         }));
-      } catch (e) {
-        console.error('Reprocessing failed:', e);
-        // Keep existing item on error
-      }
-    },
-    
-    setCodexId: (id: string, codex_id: string) => {
-      set((state) => ({
-        items: state.items.map(item => 
-          item.id === id 
-            ? { ...item, codex_id }
-            : item
-        ),
-      }));
-    },
-    
-    getSavedItems: () => {
-      return get().items;
-    },
-    
-    getSavedItemsByType: (type) => {
-      return get().items.filter(item => item.type === type);
-    },
+        await simplePostService.deletePost(id);
+      },
 
-    getSavedItemsByQuality: (quality) => {
-      return get().items.filter(item => item.quality === quality);
-    },
-    
-    clearSavedItems: () => {
-      set({ items: [] });
-    },
-    
-    setLoading: (loading) => set({ isLoading: loading }),
+      updateSavedItem: (id: string, patch: Partial<SavedItem>) => {
+        // console.log(`[SimpleSavedStore] 📝 Updating item ${id}:`, Object.keys(patch));
+        set(state => ({
+          items: state.items.map(item =>
+            item.id === id
+              ? { ...item, ...patch, lastUpdated: Date.now() }
+              : item
+          )
+        }));
+      },
 
-    getQualityStats: () => {
-      const items = get().items;
-      return {
-        excellent: items.filter(item => item.quality === 'excellent').length,
-        good: items.filter(item => item.quality === 'good').length,
-        fair: items.filter(item => item.quality === 'fair').length,
-        poor: items.filter(item => item.quality === 'poor' || !item.quality).length,
-      };
-    },
+      clearSavedItems: () => {
+        console.log('[SimpleSavedStore] 🧹 Clearing all items');
+        set({ items: [] });
+        // Note: This doesn't clear backend data - implement if needed
+      },
 
-    fetchCommentsForItem: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+      /**
+       * Start analysis for an item
+       */
+      startAnalysis: async (id: string) => {
+        const item = get().items.find(i => i.id === id);
+        if (!item) {
+          console.error(`[SimpleSavedStore] ❌ startAnalysis: Item not found for ID: ${id}`);
+          return;
+        }
 
-      const platform = resolveItemPlatform(item);
-      const postId = item.commentsInfo?.postId ?? (platform === 'instagram'
-        ? extractInstagramPostId(item.url) ?? ''
-        : platform === 'x'
-          ? extractXPostId(item.url) ?? ''
-          : '');
+        console.log(`[SimpleSavedStore] 🎬 Starting analysis for: ${item.url} (ID: ${id})`);
 
-      if (!platform || !postId) {
-        return;
-      }
+        // Update status to processing and modal stage
+        get().updateSavedItem(id, { status: 'processing' });
+        get().updateAnalysisStage('analyzing');
 
-      startCommentFetch(
-        item.id,
-        item.url,
-        platform,
-        postId,
-        item.commentsInfo?.totalCount
-      );
-    },
-    refreshCommentsCount: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+        // Start analysis promise chain
+        simplePostService.startAnalysis(item)
+          .then((result) => {
+            console.log(`[SimpleSavedStore] 📩 Analysis promise resolved for ${id}. Success: ${result?.success}`);
+            if (result && result.success) {
+              console.log(`[SimpleSavedStore] ✅ Analysis Data Received for ${id}:`, {
+                hasData: !!result.data,
+                keys: result.data ? Object.keys(result.data) : [],
+                transcriptionCount: result.data?.transcription?.length,
+                aiGenerated: !!result.data?.ai_generated
+              });
 
-      const platform = resolveItemPlatform(item);
-      const postId = item.commentsInfo?.postId ?? (platform === 'instagram'
-        ? extractInstagramPostId(item.url) ?? ''
-        : platform === 'x'
-          ? extractXPostId(item.url) ?? ''
-          : '');
+              get().updateSavedItem(id, {
+                status: 'completed',
+                analysisResult: result.data, // Direct update!
+                lastUpdated: Date.now()
+              });
+              get().updateAnalysisStage('completed');
+            } else {
+              console.warn(`[SimpleSavedStore] ⚠️ Analysis resolved but success=false for ${id}`, result);
+            }
+          })
+          .catch(error => {
+            console.error(`[SimpleSavedStore] ❌ Analysis failed for ${id}:`, error);
+            get().updateSavedItem(id, {
+              status: 'failed',
+              analysisError: error instanceof Error ? error.message : 'Analysis failed'
+            });
+            get().updateAnalysisStage('error');
+            // Hide modal after 3 seconds
+            setTimeout(() => get().hideAnalysisModal(), 3000);
+          });
 
-      if (!platform || !postId) return;
+        // Keep polling as backup
+        get().pollForAnalysisCompletion(id);
+      },
 
-      await refreshCommentCount(item.id, item.url, platform, postId);
-    },
-    analyzeInstagramPost: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+      /**
+       * Poll for analysis completion
+       */
+      pollForAnalysisCompletion: (id: string) => {
+        const pollInterval = setInterval(async () => {
+          try {
+            const updates = await simplePostService.checkForUpdates();
+            const item = get().items.find(i => i.id === id);
 
-      await runAnalysisForItem(item.id, item.url, item.description);
-    },
-    refreshInstagramAnalysis: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+            if (!item) {
+              clearInterval(pollInterval);
+              return;
+            }
 
-      await runAnalysisForItem(item.id, item.url, item.description, true);
-    },
-    analyzeXPost: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+            const update = updates.find(u => u.url === item.url);
 
-      await runXAnalysisForItem(item.id, item.url, item.description);
-    },
-    refreshXAnalysis: async (id: string) => {
-      const item = get().items.find((saved) => saved.id === id);
-      if (!item) {
-        return;
-      }
+            if (update && update.status === 'completed') {
+              get().updateSavedItem(id, {
+                status: 'completed',
+                analysisResult: update.analysis_data,
+                lastUpdated: new Date(update.updated_at).getTime()
+              });
 
-      await runXAnalysisForItem(item.id, item.url, item.description, true);
-    },
-  };
-};
+              get().updateAnalysisStage('completed');
 
-export const useSavedStore = create<SavedState>()(
-  persist(createSavedState, {
-    name: 'saved-storage',
-    storage: createJSONStorage(() => asyncStorageAdapter),
-    partialize: (state) => ({ 
-      items: state.items,
-      // Don't persist loading state
+              // Hide modal after 2 seconds to show completion
+              setTimeout(() => get().hideAnalysisModal(), 2000);
+
+              clearInterval(pollInterval);
+            } else if (update && update.status === 'failed') {
+              get().updateSavedItem(id, {
+                status: 'failed',
+                analysisError: 'Analysis failed'
+              });
+
+              get().updateAnalysisStage('error');
+              setTimeout(() => get().hideAnalysisModal(), 3000);
+
+              clearInterval(pollInterval);
+            }
+          } catch (error) {
+            console.error('[SimpleSavedStore] Error polling for updates:', error);
+          }
+        }, 3000); // Poll every 3 seconds
+
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          get().updateAnalysisStage('error');
+          setTimeout(() => get().hideAnalysisModal(), 3000);
+        }, 300000);
+      },
+
+      /**
+       * Show analysis modal
+       */
+      showAnalysisModal: (postUrl: string, itemId: string) => {
+        set(state => ({
+          analysisModal: {
+            visible: true,
+            postUrl,
+            itemId,
+            stage: 'saving'
+          }
+        }));
+      },
+
+      /**
+       * Hide analysis modal
+       */
+      hideAnalysisModal: () => {
+        set(state => ({
+          analysisModal: {
+            visible: false,
+            stage: 'saving'
+          }
+        }));
+      },
+
+      /**
+       * Update analysis stage
+       */
+      updateAnalysisStage: (stage: SimpleSavedState['analysisModal']['stage']) => {
+        set(state => ({
+          analysisModal: {
+            ...state.analysisModal,
+            stage
+          }
+        }));
+      },
+
+      /**
+       * Toggle favorite status
+       */
+      toggleFavorite: (id: string) => {
+        set(state => ({
+          items: state.items.map(item =>
+            item.id === id
+              ? { ...item, isFavorite: !item.isFavorite }
+              : item
+          )
+        }));
+      },
+
+      /**
+       * Set codex ID for an item
+       */
+      setCodexId: (id: string, codex_id: string) => {
+        get().updateSavedItem(id, { codex_id });
+      },
+
+      /**
+       * Clear all saved items
+       */
+
+
+      /**
+       * Set loading state
+       */
+      setLoading: (loading: boolean) => {
+        set({ isLoading: loading });
+      },
+
+      /**
+       * Get all saved items
+       */
+      getSavedItems: () => get().items,
+
+      /**
+       * Get saved items by type
+       */
+      getSavedItemsByType: (type: LinkData['type']) => {
+        return get().items.filter(item => item.type === type);
+      },
+
+      /**
+       * Get saved items by quality
+       */
+      getSavedItemsByQuality: (quality: SavedItem['quality']) => {
+        return get().items.filter(item => item.quality === quality);
+      },
+
+      /**
+       * Get quality statistics
+       */
+      getQualityStats: () => {
+        const items = get().items;
+        return items.reduce(
+          (stats, item) => {
+            if (item.quality) {
+              stats[item.quality]++;
+            }
+            return stats;
+          },
+          { excellent: 0, good: 0, fair: 0, poor: 0 }
+        );
+      },
     }),
-  })
+    {
+      name: 'simple-saved-storage',
+      storage: createJSONStorage(() => asyncStorageAdapter),
+      partialize: (state) => ({
+        items: state.items,
+        // Exclude isLoading, isInitialized, and analysisModal
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.isLoading = false;
+          state.isInitialized = false; // Force re-initialization on app start
+        }
+      },
+    }
+  )
 );
+
+/**
+ * Hook to periodically check for analysis updates
+ * Simple polling mechanism for completed analyses
+ */
+export const useAnalysisUpdates = () => {
+  const updateSavedItem = useSavedStore(state => state.updateSavedItem);
+
+  const checkForUpdates = async () => {
+    try {
+      const updates = await simplePostService.checkForUpdates();
+
+      updates.forEach(update => {
+        // Find item by URL since backend might have different IDs
+        const items = useSavedStore.getState().items;
+        const item = items.find(i => i.url === update.url);
+
+        if (item) {
+          updateSavedItem(item.id, {
+            status: update.status as any,
+            analysisResult: update.analysis_data,
+            lastUpdated: new Date(update.updated_at).getTime()
+          });
+        }
+      });
+
+      if (updates.length > 0) {
+        console.log(`[SimpleSavedStore] Applied ${updates.length} analysis updates`);
+      }
+    } catch (error) {
+      console.error('[SimpleSavedStore] Error checking for updates:', error);
+    }
+  };
+
+  return { checkForUpdates };
+};

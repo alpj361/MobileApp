@@ -4,9 +4,9 @@
  * Jobs persist on server, not in localStorage
  */
 
-import { getApiUrl } from '../config/backend';
-import { guestSessionManager } from './guestSessionManager';
-import { XAsyncJob } from './xAsyncService';
+import { getApiUrl } from '../../config/backend';
+import { guestSessionManager } from '../../services/guestSessionManager';
+import { XAsyncJob } from '../../services/xAsyncService';
 
 export interface ActiveJobInfo {
   jobId: string;
@@ -94,9 +94,9 @@ class JobRecoveryService {
       return [];
     }
 
-    // Filter only jobs that are still processing
+    // ✅ FIX Bug #4: Include 'completed' jobs so frontend can recover results
     const processingJobs = activeJobs.filter(
-      job => job.status === 'queued' || job.status === 'processing'
+      job => job.status === 'queued' || job.status === 'processing' || job.status === 'completed'
     );
 
     console.log(`[JobRecovery] Found ${processingJobs.length} job(s) to resume`);

@@ -46,9 +46,17 @@ export default function SocialAnalysisModal({
 }: SocialAnalysisModalProps) {
   const isLoading = analysis?.loading;
   const hasError = !!analysis?.error && !analysis?.loading;
-  const hasData = !isLoading && !hasError && (analysis?.summary || analysis?.transcript || analysis?.images?.length);
+  const hasData = !isLoading && !hasError && (
+    analysis?.summary ||
+    analysis?.transcript ||
+    analysis?.images?.length ||
+    (analysis as any)?.transcription?.length ||
+    (analysis as any)?.media_analysis?.length
+  );
   const parsedSummary = parseSummary(analysis?.summary);
   const [transcriptExpanded, setTranscriptExpanded] = React.useState(false);
+  const [videoTranscriptExpanded, setVideoTranscriptExpanded] = React.useState<{ [key: number]: boolean }>({});
+  const [imageAnalysisExpanded, setImageAnalysisExpanded] = React.useState<{ [key: number]: boolean }>({});
   const [copied, setCopied] = React.useState(false);
   const [reportModalVisible, setReportModalVisible] = React.useState(false);
   const [reportText, setReportText] = React.useState('');
@@ -349,8 +357,8 @@ export default function SocialAnalysisModal({
                   {analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long')
                     ? 'Tiempo de espera agotado'
                     : analysis?.error?.includes('cancelled') || analysis?.error?.includes('canceled')
-                    ? 'Análisis cancelado'
-                    : 'No se pudo analizar el post'
+                      ? 'Análisis cancelado'
+                      : 'No se pudo analizar el post'
                   }
                 </Text>
               </View>
@@ -358,8 +366,8 @@ export default function SocialAnalysisModal({
                 {analysis?.error?.includes('timeout') || analysis?.error?.includes('took too long')
                   ? 'El servidor tardó demasiado en procesar el contenido. Esto puede deberse a un video muy largo o problemas temporales del servicio.'
                   : analysis?.error?.includes('cancelled') || analysis?.error?.includes('canceled')
-                  ? 'El análisis fue cancelado por el usuario.'
-                  : analysis?.error || 'Intenta de nuevo más tarde.'
+                    ? 'El análisis fue cancelado por el usuario.'
+                    : analysis?.error || 'Intenta de nuevo más tarde.'
                 }
               </Text>
               {onRefresh && !analysis?.error?.includes('cancelled') && !analysis?.error?.includes('canceled') && (
@@ -511,6 +519,127 @@ export default function SocialAnalysisModal({
                     <Text style={styles.transcriptText}>{analysis.transcript}</Text>
                   </View>
                 )}
+              </View>
+            )}
+
+            {/* Video/Audio Transcriptions Section */}
+            {(analysis as any)?.transcription && Array.isArray((analysis as any).transcription) && (analysis as any).transcription.length > 0 && (
+              <View style={styles.transcriptCard}>
+                <View style={styles.transcriptHeader}>
+                  <View style={styles.transcriptTitleRow}>
+                    <Ionicons name="videocam" size={20} color="#7C3AED" />
+                    <Text style={styles.transcriptTitle}>Transcripciones de Video/Audio</Text>
+                  </View>
+                  <View style={styles.summaryBadge}>
+                    <Text style={styles.summaryBadgeText}>
+                      {(analysis as any).transcription.length} {(analysis as any).transcription.length === 1 ? 'archivo' : 'archivos'}
+                    </Text>
+                  </View>
+                </View>
+
+                {(analysis as any).transcription.map((trans: any, idx: number) => (
+                  <View key={idx} style={styles.transcriptionItem}>
+                    <Pressable
+                      onPress={() => setVideoTranscriptExpanded(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      style={styles.transcriptionItemHeader}
+                    >
+                      <View style={styles.transcriptionItemTitleRow}>
+                        <View style={styles.transcriptionIconContainer}>
+                          <Text style={styles.transcriptionTypeEmoji}>
+                            {trans.type === 'video' ? '🎥' : trans.type === 'audio' ? '🎵' : '📹'}
+                          </Text>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.transcriptionItemTitle}>
+                            {trans.type === 'video' ? 'Video' : trans.type === 'audio' ? 'Audio' : 'Media'} {idx + 1}
+                          </Text>
+                          {trans.metadata?.words_count && (
+                            <Text style={styles.transcriptionWordCount}>
+                              {trans.metadata.words_count} palabras
+                            </Text>
+                          )}
+                        </View>
+                        <Ionicons
+                          name={videoTranscriptExpanded[idx] ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </View>
+                    </Pressable>
+
+                    {videoTranscriptExpanded[idx] && (
+                      <View style={styles.transcriptContent}>
+                        <Text style={styles.transcriptText}>{trans.transcription}</Text>
+                        {trans.metadata?.model && (
+                          <Text style={styles.transcriptionMetadata}>
+                            Modelo: {trans.metadata.model}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* Image Analysis Section */}
+            {(analysis as any)?.media_analysis && Array.isArray((analysis as any).media_analysis) && (analysis as any).media_analysis.length > 0 && (
+              <View style={styles.imagesCard}>
+                <View style={styles.imagesHeader}>
+                  <View style={styles.imagesIconContainer}>
+                    <Text style={styles.imagesIcon}>🖼️</Text>
+                  </View>
+                  <Text style={styles.imagesTitle}>Análisis de Imágenes</Text>
+                  <View style={styles.summaryBadge}>
+                    <Text style={styles.summaryBadgeText}>
+                      {(analysis as any).media_analysis.length} {(analysis as any).media_analysis.length === 1 ? 'imagen' : 'imágenes'}
+                    </Text>
+                  </View>
+                </View>
+
+                {(analysis as any).media_analysis.map((media: any, idx: number) => (
+                  <View key={idx} style={styles.imageAnalysisItem}>
+                    <Pressable
+                      onPress={() => setImageAnalysisExpanded(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                      style={styles.imageAnalysisHeader}
+                    >
+                      <View style={styles.imageItemContent}>
+                        <LinearGradient
+                          colors={['#DBEAFE', '#E9D5FF']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={styles.imageNumberBadge}
+                        >
+                          <Text style={styles.imageNumber}>{idx + 1}</Text>
+                        </LinearGradient>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.imageLabel}>Imagen {idx + 1}</Text>
+                          {media.metadata?.words_count && (
+                            <Text style={styles.transcriptionWordCount}>
+                              {media.metadata.words_count} palabras extraídas
+                            </Text>
+                          )}
+                        </View>
+                        <Ionicons
+                          name={imageAnalysisExpanded[idx] ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </View>
+                    </Pressable>
+
+                    {imageAnalysisExpanded[idx] && (
+                      <View style={styles.imageAnalysisContent}>
+                        <Text style={styles.imageDescription}>{media.description}</Text>
+                        {media.metadata?.model && (
+                          <Text style={styles.transcriptionMetadata}>
+                            Modelo: {media.metadata.model}
+                          </Text>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                ))}
               </View>
             )}
 
@@ -1377,6 +1506,64 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  // Video/Audio Transcription Styles
+  transcriptionItem: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    paddingTop: 12,
+  },
+  transcriptionItemHeader: {
+    marginBottom: 8,
+  },
+  transcriptionItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  transcriptionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  transcriptionTypeEmoji: {
+    fontSize: 20,
+  },
+  transcriptionItemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  transcriptionWordCount: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  transcriptionMetadata: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  // Image Analysis Styles
+  imageAnalysisItem: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  imageAnalysisHeader: {
+    marginBottom: 8,
+  },
+  imageAnalysisContent: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 8,
   },
 });
 

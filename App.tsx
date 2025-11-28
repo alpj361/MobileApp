@@ -6,7 +6,6 @@ import { Platform } from "react-native";
 import DrawerNavigator from "./src/navigation/TabNavigator";
 import { WebContainer } from "./src/components/WebContainer";
 import { AsyncJobProvider } from "./src/context/AsyncJobContext";
-import { JobRecoveryListener } from "./src/components/JobRecoveryListener";
 
 /*
 IMPORTANT NOTICE: DO NOT REMOVE
@@ -34,7 +33,6 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AsyncJobProvider>
-          <JobRecoveryListener />
           <WebContainer>
             <NavigationContainer>
               <DrawerNavigator />

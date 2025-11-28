@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  FlatList, 
-  Pressable, 
+import {
+  View,
+  Text,
+  FlatList,
+  Pressable,
   RefreshControl,
   TextInput,
-  Alert 
+  Alert
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
@@ -15,7 +15,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useSavedStore } from '../state/savedStore';
 import { processImprovedLinks, extractLinksFromText } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
-import SavedItemCard from '../components/SavedItemCard';
+import { SavedItemCard } from '../components/SavedItemCard';
 import LoadingItemCard from '../components/LoadingItemCard';
 import { SavedItem } from '../state/savedStore';
 import { textStyles } from '../utils/typography';
@@ -24,35 +24,63 @@ export default function SavedScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  
-  const { 
-    items, 
-    isLoading, 
-    removeSavedItem, 
-    toggleFavorite, 
+
+  const {
+    items,
+    isLoading,
+    removeSavedItem,
+    toggleFavorite,
     addSavedItem,
     setLoading,
+    initializeStore,
   } = useSavedStore();
+
+  useEffect(() => {
+    initializeStore();
+  }, []);
 
   const filteredItems = items.filter(item => {
     const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         item.domain.toLowerCase().includes(searchQuery.toLowerCase());
+      item.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.domain.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesSearch;
   });
 
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      // Reprocess items that need better metadata
+      // Reprocess items that need better metadata (including "Untitled Post")
       const badPhrases = new Set(['No description available', 'Link processing failed', 'Vista previa no disponible']);
-      const needs = items.filter(i => !i.image || !i.description || badPhrases.has(i.description));
-      for (const it of needs) {
-        await useSavedStore.getState().reprocessSavedItem(it.id);
+      const needsReprocessing = items.filter(item =>
+        !item.title ||
+        item.title === 'Untitled Post' ||
+        !item.description ||
+        badPhrases.has(item.description) ||
+        !item.image
+      );
+
+      console.log(`[SavedScreen] Reprocessing ${needsReprocessing.length} items that need better metadata`);
+
+      for (const item of needsReprocessing) {
+        try {
+          console.log(`[SavedScreen] Reprocessing: ${item.url}`);
+          const processedData = await processImprovedLinks([item.url]);
+
+          if (processedData && processedData.length > 0) {
+            const updatedData = processedData[0];
+            // Update the item in the store
+            const { updateSavedItem } = useSavedStore.getState();
+            if (updateSavedItem) {
+              await updateSavedItem(item.id, updatedData);
+              console.log(`[SavedScreen] ✅ Reprocessed: ${item.url}`);
+            }
+          }
+        } catch (error) {
+          console.error(`[SavedScreen] Failed to reprocess ${item.url}:`, error);
+        }
       }
-      
-      // Also refresh codex status would go here if needed
-      console.log('Refresh completed for', items.length, 'items');
+
+      console.log(`[SavedScreen] Refresh completed for ${items.length} items`);
     } finally {
       setRefreshing(false);
     }
@@ -62,39 +90,57 @@ export default function SavedScreen() {
     try {
       setLoading(true);
       const clipboardText = await Clipboard.getStringAsync();
-      
+
       if (!clipboardText) {
         Alert.alert('No Content', 'Clipboard is empty');
         return;
       }
 
       const links = extractLinksFromText(clipboardText);
-      
+
       if (links.length === 0) {
         Alert.alert('No Links Found', 'No valid URLs found in clipboard');
         return;
       }
 
-      // Process each link individually to show loading modal
+      // Process each link individually to extract metadata
       let addedCount = 0;
       for (const link of links) {
-        // Create a basic LinkData object first to show loading modal
-        const basicLinkData = {
-          url: link,
-          title: '',
-          description: '',
-          domain: new URL(link).hostname.replace('www.', ''),
-          type: 'article' as const,
-          platform: null,
-          imageData: { url: '', quality: 'none' as const },
-          engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
-          timestamp: Date.now(),
-        };
-        
-        // This will show the loading modal immediately
-        const inserted = await addSavedItem(basicLinkData, 'clipboard');
-        if (inserted) {
-          addedCount += 1;
+        try {
+          // Process link to extract title, description, image, etc.
+          console.log(`[SavedScreen] Processing link: ${link}`);
+          const processedData = await processImprovedLinks([link]);
+
+          if (processedData && processedData.length > 0) {
+            const linkData = processedData[0];
+            // Save the processed link data
+            const inserted = await addSavedItem(linkData, 'clipboard');
+            if (inserted) {
+              addedCount += 1;
+            }
+          } else {
+            // Fallback: Create basic LinkData if processing fails
+            console.warn(`[SavedScreen] Failed to process link: ${link}, using basic data`);
+            const basicLinkData = {
+              url: link,
+              title: '',
+              description: '',
+              domain: new URL(link).hostname.replace('www.', ''),
+              type: 'article' as const,
+              platform: 'generic' as const,
+              image: '',
+              engagement: { likes: 0, comments: 0, shares: 0, views: 0 },
+              timestamp: Date.now(),
+            };
+
+            const inserted = await addSavedItem(basicLinkData, 'clipboard');
+            if (inserted) {
+              addedCount += 1;
+            }
+          }
+        } catch (error) {
+          console.error(`[SavedScreen] Error processing link ${link}:`, error);
+          // Continue with next link on error
         }
       }
 
@@ -129,12 +175,10 @@ export default function SavedScreen() {
     if (item.isPending) {
       return <LoadingItemCard url={item.url} />;
     }
-    
+
     return (
       <SavedItemCard
         item={item}
-        onToggleFavorite={() => toggleFavorite(item.id)}
-        onDelete={() => removeSavedItem(item.id)}
       />
     );
   };
@@ -163,7 +207,7 @@ export default function SavedScreen() {
           {isLoading ? 'Procesando...' : 'Pegar del Portapapeles'}
         </Text>
       </Pressable>
-      
+
       {/* Indicators removed for cleaner empty state */}
     </View>
   );
@@ -171,7 +215,7 @@ export default function SavedScreen() {
   return (
     <View className="flex-1 bg-gray-50">
       <CustomHeader navigation={navigation} title="Guardados" />
-      
+
       {items.length > 0 && (
         <>
           {/* Search Bar */}
@@ -216,7 +260,7 @@ export default function SavedScreen() {
                 </Pressable>
               </View>
             </View>
-            
+
             {/* Quality stats removed */}
           </View>
         </>
