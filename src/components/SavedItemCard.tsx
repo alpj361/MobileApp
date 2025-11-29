@@ -139,6 +139,7 @@ export const SavedItemCard: React.FC<SavedItemCardProps> = ({
   const analysisInfo = rawData ? {
     loading: false,
     summary: rawData.ai_generated?.description || '',
+    summary_bullets: rawData.ai_generated?.summary_bullets || [],
     transcript: '', // Will use transcription array instead
     transcription: rawData.transcription || [],
     media_analysis: rawData.media_analysis || [],

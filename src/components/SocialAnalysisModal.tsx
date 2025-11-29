@@ -53,7 +53,13 @@ export default function SocialAnalysisModal({
     (analysis as any)?.transcription?.length ||
     (analysis as any)?.media_analysis?.length
   );
-  const parsedSummary = parseSummary(analysis?.summary);
+
+  // Use summary_bullets array directly if available, otherwise fallback to parsing description
+  const summaryBullets = (analysis as any)?.summary_bullets || [];
+  const parsedSummary = summaryBullets.length > 0
+    ? { bullets: summaryBullets.map((text: string) => ({ text })), tldr: undefined }
+    : parseSummary(analysis?.summary);
+
   const [transcriptExpanded, setTranscriptExpanded] = React.useState(false);
   const [videoTranscriptExpanded, setVideoTranscriptExpanded] = React.useState<{ [key: number]: boolean }>({});
   const [imageAnalysisExpanded, setImageAnalysisExpanded] = React.useState<{ [key: number]: boolean }>({});
@@ -188,6 +194,7 @@ export default function SocialAnalysisModal({
             has_entities: !!analysis?.entities?.length,
             entity_count: analysis?.entities?.length || 0,
           },
+          logs: (analysis as any)?.logs, // 🆕 Enviar logs si existen
         },
       });
 

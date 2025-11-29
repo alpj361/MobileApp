@@ -2,6 +2,7 @@
 // Reports failed extractions to ExtractorW API
 import { getApiUrl } from '../config/backend';
 import { supabase } from '../config/supabase';
+import { simplePostService } from './postPersistenceService';
 
 interface ReportExtractionErrorParams {
   platform: 'x' | 'instagram' | 'tiktok' | 'youtube' | 'facebook' | 'other';
@@ -61,6 +62,8 @@ export async function reportExtractionError(
       headers['Authorization'] = `Bearer ${authToken}`;
     }
 
+    const guestId = await simplePostService.getGuestId();
+
     const response = await fetch(`${apiUrl}/api/extraction-errors/report`, {
       method: 'POST',
       headers,
@@ -71,6 +74,7 @@ export async function reportExtractionError(
         error_message: params.error_message || 'User reported extraction issue',
         extraction_step: params.extraction_step || 'unknown',
         severity: params.severity || 'medium',
+        guest_id: guestId, // 🆕 Send guest_id to link with logs
         full_logs: {
           ...params.full_logs,
           reported_from: 'mobile_web_app',
