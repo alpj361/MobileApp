@@ -11,8 +11,8 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { useSavedStore } from '../state/savedStore';
+import { getClipboardText } from '../utils/clipboard';
 import { processImprovedLinks, extractLinksFromText } from '../api/improved-link-processor';
 import CustomHeader from '../components/CustomHeader';
 import { SavedItemCard } from '../components/SavedItemCard';
@@ -89,17 +89,17 @@ export default function SavedScreen() {
   const handlePasteFromClipboard = async () => {
     try {
       setLoading(true);
-      const clipboardText = await Clipboard.getStringAsync();
+      const clipboardText = await getClipboardText();
 
-      if (!clipboardText) {
-        Alert.alert('No Content', 'Clipboard is empty');
+      if (!clipboardText || clipboardText.trim() === '') {
+        Alert.alert('Sin contenido', 'El portapapeles está vacío');
         return;
       }
 
       const links = extractLinksFromText(clipboardText);
 
       if (links.length === 0) {
-        Alert.alert('No Links Found', 'No valid URLs found in clipboard');
+        Alert.alert('Sin enlaces', 'No se encontraron URLs válidas en el portapapeles');
         return;
       }
 
@@ -158,9 +158,21 @@ export default function SavedScreen() {
           : `Successfully saved ${addedCount} link${addedCount > 1 ? 's' : ''} from clipboard`;
         Alert.alert('Links Saved', message);
       }
-    } catch (error) {
-      console.error('Clipboard paste error:', error);
-      Alert.alert('Error', 'Failed to process clipboard content');
+    } catch (error: any) {
+      console.error('[SavedScreen] Clipboard paste error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Error al leer el portapapeles';
+      
+      if (error?.message?.includes('user interaction')) {
+        errorMessage = 'Por favor, haz clic en el botón nuevamente para acceder al portapapeles';
+      } else if (error?.message?.includes('not available')) {
+        errorMessage = 'El acceso al portapapeles no está disponible en este navegador';
+      } else if (error?.message?.includes('permission')) {
+        errorMessage = 'Se requiere permiso para acceder al portapapeles';
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setLoading(false);
     }

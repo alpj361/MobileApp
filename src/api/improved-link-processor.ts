@@ -1402,8 +1402,9 @@ export async function processImprovedLink(url: string): Promise<ImprovedLinkData
 
     console.log('[Link Processor] Platform:', platform, 'isWeb:', isWeb);
 
-    // ✅ CORS FIX: Skip direct fetch for X/Twitter on web (use ExtractorT instead)
-    const shouldSkipDirectFetch = isWeb && isXTwitter;
+    // ✅ CORS FIX: Skip direct fetch on web for ALL domains to avoid CORS errors
+    // Browsers block cross-origin requests unless allowed by the server
+    const shouldSkipDirectFetch = isWeb;
 
     let html = '';
 
