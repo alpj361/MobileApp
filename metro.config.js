@@ -1,4 +1,5 @@
 const { getDefaultConfig } = require("expo/metro-config");
+const { withNativeWind } = require("nativewind/metro");
 
 const path = require("node:path");
 const os = require("node:os");
@@ -19,7 +20,39 @@ config.cacheStores = ({ FileStore, HttpStore }) => {
   const stores = [new FileStore({ root: metroCacheDir })];
 
   if (metroCacheHttpEndpoint) {
-    stores.push(new HttpStore({ endpoint: metroCacheHttpEndpoint }));
+    // Create HttpStore with timeout and wrap to make failures non-fatal
+    const httpStore = new HttpStore({
+      endpoint: metroCacheHttpEndpoint,
+      timeout: 10000 // 10 seconds (better to fail quickly and not cache than to hang)
+    });
+
+    // Wrap HttpStore methods to catch and log errors without failing
+    const wrappedHttpStore = {
+      get: async (...args) => {
+        try {
+          return await httpStore.get(...args);
+        } catch (error) {
+          console.warn('[Metro Cache] HttpStore get failed:', error.message);
+          return null;
+        }
+      },
+      set: async (...args) => {
+        try {
+          return await httpStore.set(...args);
+        } catch (error) {
+          console.warn('[Metro Cache] HttpStore set failed:', error.message);
+        }
+      },
+      clear: async (...args) => {
+        try {
+          return await httpStore.clear(...args);
+        } catch (error) {
+          console.warn('[Metro Cache] HttpStore clear failed:', error.message);
+        }
+      }
+    };
+
+    stores.push(wrappedHttpStore);
   }
   return stores;
 };
@@ -29,29 +62,4 @@ config.cacheStores = ({ FileStore, HttpStore }) => {
 config.cacheVersion = metroCacheVersion;
 
 // Integrate NativeWind with the Metro configuration.
-// Disable NativeWind in Netlify builds to avoid lightningcss issues
-if (process.env.DISABLE_NATIVEWIND === "true") {
-  console.log("⚠️ NativeWind disabled via DISABLE_NATIVEWIND env var");
-
-  // Add custom resolver to redirect global.css to empty stub
-  // This prevents Metro from trying to transform the CSS file which requires lightningcss
-  const originalResolveRequest = config.resolver.resolveRequest;
-  config.resolver.resolveRequest = (context, moduleName, platform) => {
-    if (moduleName === "./global.css" || moduleName.endsWith("/global.css")) {
-      return {
-        type: "sourceFile",
-        filePath: path.resolve(__dirname, "global.css.stub.js"),
-      };
-    }
-    if (originalResolveRequest) {
-      return originalResolveRequest(context, moduleName, platform);
-    }
-    return context.resolveRequest(context, moduleName, platform);
-  };
-
-  module.exports = config;
-} else {
-  // Only require NativeWind when not disabled
-  const { withNativeWind } = require("nativewind/metro");
-  module.exports = withNativeWind(config, { input: "./global.css" });
-}
+module.exports = withNativeWind(config, { input: "./global.css" });
