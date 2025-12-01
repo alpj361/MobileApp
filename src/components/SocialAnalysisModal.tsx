@@ -15,11 +15,30 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import * as Linking from 'expo-linking';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  MapPin,
+  Building2,
+  Calendar,
+  DollarSign,
+  AtSign,
+  Hash,
+  Flag,
+  CheckCircle2,
+  X,
+  RefreshCw,
+  ExternalLink,
+  MoreHorizontal,
+  Copy,
+  Clock,
+  List,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+} from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { textStyles } from '../utils/typography';
 import { SavedItem } from '../state/savedStore';
 import { parseSummary } from '../utils/parseSummary';
-import { EntityPanel } from './EntityPanel';
 import { getCurrentSpacing } from '../utils/responsive';
 import { reportExtractionError } from '../services/extractionErrorService';
 
@@ -96,6 +115,57 @@ export default function SocialAnalysisModal({
   };
 
   const platformInfo = getPlatformInfo();
+
+  const getCapturedData = () => {
+    const entities = (analysis as any)?.entities || [];
+
+    const contentEntities = entities.filter((e: any) => e.source_priority === 'high' || e.source === 'transcription' || e.source === 'vision');
+    const contextEntities = entities.filter((e: any) => e.source_priority !== 'high' && e.source !== 'transcription' && e.source !== 'vision');
+
+    const categoriesConfig = [
+      { name: 'Ubicación', icon: MapPin, color: 'red', types: ['location'] },
+      { name: 'Entidad', icon: Building2, color: 'blue', types: ['entity', 'organization'] },
+      { name: 'Fecha', icon: Calendar, color: 'orange', types: ['date'] },
+      { name: 'Monto', icon: DollarSign, color: 'green', types: ['money', 'amount'] },
+      { name: 'Actores', icon: AtSign, color: 'purple', types: ['person', 'mention'] },
+      { name: 'Cantidades', icon: Hash, color: 'gray', types: ['quantity', 'number'] },
+    ];
+
+    const categories = categoriesConfig.map(cat => {
+      const items = contentEntities
+        .filter((e: any) => cat.types.includes(e.type))
+        .map((e: any) => e.value || e.text);
+
+      return {
+        ...cat,
+        count: items.length,
+        items
+      };
+    }).filter(cat => cat.count > 0);
+
+    const contextTags = contextEntities.map((e: any) => {
+      let icon = Hash;
+      let color = 'gray';
+
+      if (e.type === 'location') { icon = MapPin; color = 'red'; }
+      else if (e.type === 'mention') { icon = AtSign; color = 'blue'; }
+      else if (e.type === 'hashtag') { icon = Hash; color = 'purple'; }
+
+      return {
+        text: e.value || e.text,
+        icon,
+        color
+      };
+    });
+
+    return {
+      totalEntities: entities.length,
+      categories,
+      contextTags
+    };
+  };
+
+  const capturedData = getCapturedData();
 
   const handleOpenOriginal = () => {
     if (url) {
@@ -465,7 +535,7 @@ export default function SocialAnalysisModal({
                 </View>
 
                 <View style={styles.bulletList}>
-                  {parsedSummary.bullets.map((bullet, index) => (
+                  {parsedSummary.bullets.map((bullet: any, index: number) => (
                     <View key={`${bullet.emphasis || bullet.text}-${index}`} style={styles.bulletCard}>
                       <View style={styles.bulletContent}>
                         <View style={styles.bulletDot}>
@@ -651,9 +721,104 @@ export default function SocialAnalysisModal({
             )}
 
             {/* Extracted Entities Section */}
-            {analysis?.entities && analysis.entities.length > 0 && (
-              <EntityPanel entities={analysis.entities} platform={platform} />
-            )}
+            {/* Captured Data Section */}
+            <View className="bg-white rounded-3xl p-6 border border-gray-200 shadow-md mt-5">
+              <View className="flex-row items-center gap-2 mb-5">
+                <Hash size={20} color="#9333ea" />
+                <Text className="text-xl font-bold text-gray-900 ml-2">Datos Capturados</Text>
+              </View>
+
+              <View className="flex-row items-center gap-1.5 bg-purple-100 px-3 py-1.5 rounded-full mb-5 self-start">
+                <Text className="text-sm font-semibold text-purple-700">
+                  {capturedData.totalEntities} datos encontrados
+                </Text>
+              </View>
+
+              <View className="gap-5">
+                {/* Del Contenido */}
+                {capturedData.categories.length > 0 && (
+                  <View>
+                    <View className="flex-row items-center gap-2 mb-3">
+                      <View className="w-2 h-2 rounded-full bg-red-500" />
+                      <Text className="text-sm font-bold text-gray-700 uppercase tracking-wide ml-2">DEL CONTENIDO</Text>
+                    </View>
+
+                    <View className="gap-4">
+                      {capturedData.categories.map((category, idx) => (
+                        <View key={idx}>
+                          <View className="flex-row items-center gap-2 mb-2">
+                            <category.icon size={16} color={category.color === 'red' ? '#ef4444' : category.color === 'blue' ? '#3b82f6' : category.color === 'orange' ? '#f97316' : category.color === 'green' ? '#22c55e' : category.color === 'purple' ? '#a855f7' : '#6b7280'} />
+                            <Text className="text-xs font-semibold text-gray-600 ml-2">
+                              {category.name}: {category.count}
+                            </Text>
+                          </View>
+                          <View className="flex-row flex-wrap gap-2">
+                            {category.items.map((item: string, itemIdx: number) => (
+                              <View
+                                key={itemIdx}
+                                className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border-2 ${category.color === 'red' ? 'bg-red-50 border-red-200' :
+                                  category.color === 'blue' ? 'bg-blue-50 border-blue-200' :
+                                    category.color === 'orange' ? 'bg-orange-50 border-orange-200' :
+                                      category.color === 'green' ? 'bg-green-50 border-green-200' :
+                                        category.color === 'purple' ? 'bg-purple-50 border-purple-200' :
+                                          'bg-gray-50 border-gray-200'
+                                  }`}
+                              >
+                                <Text className={`text-sm font-medium ${category.color === 'red' ? 'text-red-700' :
+                                  category.color === 'blue' ? 'text-blue-700' :
+                                    category.color === 'orange' ? 'text-orange-700' :
+                                      category.color === 'green' ? 'text-green-700' :
+                                        category.color === 'purple' ? 'text-purple-700' :
+                                          'text-gray-700'
+                                  }`}>
+                                  {item}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Del Contexto */}
+                {capturedData.contextTags.length > 0 && (
+                  <View>
+                    <View className="flex-row items-center gap-2 mb-3">
+                      <View className="w-2 h-2 rounded-full bg-blue-500" />
+                      <Text className="text-sm font-bold text-gray-700 uppercase tracking-wide ml-2">DEL CONTEXTO</Text>
+                    </View>
+                    <View className="flex-row flex-wrap gap-2">
+                      {capturedData.contextTags.map((tag: any, idx: number) => (
+                        <View
+                          key={idx}
+                          className={`flex-row items-center gap-1.5 px-3 py-1.5 rounded-full border-2 ${tag.color === 'red' ? 'bg-red-50 border-red-200' :
+                            tag.color === 'blue' ? 'bg-blue-50 border-blue-200' :
+                              tag.color === 'purple' ? 'bg-purple-50 border-purple-200' :
+                                'bg-gray-50 border-gray-200'
+                            }`}
+                        >
+                          <tag.icon size={14} color={
+                            tag.color === 'red' ? '#ef4444' :
+                              tag.color === 'blue' ? '#3b82f6' :
+                                tag.color === 'purple' ? '#a855f7' :
+                                  '#6b7280'
+                          } />
+                          <Text className={`text-sm font-medium ml-1.5 ${tag.color === 'red' ? 'text-red-700' :
+                            tag.color === 'blue' ? 'text-blue-700' :
+                              tag.color === 'purple' ? 'text-purple-700' :
+                                'text-gray-700'
+                            }`}>
+                            {tag.text}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
 
             {/* Visual Description Section */}
             {analysis?.images && analysis.images.length > 0 && (
@@ -699,28 +864,19 @@ export default function SocialAnalysisModal({
 
         {/* Report Modal */}
         {reportModalVisible && (
-          <View style={styles.reportModalOverlay}>
-            <View style={styles.reportModalContainer}>
-              {(() => {
-                console.log('[SocialAnalysisModal] Render - isReportSubmitted:', isReportSubmitted, 'isSubmittingReport:', isSubmittingReport);
-                return null;
-              })()}
+          <View className="absolute inset-0 bg-black/60 items-center justify-center p-4 z-50">
+            <View className="bg-white rounded-[32px] w-full max-w-md shadow-2xl overflow-hidden">
               {isReportSubmitted ? (
-                // Success State
-                <View style={styles.reportSuccessContainer}>
-                  <View style={styles.reportSuccessIconWrapper}>
-                    <LinearGradient
-                      colors={['#BBF7D0', '#86EFAC']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.reportSuccessIconGradient}
-                    >
-                      <Ionicons name="checkmark-circle" size={64} color="#16A34A" />
-                    </LinearGradient>
+                <View className="p-8 items-center justify-center space-y-4">
+                  <View className="relative">
+                    <View className="absolute inset-0 bg-green-200 rounded-full opacity-50" />
+                    <View className="bg-green-100 p-4 rounded-full">
+                      <CheckCircle2 size={64} color="#16a34a" />
+                    </View>
                   </View>
-                  <View style={styles.reportSuccessTextContainer}>
-                    <Text style={styles.reportSuccessTitle}>¡Feedback Enviado!</Text>
-                    <Text style={styles.reportSuccessMessage}>
+                  <View className="items-center space-y-2">
+                    <Text className="text-2xl font-bold text-gray-900">¡Feedback Enviado!</Text>
+                    <Text className="text-sm text-gray-600 text-center">
                       Gracias por ayudarnos a mejorar la calidad de las extracciones.
                     </Text>
                   </View>
@@ -728,87 +884,63 @@ export default function SocialAnalysisModal({
               ) : (
                 <>
                   {/* Report Modal Header */}
-                  <View style={styles.reportModalHeader}>
-                    <View style={styles.reportModalTitleRow}>
-                      <View style={styles.reportModalIconContainer}>
-                        <Ionicons name="flag" size={20} color="#EF4444" />
+                  <View className="flex-row items-center justify-between p-6 pb-4 border-b border-gray-200">
+                    <View className="flex-row items-center gap-3">
+                      <View className="p-2 bg-red-100 rounded-full">
+                        <Flag size={20} color="#dc2626" />
                       </View>
-                      <Text style={styles.reportModalTitle}>Reportar Problema</Text>
+                      <Text className="text-xl font-bold text-gray-900 ml-2">Reportar Problema</Text>
                     </View>
                     <Pressable
+                      className="p-2 hover:bg-gray-100 rounded-full"
                       onPress={() => {
                         setReportModalVisible(false);
                         setReportText('');
                       }}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed && styles.iconButtonPressed,
-                      ]}
                     >
-                      <Ionicons name="close" size={20} color="#6B7280" />
+                      <X size={20} color="#4b5563" />
                     </Pressable>
                   </View>
 
                   {/* Report Modal Content */}
-                  <View style={styles.reportModalContent}>
+                  <View className="p-6 gap-4">
                     <View>
-                      <Text style={styles.reportModalLabel}>
+                      <Text className="text-sm font-semibold text-gray-700 mb-2">
                         ¿Qué problema encontraste con la extracción?
                       </Text>
                       <TextInput
                         value={reportText}
                         onChangeText={setReportText}
                         placeholder="Describe el problema con los datos extraídos..."
-                        placeholderTextColor="#9CA3AF"
                         multiline
                         numberOfLines={4}
-                        style={styles.reportTextInput}
+                        className="w-full h-32 px-4 py-3 bg-white border-2 border-gray-200 rounded-2xl text-sm text-gray-900"
+                        style={{ textAlignVertical: 'top' }}
                         editable={!isSubmittingReport}
                       />
                     </View>
 
-                    <View style={styles.reportModalButtons}>
+                    <View className="flex-row gap-3">
                       <Pressable
                         onPress={() => {
                           setReportModalVisible(false);
                           setReportText('');
                         }}
                         disabled={isSubmittingReport}
-                        style={({ pressed }) => [
-                          styles.reportCancelButton,
-                          pressed && styles.reportCancelButtonPressed,
-                        ]}
+                        className="flex-1 px-6 py-3 bg-gray-100 rounded-full items-center"
                       >
-                        <Text style={styles.reportCancelButtonText}>Cancelar</Text>
+                        <Text className="text-gray-700 font-semibold">Cancelar</Text>
                       </Pressable>
-
                       <Pressable
                         onPress={handleSubmitReport}
                         disabled={!reportText.trim() || isSubmittingReport}
-                        style={({ pressed }) => [
-                          styles.reportSubmitButton,
-                          pressed && styles.reportSubmitButtonPressed,
-                          (!reportText.trim() || isSubmittingReport) && styles.reportSubmitButtonDisabled,
-                        ]}
+                        className={`flex-1 px-6 py-3 rounded-full items-center ${!reportText.trim() || isSubmittingReport ? 'bg-red-300' : 'bg-red-600'}`}
                       >
-                        <LinearGradient
-                          colors={['#EF4444', '#DC2626']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            borderRadius: 999,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                          }}
-                        >
-                          {isSubmittingReport ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                          ) : (
-                            <Text style={styles.reportSubmitButtonText}>Enviar Reporte</Text>
-                          )}
-                        </LinearGradient>
+                        {isSubmittingReport ? (
+                          <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                          <Text className="text-white font-semibold">Enviar Reporte</Text>
+                        )}
                       </Pressable>
                     </View>
                   </View>
