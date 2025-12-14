@@ -22,17 +22,23 @@ export class TrendingService {
   }
 
   /**
-   * Obtiene los datos de trending más recientes
+   * Obtiene los datos de trending más recientes (solo del día actual)
    */
   static async getLatestTrends(limit: number = 15): Promise<TrendingResponse> {
     if (!supabaseAvailable()) {
       return { data: TrendingService.getMockTrends(limit), error: null };
     }
     try {
+      // Get start of today in ISO format
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
       const { data, error } = await (supabase as any)
         .from('trends')
         .select('*')
         .eq('processing_status', 'complete')
+        .gte('timestamp', todayISO)
         .order('timestamp', { ascending: false })
         .limit(limit);
 
@@ -47,7 +53,7 @@ export class TrendingService {
   }
 
   /**
-   * Obtiene trends por categoría específica
+   * Obtiene trends por categoría específica (solo del día actual)
    */
   static async getTrendsByCategory(category: string, limit: number = 15): Promise<TrendingResponse> {
     if (!supabaseAvailable()) {
@@ -57,10 +63,16 @@ export class TrendingService {
       return { data, error: null };
     }
     try {
+      // Get start of today in ISO format
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
       const { data, error } = await (supabase as any)
         .from('trends')
         .select('*')
         .eq('processing_status', 'complete')
+        .gte('timestamp', todayISO)
         .contains('category_data', [{ name: category }])
         .order('timestamp', { ascending: false })
         .limit(limit);
@@ -123,7 +135,7 @@ export class TrendingService {
   }
 
   /**
-   * Obtiene estadísticas generales de trending
+   * Obtiene estadísticas generales de trending (solo del día actual)
    */
   static async getTrendingStats(): Promise<{
     totalTrends: number;
@@ -135,10 +147,16 @@ export class TrendingService {
       return { totalTrends: 300, localTrends: 100, globalTrends: 200, highRelevance: 50 };
     }
     try {
+      // Get start of today in ISO format
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
+
       const { data, error } = await (supabase as any)
         .from('trends')
         .select('statistics')
         .eq('processing_status', 'complete')
+        .gte('timestamp', todayISO)
         .order('timestamp', { ascending: false })
         .limit(1);
 
