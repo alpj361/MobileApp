@@ -10,17 +10,22 @@ export interface Recording {
   timestamp: number;
   transcription?: string;
   isTranscribing?: boolean;
+  realtimeTranscription?: string; // Live transcription from ElevenLabs Scribe
+  isRealtimeTranscribing?: boolean; // Flag for real-time transcription active
 }
 
 interface RecordingState {
   recordings: Recording[];
   isRecording: boolean;
   currentRecording: Recording | null;
+  realtimeTranscriptionEnabled: boolean;
   addRecording: (recording: Omit<Recording, 'id' | 'timestamp'>) => void;
   updateRecording: (id: string, updates: Partial<Recording>) => void;
   deleteRecording: (id: string) => void;
   setRecording: (recording: boolean) => void;
   setCurrentRecording: (recording: Recording | null) => void;
+  setRealtimeTranscriptionEnabled: (enabled: boolean) => void;
+  appendRealtimeTranscription: (id: string, text: string) => void;
 }
 
 export const useRecordingStore = create<RecordingState>()(
@@ -29,6 +34,7 @@ export const useRecordingStore = create<RecordingState>()(
       recordings: [],
       isRecording: false,
       currentRecording: null,
+      realtimeTranscriptionEnabled: false,
       addRecording: (recording) => {
         const newRecording: Recording = {
           ...recording,
@@ -53,6 +59,20 @@ export const useRecordingStore = create<RecordingState>()(
       },
       setRecording: (recording) => set({ isRecording: recording }),
       setCurrentRecording: (recording) => set({ currentRecording: recording }),
+      setRealtimeTranscriptionEnabled: (enabled) =>
+        set({ realtimeTranscriptionEnabled: enabled }),
+      appendRealtimeTranscription: (id, text) => {
+        set((state) => ({
+          recordings: state.recordings.map((recording) =>
+            recording.id === id
+              ? {
+                  ...recording,
+                  realtimeTranscription: (recording.realtimeTranscription || '') + text,
+                }
+              : recording
+          ),
+        }));
+      },
     }),
     {
       name: 'recording-storage',

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -30,13 +31,27 @@ export default function RecordingScreen() {
   const {
     recordings,
     isRecording,
+    realtimeTranscriptionEnabled,
     addRecording,
     updateRecording,
     deleteRecording,
     setRecording: setIsRecording,
-  } = useRecordingStore();
+    setRealtimeTranscriptionEnabled,
+  } = useRecordingStore((state) => ({
+    recordings: state.recordings,
+    isRecording: state.isRecording,
+    realtimeTranscriptionEnabled: state.realtimeTranscriptionEnabled,
+    addRecording: state.addRecording,
+    updateRecording: state.updateRecording,
+    deleteRecording: state.deleteRecording,
+    setRecording: state.setRecording,
+    setRealtimeTranscriptionEnabled: state.setRealtimeTranscriptionEnabled,
+  }));
 
-  const { isConnected, connectedUser } = usePulseConnectionStore();
+  const { isConnected, connectedUser } = usePulseConnectionStore((state) => ({
+    isConnected: state.isConnected,
+    connectedUser: state.connectedUser,
+  }));
 
   const startRecording = async () => {
     try {
@@ -82,14 +97,23 @@ export default function RecordingScreen() {
 
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
-      
+
       if (uri) {
         const title = `Recording ${new Date().toLocaleString()}`;
+        const newRecordingId = Date.now().toString() + Math.random().toString(36).substring(2, 11);
+
         addRecording({
           title,
           uri,
           duration: recordingDuration,
         });
+
+        // Auto-transcribe with ElevenLabs Scribe if enabled
+        if (realtimeTranscriptionEnabled) {
+          setTimeout(() => {
+            transcribeWithScribe(newRecordingId, uri);
+          }, 500);
+        }
       }
 
       setRecording(null);
@@ -136,15 +160,46 @@ export default function RecordingScreen() {
     }
   };
 
+  /**
+   * Transcribe with ElevenLabs Scribe (for real-time/fast transcription)
+   * This uses the same Whisper API but is triggered automatically when enabled
+   */
+  const transcribeWithScribe = async (id: string, uri: string) => {
+    try {
+      updateRecording(id, { isTranscribing: true, isRealtimeTranscribing: true });
+
+      const transcription = await transcribeAudio(uri, {
+        language: 'es', // Spanish by default, can be made configurable
+      });
+
+      updateRecording(id, {
+        transcription,
+        realtimeTranscription: transcription,
+        isTranscribing: false,
+        isRealtimeTranscribing: false,
+      });
+    } catch (error) {
+      console.error('ElevenLabs Scribe transcription failed:', error);
+      updateRecording(id, {
+        isTranscribing: false,
+        isRealtimeTranscribing: false,
+      });
+      Alert.alert('Error', 'Failed to transcribe audio with ElevenLabs Scribe.');
+    }
+  };
+
+  /**
+   * Transcribe with Whisper (manual transcription for saved recordings)
+   */
   const transcribeRecording = async (recordingItem: any) => {
     try {
       updateRecording(recordingItem.id, { isTranscribing: true });
-      
+
       const transcription = await transcribeAudio(recordingItem.uri);
-      
-      updateRecording(recordingItem.id, { 
+
+      updateRecording(recordingItem.id, {
         transcription,
-        isTranscribing: false 
+        isTranscribing: false
       });
     } catch (error) {
       console.error('Transcription failed:', error);
@@ -164,7 +219,7 @@ export default function RecordingScreen() {
 
     try {
       const result = await saveRecordingToCodexService(connectedUser.id, recordingItem);
-      
+
       if (result.success) {
         Alert.alert('Guardado en Codex', 'La grabación se guardó correctamente en tu Codex.');
       } else {
@@ -192,11 +247,34 @@ export default function RecordingScreen() {
   };
 
   const spacing = getCurrentSpacing();
-  
+
   return (
     <View className="flex-1 bg-gray-50">
       <CustomHeader navigation={navigation} title="Grabación" />
-      
+
+      {/* Real-time Transcription Toggle */}
+      <View className="bg-white mx-4 mt-4 p-4 rounded-2xl shadow-sm border border-gray-100">
+        <View className="flex-row items-center justify-between">
+          <View className="flex-1 mr-4">
+            <View className="flex-row items-center mb-1">
+              <Ionicons name="flash" size={18} color="#3B82F6" />
+              <Text className={`${textStyles.cardTitle} ml-2`}>
+                Transcripción Automática
+              </Text>
+            </View>
+            <Text className={`${textStyles.helper}`}>
+              Transcribe automáticamente al terminar de grabar con ElevenLabs Scribe
+            </Text>
+          </View>
+          <Switch
+            value={realtimeTranscriptionEnabled}
+            onValueChange={setRealtimeTranscriptionEnabled}
+            trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
+            thumbColor={realtimeTranscriptionEnabled ? '#3B82F6' : '#F3F4F6'}
+          />
+        </View>
+      </View>
+
       {/* Recording Controls */}
       <View className="items-center py-12">
         <View className="bg-white rounded-full w-44 h-44 justify-center items-center mb-8 shadow-lg">
@@ -211,10 +289,10 @@ export default function RecordingScreen() {
               }
             ]}
           >
-            <Ionicons 
-              name={isRecording ? 'stop' : 'mic'} 
-              size={36} 
-              color="white" 
+            <Ionicons
+              name={isRecording ? 'stop' : 'mic'}
+              size={36}
+              color="white"
             />
           </Pressable>
         </View>
@@ -224,9 +302,17 @@ export default function RecordingScreen() {
             <Text className={`${textStyles.sectionTitle} text-red-500 mb-3`}>
               Grabando...
             </Text>
-            <Text className={`text-3xl font-mono font-bold text-gray-900`}>
+            <Text className="text-3xl font-mono font-bold text-gray-900">
               {formatDuration(recordingDuration)}
             </Text>
+            {realtimeTranscriptionEnabled && (
+              <View className="flex-row items-center mt-3 bg-blue-50 px-4 py-2 rounded-full">
+                <Ionicons name="flash" size={14} color="#3B82F6" />
+                <Text className={`${textStyles.helper} text-blue-600 ml-2`}>
+                  Transcripción automática activada
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -244,15 +330,15 @@ export default function RecordingScreen() {
 
       {/* Recordings List */}
       {recordings.length > 0 && (
-        <ScrollView 
-          className="flex-1" 
+        <ScrollView
+          className="flex-1"
           contentContainerStyle={{ paddingHorizontal: spacing.horizontal, paddingBottom: spacing.section }}
           showsVerticalScrollIndicator={false}
         >
           <Text className={`${textStyles.sectionTitle} mb-6`}>
             Grabaciones ({recordings.length})
           </Text>
-          
+
           {recordings.map((item) => (
             <View key={item.id} className="bg-white rounded-3xl p-5 mb-4 shadow-sm border border-gray-100">
               <View className="flex-row items-center justify-between mb-4">
@@ -260,11 +346,21 @@ export default function RecordingScreen() {
                   <Text className={`${textStyles.cardTitle} mb-1`}>
                     {item.title}
                   </Text>
-                  <Text className={textStyles.helper}>
-                    {formatDate(item.timestamp)} • {formatDuration(item.duration)}
-                  </Text>
+                  <View className="flex-row items-center">
+                    <Text className={textStyles.helper}>
+                      {formatDate(item.timestamp)} • {formatDuration(item.duration)}
+                    </Text>
+                    {item.realtimeTranscription && (
+                      <View className="flex-row items-center ml-2 bg-blue-50 px-2 py-1 rounded-full">
+                        <Ionicons name="flash" size={10} color="#3B82F6" />
+                        <Text className="text-xs text-blue-600 ml-1 font-medium">
+                          Auto
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-                
+
                 <Pressable
                   onPress={() => deleteRecording(item.id)}
                   className="p-2 rounded-full active:bg-red-50"
@@ -288,32 +384,35 @@ export default function RecordingScreen() {
                     }
                   ]}
                 >
-                  <Ionicons 
-                    name={playingId === item.id ? 'pause' : 'play'} 
-                    size={18} 
-                    color="white" 
+                  <Ionicons
+                    name={playingId === item.id ? 'pause' : 'play'}
+                    size={18}
+                    color="white"
                   />
                 </Pressable>
 
-                <Pressable
-                  onPress={() => transcribeRecording(item)}
-                  disabled={item.isTranscribing}
-                  className="bg-gray-100 rounded-full px-4 py-3 flex-row items-center flex-1"
-                  style={({ pressed }) => [
-                    {
-                      transform: [{ scale: pressed && !item.isTranscribing ? 0.98 : 1 }],
-                    }
-                  ]}
-                >
-                  {item.isTranscribing ? (
-                    <ActivityIndicator size="small" color="#3B82F6" />
-                  ) : (
-                    <Ionicons name="document-text-outline" size={18} color="#374151" />
-                  )}
-                  <Text className={`${textStyles.badge} text-gray-700 ml-3`}>
-                    {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir'}
-                  </Text>
-                </Pressable>
+                {/* Only show manual transcribe button if not auto-transcribed */}
+                {!item.realtimeTranscription && (
+                  <Pressable
+                    onPress={() => transcribeRecording(item)}
+                    disabled={item.isTranscribing}
+                    className="bg-gray-100 rounded-full px-4 py-3 flex-row items-center flex-1"
+                    style={({ pressed }) => [
+                      {
+                        transform: [{ scale: pressed && !item.isTranscribing ? 0.98 : 1 }],
+                      }
+                    ]}
+                  >
+                    {item.isTranscribing ? (
+                      <ActivityIndicator size="small" color="#3B82F6" />
+                    ) : (
+                      <Ionicons name="document-text-outline" size={18} color="#374151" />
+                    )}
+                    <Text className={`${textStyles.badge} text-gray-700 ml-3`}>
+                      {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir con Whisper'}
+                    </Text>
+                  </Pressable>
+                )}
 
                 {isConnected && (
                   <Pressable
@@ -330,10 +429,20 @@ export default function RecordingScreen() {
                 )}
               </View>
 
-              {item.transcription && (
+              {(item.transcription || item.realtimeTranscription) && (
                 <View className="mt-4 p-4 bg-gray-50 rounded-2xl">
+                  <View className="flex-row items-center mb-2">
+                    <Ionicons
+                      name={item.realtimeTranscription ? 'flash' : 'document-text'}
+                      size={16}
+                      color="#6B7280"
+                    />
+                    <Text className={`${textStyles.helper} ml-2 font-semibold`}>
+                      {item.realtimeTranscription ? 'Transcripción Automática (Scribe)' : 'Transcripción (Whisper)'}
+                    </Text>
+                  </View>
                   <Text className={`${textStyles.bodyText} text-gray-700`}>
-                    {item.transcription}
+                    {item.transcription || item.realtimeTranscription}
                   </Text>
                 </View>
               )}
