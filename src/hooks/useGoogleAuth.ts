@@ -20,7 +20,7 @@ const discovery = {
 export function useGoogleAuth() {
   // Generate proper redirect URI for the current environment
   const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'com.vizta.app',
+    scheme: 'vibecode',
     path: '/auth/callback',
   });
 

@@ -2,14 +2,14 @@
   "expo": {
     "name": "vizta",
     "slug": "vizta",
-    "scheme": "com.vizta.app",
+    "scheme": "vibecode",
     "version": "0.0011",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.vizta.app",
+      "bundleIdentifier": "com.vibecodeapp.app",
       "infoPlist": {
         "NSCalendarsUsageDescription": "Vizta uses your calendar to show and manage the events you create.",
         "NSRemindersUsageDescription": "Vizta uses reminders to notify you about upcoming events you save.",
@@ -18,7 +18,7 @@
     },
     "android": {
       "edgeToEdgeEnabled": true,
-      "package": "com.vizta.app"
+      "package": "com.vibecodeapp.app"
     },
     "web": {
       "bundler": "metro",

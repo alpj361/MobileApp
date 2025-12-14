@@ -4,6 +4,7 @@ import { XMedia, XMediaType } from './xMediaService';
 import { Platform } from 'react-native';
 import { ExtractedEntity } from '../types/entities';
 import { jobRecoveryService } from '../archive/services/jobRecoveryService';
+import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 
 const EXTRACTORT_URL = process.env.EXPO_PUBLIC_EXTRACTORT_URL ?? 'https://api.standatpd.com';
 
@@ -164,8 +165,7 @@ export async function fetchXComplete(url: string): Promise<XCompleteData> {
 
   try {
     // ✅ Obtener credenciales de Pulse para transcripción
-    const pulseConnectionStore = require('../state/pulseConnectionStore');
-    const { connectedUser } = pulseConnectionStore.usePulseConnectionStore.getState();
+    const { connectedUser } = usePulseConnectionStore.getState();
 
     if (!connectedUser) {
       console.warn('[X Complete] No Pulse user connected - some features may be limited');
