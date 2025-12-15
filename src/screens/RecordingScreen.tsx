@@ -28,30 +28,17 @@ export default function RecordingScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
-  const {
-    recordings,
-    isRecording,
-    realtimeTranscriptionEnabled,
-    addRecording,
-    updateRecording,
-    deleteRecording,
-    setRecording: setIsRecording,
-    setRealtimeTranscriptionEnabled,
-  } = useRecordingStore((state) => ({
-    recordings: state.recordings,
-    isRecording: state.isRecording,
-    realtimeTranscriptionEnabled: state.realtimeTranscriptionEnabled,
-    addRecording: state.addRecording,
-    updateRecording: state.updateRecording,
-    deleteRecording: state.deleteRecording,
-    setRecording: state.setRecording,
-    setRealtimeTranscriptionEnabled: state.setRealtimeTranscriptionEnabled,
-  }));
+  const recordings = useRecordingStore((state) => state.recordings);
+  const isRecording = useRecordingStore((state) => state.isRecording);
+  const realtimeTranscriptionEnabled = useRecordingStore((state) => state.realtimeTranscriptionEnabled);
+  const addRecording = useRecordingStore((state) => state.addRecording);
+  const updateRecording = useRecordingStore((state) => state.updateRecording);
+  const deleteRecording = useRecordingStore((state) => state.deleteRecording);
+  const setIsRecording = useRecordingStore((state) => state.setRecording);
+  const setRealtimeTranscriptionEnabled = useRecordingStore((state) => state.setRealtimeTranscriptionEnabled);
 
-  const { isConnected, connectedUser } = usePulseConnectionStore((state) => ({
-    isConnected: state.isConnected,
-    connectedUser: state.connectedUser,
-  }));
+  const isConnected = usePulseConnectionStore((state) => state.isConnected);
+  const connectedUser = usePulseConnectionStore((state) => state.connectedUser);
 
   const startRecording = async () => {
     try {
