@@ -8,9 +8,10 @@ import { textStyles } from '../utils/typography';
 interface CustomHeaderProps {
   navigation: DrawerNavigationProp<any>;
   title?: string;
+  rightElement?: React.ReactNode;
 }
 
-export default function CustomHeader({ navigation, title = "vizta" }: CustomHeaderProps) {
+export default function CustomHeader({ navigation, title = "vizta", rightElement }: CustomHeaderProps) {
   return (
     <SafeAreaView className="bg-white border-b border-gray-100">
       <View className="flex-row items-center justify-between px-5 py-4">
