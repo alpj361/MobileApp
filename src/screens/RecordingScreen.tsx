@@ -90,6 +90,7 @@ export default function RecordingScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [showRecordingsList, setShowRecordingsList] = useState(false);
   const soundRef = useRef<Audio.Sound | null>(null);
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
