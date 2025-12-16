@@ -7,7 +7,10 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Animated,
+  Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useNavigation } from '@react-navigation/native';
@@ -20,6 +23,8 @@ import { useRealtimeTranscription } from '../hooks/useRealtimeTranscription';
 import CustomHeader from '../components/CustomHeader';
 import { textStyles } from '../utils/typography';
 import { getCurrentSpacing } from '../utils/responsive';
+
+const { width } = Dimensions.get('window');
 
 export default function RecordingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
