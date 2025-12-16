@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Actualizar imports y agregar componente de visualización de ondas de audio",
+    "status": "completed"
+  },
+  {
+    "content": "Rediseñar la interfaz principal con gradiente y nuevo layout según imagen de referencia",
+    "status": "completed"
+  },
+  {
+    "content": "Agregar modal/pantalla deslizable para lista de grabaciones guardadas",
+    "status": "in_progress"
+  },
+  {
+    "content": "Implementar transcripción en tiempo real en el área principal de texto",
+    "status": "pending"
+  },
+  {
+    "content": "Probar la nueva UI y verificar funcionalidad con screenshot",
+    "status": "pending"
+  }
+]
