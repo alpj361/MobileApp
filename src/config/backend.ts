@@ -10,7 +10,7 @@ function getEnvVar(key: string, fallback: string): string {
   if (typeof process !== 'undefined' && process.env && process.env[key]) {
     return process.env[key] as string;
   }
-  
+
   // Fallback to fallback value
   return fallback;
 }
@@ -24,18 +24,17 @@ const isWeb = typeof window !== 'undefined';
  * ExtractorW Backend URL
  * Main backend service for content extraction
  *
- * ✅ Web y Mobile: Ambos usan servidor de producción
+ * 🔒 HARDCODED TO PRODUCTION FOR TESTING
  */
-export const EXTRACTORW_URL = getEnvVar('EXPO_PUBLIC_EXTRACTORW_URL', 'https://server.standatpd.com');
+export const EXTRACTORW_URL = 'https://server.standatpd.com';
 
 /**
  * ExtractorT Backend URL
  * Twitter/X specific backend service
  *
- * ✅ IMPORTANTE: ExtractorT siempre usa el servidor remoto
- * porque maneja credenciales de Twitter y lógica compleja
+ * 🔒 HARDCODED TO PRODUCTION FOR TESTING
  */
-export const EXTRACTORT_URL = getEnvVar('EXPO_PUBLIC_EXTRACTORT_URL', 'https://api.standatpd.com');
+export const EXTRACTORT_URL = 'https://api.standatpd.com';
 
 /**
  * Check if running in development mode

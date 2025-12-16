@@ -1,18 +1,18 @@
 /**
- * Hook for real-time audio transcription using ElevenLabs Scribe
+ * Hook for real-time audio transcription using Backend API
  *
  * This hook manages the lifecycle of real-time transcription:
- * - Connects to ElevenLabs Scribe WebSocket
- * - Captures audio from microphone
- * - Streams audio to Scribe for real-time transcription
- * - Manages transcription state
+ * - Connects to ExtractorW backend instead of directly to ElevenLabs
+ * - Provides better security and rate limiting
+ * - Manages transcription state through backend API
  */
 
 import { useEffect, useRef, useCallback } from 'react';
-import { createScribeInstance, ElevenLabsScribe } from '../services/elevenLabsScribe';
+import { createBackendTranscriptionService, BackendRealtimeTranscriptionService } from '../services/realtimeTranscriptionService';
 
 interface UseRealtimeTranscriptionProps {
   enabled: boolean;
+  userId: string; // Required for backend session management
   onTranscriptionUpdate: (text: string, isFinal: boolean) => void;
   onError?: (error: Error) => void;
   language?: string;
@@ -20,11 +20,12 @@ interface UseRealtimeTranscriptionProps {
 
 export const useRealtimeTranscription = ({
   enabled,
+  userId,
   onTranscriptionUpdate,
   onError,
   language = 'es',
 }: UseRealtimeTranscriptionProps) => {
-  const scribeRef = useRef<ElevenLabsScribe | null>(null);
+  const serviceRef = useRef<BackendRealtimeTranscriptionService | null>(null);
   const isConnectedRef = useRef(false);
 
   const handleTranscription = useCallback(
@@ -43,45 +44,58 @@ export const useRealtimeTranscription = ({
   );
 
   const connect = useCallback(async () => {
-    if (isConnectedRef.current || !enabled) return;
+    if (isConnectedRef.current || !enabled || !userId) return;
 
     try {
-      const scribe = createScribeInstance(handleTranscription, handleError, {
-        language,
-        enableTimestamps: true,
-        enablePunctuation: true,
-        enableNumberFormatting: true,
-      });
+      const service = createBackendTranscriptionService(
+        userId,
+        handleTranscription,
+        handleError,
+        {
+          language,
+          enableTimestamps: true,
+          enablePunctuation: true,
+          enableNumberFormatting: true,
+        }
+      );
 
-      await scribe.connect();
-      scribeRef.current = scribe;
+      await service.startSession();
+      serviceRef.current = service;
       isConnectedRef.current = true;
-      console.log('✅ ElevenLabs Scribe connected');
+      console.log('✅ Backend transcription service connected');
     } catch (error) {
-      console.error('Failed to connect to ElevenLabs Scribe:', error);
+      console.error('Failed to connect to backend transcription service:', error);
       handleError(error as Error);
     }
-  }, [enabled, handleTranscription, handleError, language]);
+  }, [enabled, userId, handleTranscription, handleError, language]);
 
-  const disconnect = useCallback(() => {
-    if (scribeRef.current) {
-      scribeRef.current.disconnect();
-      scribeRef.current = null;
+  const disconnect = useCallback(async () => {
+    if (serviceRef.current) {
+      await serviceRef.current.endSession();
+      serviceRef.current = null;
       isConnectedRef.current = false;
-      console.log('❌ ElevenLabs Scribe disconnected');
+      console.log('❌ Backend transcription service disconnected');
     }
   }, []);
 
-  const sendAudio = useCallback((audioData: string) => {
-    if (scribeRef.current && isConnectedRef.current) {
-      scribeRef.current.sendAudio(audioData);
+  const sendAudio = useCallback(async (audioData: string) => {
+    if (serviceRef.current && isConnectedRef.current) {
+      return await serviceRef.current.sendAudio(audioData);
+    }
+    return false;
+  }, []);
+
+  const endStream = useCallback(async () => {
+    if (serviceRef.current && isConnectedRef.current) {
+      await serviceRef.current.endStream();
     }
   }, []);
 
-  const endStream = useCallback(() => {
-    if (scribeRef.current && isConnectedRef.current) {
-      scribeRef.current.endAudioStream();
+  const transcribeFile = useCallback(async (audioUri: string, metadata: any = {}) => {
+    if (serviceRef.current) {
+      return await serviceRef.current.transcribeFile(audioUri, metadata);
     }
+    throw new Error('Servicio de transcripción no iniciado');
   }, []);
 
   useEffect(() => {
@@ -101,6 +115,7 @@ export const useRealtimeTranscription = ({
     disconnect,
     sendAudio,
     endStream,
+    transcribeFile,
     isConnected: isConnectedRef.current,
   };
 };

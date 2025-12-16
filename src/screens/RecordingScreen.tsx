@@ -16,6 +16,7 @@ import { useRecordingStore } from '../state/recordingStore';
 import { usePulseConnectionStore } from '../state/pulseConnectionStore';
 import { transcribeAudio } from '../api/transcribe-audio';
 import { saveRecordingToCodex as saveRecordingToCodexService } from '../services/codexService';
+import { useRealtimeTranscription } from '../hooks/useRealtimeTranscription';
 import CustomHeader from '../components/CustomHeader';
 import { textStyles } from '../utils/typography';
 import { getCurrentSpacing } from '../utils/responsive';
@@ -39,6 +40,21 @@ export default function RecordingScreen() {
 
   const isConnected = usePulseConnectionStore((state) => state.isConnected);
   const connectedUser = usePulseConnectionStore((state) => state.connectedUser);
+
+  // Real-time transcription hook (backend-based)
+  const { transcribeFile: transcribeFileWithBackend } = useRealtimeTranscription({
+    enabled: realtimeTranscriptionEnabled && Boolean(connectedUser?.id),
+    userId: connectedUser?.id || 'anonymous',
+    onTranscriptionUpdate: (text: string, isFinal: boolean) => {
+      // Handle real-time transcription updates if needed
+      console.log(`📝 Real-time transcription (${isFinal ? 'final' : 'partial'}):`, text);
+    },
+    onError: (error: Error) => {
+      console.error('❌ Real-time transcription error:', error);
+      Alert.alert('Error de Transcripción', 'Error en transcripción en tiempo real: ' + error.message);
+    },
+    language: 'es'
+  });
 
   const startRecording = async () => {
     try {
@@ -148,30 +164,54 @@ export default function RecordingScreen() {
   };
 
   /**
-   * Transcribe with ElevenLabs Scribe (for real-time/fast transcription)
-   * This uses the same Whisper API but is triggered automatically when enabled
+   * Transcribe with ElevenLabs Scribe via Backend (for real-time/fast transcription)
+   * This uses the backend API instead of direct ElevenLabs connection
    */
   const transcribeWithScribe = async (id: string, uri: string) => {
+    if (!connectedUser?.id) {
+      console.warn('⚠️ Usuario no conectado, usando transcripción tradicional');
+      return transcribeRecording({ id, uri });
+    }
+
     try {
       updateRecording(id, { isTranscribing: true, isRealtimeTranscribing: true });
 
-      const transcription = await transcribeAudio(uri, {
-        language: 'es', // Spanish by default, can be made configurable
+      // Use backend transcription service
+      const result = await transcribeFileWithBackend(uri, {
+        language: 'es',
+        recordingId: id
       });
 
-      updateRecording(id, {
-        transcription,
-        realtimeTranscription: transcription,
-        isTranscribing: false,
-        isRealtimeTranscribing: false,
-      });
+      if (result.success) {
+        updateRecording(id, {
+          transcription: result.transcription,
+          realtimeTranscription: result.transcription,
+          isTranscribing: false,
+          isRealtimeTranscribing: false,
+        });
+        console.log('✅ Transcripción completada via backend ElevenLabs');
+      } else {
+        throw new Error(result.error || 'Error desconocido');
+      }
+
     } catch (error) {
-      console.error('ElevenLabs Scribe transcription failed:', error);
+      console.error('❌ Backend transcription failed:', error);
+
       updateRecording(id, {
         isTranscribing: false,
         isRealtimeTranscribing: false,
       });
-      Alert.alert('Error', 'Failed to transcribe audio with ElevenLabs Scribe.');
+
+      // Fallback to traditional transcription
+      console.log('🔄 Fallback a transcripción tradicional...');
+      Alert.alert(
+        'Transcripción Automática Fallida',
+        'Transcripción automática falló. ¿Deseas usar transcripción tradicional?',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          { text: 'Usar Whisper', onPress: () => transcribeRecording({ id, uri }) }
+        ]
+      );
     }
   };
 
