@@ -38,19 +38,23 @@ export default function CustomHeader({ navigation, title = "vizta", rightElement
           {title}
         </Text>
 
-        {/* Settings Icon */}
-        <Pressable 
-          className="p-2 -mr-2 rounded-xl active:bg-gray-100"
-          onPress={() => navigation.navigate('Settings')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          style={({ pressed }) => [
-            {
-              transform: [{ scale: pressed ? 0.95 : 1 }],
-            }
-          ]}
-        >
-          <Ionicons name="options-outline" size={24} color="#374151" />
-        </Pressable>
+        {/* Right Element or Settings Icon */}
+        {rightElement ? (
+          rightElement
+        ) : (
+          <Pressable 
+            className="p-2 -mr-2 rounded-xl active:bg-gray-100"
+            onPress={() => navigation.navigate('Settings')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={({ pressed }) => [
+              {
+                transform: [{ scale: pressed ? 0.95 : 1 }],
+              }
+            ]}
+          >
+            <Ionicons name="options-outline" size={24} color="#374151" />
+          </Pressable>
+        )}
       </View>
     </SafeAreaView>
   );
