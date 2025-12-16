@@ -342,7 +342,24 @@ export default function RecordingScreen() {
 
   return (
     <View className="flex-1">
-      <CustomHeader navigation={navigation} title="Grabación" />
+      <CustomHeader 
+        navigation={navigation} 
+        title="Grabación"
+        rightElement={
+          recordings.length > 0 ? (
+            <Pressable
+              onPress={() => setShowRecordingsList(!showRecordingsList)}
+              className="flex-row items-center bg-purple-100 px-3 py-2 rounded-full"
+              style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+            >
+              <Ionicons name="list" size={18} color="#7C3AED" />
+              <Text className="text-purple-700 font-semibold ml-1 text-sm">
+                {recordings.length}
+              </Text>
+            </Pressable>
+          ) : undefined
+        }
+      />
 
       {/* Main Recording Interface with Gradient Background */}
       <LinearGradient
