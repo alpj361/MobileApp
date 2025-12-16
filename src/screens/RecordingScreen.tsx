@@ -382,24 +382,17 @@ export default function RecordingScreen() {
         className="flex-1"
       >
         {/* Transcription Display Area or Question Prompt */}
-        <View className="px-8 pt-12 pb-8">
-          {isRecording && realtimeTranscriptionEnabled ? (
+        <View className="px-8 pt-12 pb-8" style={{ minHeight: 200 }}>
+          {isRecording && realtimeTranscriptionEnabled && liveTranscription ? (
             <ScrollView 
-              className="h-64"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'flex-start' }}
             >
               <Text 
-                className="text-4xl font-bold text-center leading-tight"
-                style={{
-                  background: 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
-                  backgroundClip: 'text',
-                  color: 'transparent',
-                }}
+                className="text-3xl font-bold text-center leading-tight"
+                style={{ color: '#7C3AED' }}
               >
-                {recordings.length > 0 && recordings[0].realtimeTranscription
-                  ? recordings[0].realtimeTranscription
-                  : 'Transcripción en tiempo real aparecerá aquí...'}
+                {liveTranscription}
               </Text>
             </ScrollView>
           ) : (
@@ -408,7 +401,9 @@ export default function RecordingScreen() {
               style={{ color: '#7C3AED' }}
             >
               {isRecording 
-                ? 'Grabando tu voz...' 
+                ? (realtimeTranscriptionEnabled 
+                    ? 'Escuchando...' 
+                    : 'Grabando tu voz...')
                 : '¿Qué es lo principal que notas en ti mismo ahora?'}
             </Text>
           )}
