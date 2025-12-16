@@ -26,6 +26,65 @@ import { getCurrentSpacing } from '../utils/responsive';
 
 const { width } = Dimensions.get('window');
 
+// Audio Wave Visualization Component
+const AudioWaveVisualization = ({ isRecording }: { isRecording: boolean }) => {
+  const waveCount = 40;
+  const animations = useRef<Animated.Value[]>([]);
+
+  if (animations.current.length === 0) {
+    animations.current = Array.from({ length: waveCount }, () => new Animated.Value(0.2));
+  }
+
+  useEffect(() => {
+    if (isRecording) {
+      const animateWaves = () => {
+        const waveAnimations = animations.current.map((anim, index) => {
+          return Animated.loop(
+            Animated.sequence([
+              Animated.timing(anim, {
+                toValue: 0.8 + Math.random() * 0.4,
+                duration: 400 + Math.random() * 400,
+                useNativeDriver: true,
+              }),
+              Animated.timing(anim, {
+                toValue: 0.2 + Math.random() * 0.3,
+                duration: 400 + Math.random() * 400,
+                useNativeDriver: true,
+              }),
+            ])
+          );
+        });
+        
+        Animated.stagger(50, waveAnimations).start();
+      };
+      
+      animateWaves();
+    } else {
+      animations.current.forEach((anim) => {
+        anim.setValue(0.2);
+      });
+    }
+  }, [isRecording]);
+
+  return (
+    <View className="flex-row items-center justify-center h-16" style={{ width: width - 80 }}>
+      {animations.current.map((anim, index) => (
+        <Animated.View
+          key={index}
+          style={{
+            width: 3,
+            marginHorizontal: 1.5,
+            height: 50,
+            backgroundColor: index % 2 === 0 ? 'rgba(147, 197, 253, 0.6)' : 'rgba(236, 72, 153, 0.6)',
+            borderRadius: 2,
+            transform: [{ scaleY: anim }],
+          }}
+        />
+      ))}
+    </View>
+  );
+};
+
 export default function RecordingScreen() {
   const navigation = useNavigation<DrawerNavigationProp<any>>();
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
