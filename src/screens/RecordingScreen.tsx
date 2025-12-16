@@ -180,6 +180,8 @@ export default function RecordingScreen() {
       if (uri) {
         const title = `Recording ${new Date().toLocaleString()}`;
         const newRecordingId = Date.now().toString() + Math.random().toString(36).substring(2, 11);
+        
+        setCurrentRecordingId(newRecordingId);
 
         addRecording({
           title,
