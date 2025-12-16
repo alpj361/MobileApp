@@ -489,127 +489,144 @@ export default function RecordingScreen() {
         </View>
       </LinearGradient>
 
-      {/* Recordings List */}
-      {recordings.length > 0 && (
-        <ScrollView
-          className="flex-1"
-          contentContainerStyle={{ paddingHorizontal: spacing.horizontal, paddingBottom: spacing.section }}
-          showsVerticalScrollIndicator={false}
-        >
-          <Text className={`${textStyles.sectionTitle} mb-6`}>
-            Grabaciones ({recordings.length})
-          </Text>
+      {/* Recordings List Modal/Sheet */}
+      {showRecordingsList && recordings.length > 0 && (
+        <View className="absolute inset-0 bg-black/50" style={{ zIndex: 1000 }}>
+          <Pressable 
+            className="flex-1"
+            onPress={() => setShowRecordingsList(false)}
+          />
+          <View className="bg-white rounded-t-3xl" style={{ maxHeight: '80%' }}>
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-6 py-4 border-b border-gray-200">
+              <View>
+                <Text className={`${textStyles.sectionTitle}`}>
+                  Grabaciones
+                </Text>
+                <Text className={`${textStyles.helper}`}>
+                  {recordings.length} grabación{recordings.length !== 1 ? 'es' : ''}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setShowRecordingsList(false)}
+                className="bg-gray-100 rounded-full w-10 h-10 justify-center items-center"
+                style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+              >
+                <Ionicons name="close" size={24} color="#374151" />
+              </Pressable>
+            </View>
 
-          {recordings.map((item) => (
-            <View key={item.id} className="bg-white rounded-3xl p-5 mb-4 shadow-sm border border-gray-100">
-              <View className="flex-row items-center justify-between mb-4">
-                <View className="flex-1">
-                  <Text className={`${textStyles.cardTitle} mb-1`}>
-                    {item.title}
-                  </Text>
-                  <View className="flex-row items-center">
-                    <Text className={textStyles.helper}>
-                      {formatDate(item.timestamp)} • {formatDuration(item.duration)}
-                    </Text>
-                    {item.realtimeTranscription && (
-                      <View className="flex-row items-center ml-2 bg-blue-50 px-2 py-1 rounded-full">
-                        <Ionicons name="flash" size={10} color="#3B82F6" />
-                        <Text className="text-xs text-blue-600 ml-1 font-medium">
-                          Auto
+            {/* Recordings List */}
+            <ScrollView
+              className="flex-1"
+              contentContainerStyle={{ padding: spacing.horizontal, paddingBottom: 24 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {recordings.map((item) => (
+                <View key={item.id} className="bg-gray-50 rounded-3xl p-5 mb-4">
+                  <View className="flex-row items-center justify-between mb-4">
+                    <View className="flex-1">
+                      <Text className={`${textStyles.cardTitle} mb-1`}>
+                        {item.title}
+                      </Text>
+                      <View className="flex-row items-center">
+                        <Text className={textStyles.helper}>
+                          {formatDate(item.timestamp)} • {formatDuration(item.duration)}
+                        </Text>
+                        {item.realtimeTranscription && (
+                          <View className="flex-row items-center ml-2 bg-purple-100 px-2 py-1 rounded-full">
+                            <Ionicons name="flash" size={10} color="#7C3AED" />
+                            <Text className="text-xs text-purple-700 ml-1 font-medium">
+                              Auto
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
+
+                    <Pressable
+                      onPress={() => {
+                        Alert.alert(
+                          'Eliminar Grabación',
+                          '¿Estás seguro de que deseas eliminar esta grabación?',
+                          [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Eliminar', style: 'destructive', onPress: () => deleteRecording(item.id) }
+                          ]
+                        );
+                      }}
+                      className="p-2 rounded-full"
+                      style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
+                    >
+                      <Ionicons name="trash-outline" size={22} color="#EF4444" />
+                    </Pressable>
+                  </View>
+
+                  <View className="flex-row items-center gap-3 mb-4">
+                    <Pressable
+                      onPress={() => playRecording(item)}
+                      className="bg-purple-600 rounded-full w-12 h-12 justify-center items-center"
+                      style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+                    >
+                      <Ionicons
+                        name={playingId === item.id ? 'pause' : 'play'}
+                        size={18}
+                        color="white"
+                      />
+                    </Pressable>
+
+                    {/* Only show manual transcribe button if not auto-transcribed */}
+                    {!item.realtimeTranscription && (
+                      <Pressable
+                        onPress={() => transcribeRecording(item)}
+                        disabled={item.isTranscribing}
+                        className="bg-white rounded-full px-4 py-3 flex-row items-center flex-1"
+                        style={({ pressed }) => [{ opacity: pressed && !item.isTranscribing ? 0.8 : 1 }]}
+                      >
+                        {item.isTranscribing ? (
+                          <ActivityIndicator size="small" color="#7C3AED" />
+                        ) : (
+                          <Ionicons name="document-text-outline" size={18} color="#374151" />
+                        )}
+                        <Text className={`${textStyles.badge} text-gray-700 ml-3`}>
+                          {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir'}
+                        </Text>
+                      </Pressable>
+                    )}
+
+                    {isConnected && (
+                      <Pressable
+                        onPress={() => saveRecordingToCodex(item)}
+                        className="bg-green-500 rounded-full w-12 h-12 justify-center items-center"
+                        style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
+                      >
+                        <Ionicons name="cloud-upload-outline" size={18} color="white" />
+                      </Pressable>
+                    )}
+                  </View>
+
+                  {(item.transcription || item.realtimeTranscription) && (
+                    <View className="p-4 bg-white rounded-2xl">
+                      <View className="flex-row items-center mb-2">
+                        <Ionicons
+                          name={item.realtimeTranscription ? 'flash' : 'document-text'}
+                          size={16}
+                          color="#7C3AED"
+                        />
+                        <Text className={`${textStyles.helper} ml-2 font-semibold text-purple-700`}>
+                          {item.realtimeTranscription ? 'Transcripción Automática' : 'Transcripción'}
                         </Text>
                       </View>
-                    )}
-                  </View>
+                      <Text className={`${textStyles.bodyText} text-gray-700`}>
+                        {item.transcription || item.realtimeTranscription}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-
-                <Pressable
-                  onPress={() => deleteRecording(item.id)}
-                  className="p-2 rounded-full active:bg-red-50"
-                  style={({ pressed }) => [
-                    {
-                      transform: [{ scale: pressed ? 0.95 : 1 }],
-                    }
-                  ]}
-                >
-                  <Ionicons name="trash-outline" size={22} color="#EF4444" />
-                </Pressable>
-              </View>
-
-              <View className="flex-row items-center gap-3">
-                <Pressable
-                  onPress={() => playRecording(item)}
-                  className="bg-blue-500 rounded-full w-12 h-12 justify-center items-center"
-                  style={({ pressed }) => [
-                    {
-                      transform: [{ scale: pressed ? 0.95 : 1 }],
-                    }
-                  ]}
-                >
-                  <Ionicons
-                    name={playingId === item.id ? 'pause' : 'play'}
-                    size={18}
-                    color="white"
-                  />
-                </Pressable>
-
-                {/* Only show manual transcribe button if not auto-transcribed */}
-                {!item.realtimeTranscription && (
-                  <Pressable
-                    onPress={() => transcribeRecording(item)}
-                    disabled={item.isTranscribing}
-                    className="bg-gray-100 rounded-full px-4 py-3 flex-row items-center flex-1"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed && !item.isTranscribing ? 0.98 : 1 }],
-                      }
-                    ]}
-                  >
-                    {item.isTranscribing ? (
-                      <ActivityIndicator size="small" color="#3B82F6" />
-                    ) : (
-                      <Ionicons name="document-text-outline" size={18} color="#374151" />
-                    )}
-                    <Text className={`${textStyles.badge} text-gray-700 ml-3`}>
-                      {item.isTranscribing ? 'Transcribiendo...' : 'Transcribir con Whisper'}
-                    </Text>
-                  </Pressable>
-                )}
-
-                {isConnected && (
-                  <Pressable
-                    onPress={() => saveRecordingToCodex(item)}
-                    className="bg-green-500 rounded-full w-12 h-12 justify-center items-center"
-                    style={({ pressed }) => [
-                      {
-                        transform: [{ scale: pressed ? 0.95 : 1 }],
-                      }
-                    ]}
-                  >
-                    <Ionicons name="cloud-upload-outline" size={18} color="white" />
-                  </Pressable>
-                )}
-              </View>
-
-              {(item.transcription || item.realtimeTranscription) && (
-                <View className="mt-4 p-4 bg-gray-50 rounded-2xl">
-                  <View className="flex-row items-center mb-2">
-                    <Ionicons
-                      name={item.realtimeTranscription ? 'flash' : 'document-text'}
-                      size={16}
-                      color="#6B7280"
-                    />
-                    <Text className={`${textStyles.helper} ml-2 font-semibold`}>
-                      {item.realtimeTranscription ? 'Transcripción Automática (Scribe)' : 'Transcripción (Whisper)'}
-                    </Text>
-                  </View>
-                  <Text className={`${textStyles.bodyText} text-gray-700`}>
-                    {item.transcription || item.realtimeTranscription}
-                  </Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </ScrollView>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
       )}
     </View>
   );
