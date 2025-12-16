@@ -340,84 +340,136 @@ export default function RecordingScreen() {
   const spacing = getCurrentSpacing();
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1">
       <CustomHeader navigation={navigation} title="Grabación" />
 
-      {/* Real-time Transcription Toggle */}
-      <View className="bg-white mx-4 mt-4 p-4 rounded-2xl shadow-sm border border-gray-100">
-        <View className="flex-row items-center justify-between">
-          <View className="flex-1 mr-4">
-            <View className="flex-row items-center mb-1">
-              <Ionicons name="flash" size={18} color="#3B82F6" />
-              <Text className={`${textStyles.cardTitle} ml-2`}>
-                Transcripción Automática
+      {/* Main Recording Interface with Gradient Background */}
+      <LinearGradient
+        colors={['#F3E8FF', '#FEF3C7', '#FFFFFF']}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+        className="flex-1"
+      >
+        {/* Transcription Display Area or Question Prompt */}
+        <View className="px-8 pt-12 pb-8">
+          {isRecording && realtimeTranscriptionEnabled ? (
+            <ScrollView 
+              className="h-64"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
+            >
+              <Text 
+                className="text-4xl font-bold text-center leading-tight"
+                style={{
+                  background: 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
+                  backgroundClip: 'text',
+                  color: 'transparent',
+                }}
+              >
+                {recordings.length > 0 && recordings[0].realtimeTranscription
+                  ? recordings[0].realtimeTranscription
+                  : 'Transcripción en tiempo real aparecerá aquí...'}
               </Text>
-            </View>
-            <Text className={`${textStyles.helper}`}>
-              Transcribe automáticamente al terminar de grabar con ElevenLabs Scribe
+            </ScrollView>
+          ) : (
+            <Text 
+              className="text-4xl font-bold text-center leading-tight"
+              style={{ color: '#7C3AED' }}
+            >
+              {isRecording 
+                ? 'Grabando tu voz...' 
+                : '¿Qué es lo principal que notas en ti mismo ahora?'}
             </Text>
-          </View>
-          <Switch
-            value={realtimeTranscriptionEnabled}
-            onValueChange={setRealtimeTranscriptionEnabled}
-            trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-            thumbColor={realtimeTranscriptionEnabled ? '#3B82F6' : '#F3F4F6'}
-          />
-        </View>
-      </View>
-
-      {/* Recording Controls */}
-      <View className="items-center py-12">
-        <View className="bg-white rounded-full w-44 h-44 justify-center items-center mb-8 shadow-lg">
-          <Pressable
-            onPress={isRecording ? stopRecording : startRecording}
-            className={`w-28 h-28 rounded-full justify-center items-center ${
-              isRecording ? 'bg-red-500' : 'bg-blue-500'
-            }`}
-            style={({ pressed }) => [
-              {
-                transform: [{ scale: pressed ? 0.95 : 1 }],
-              }
-            ]}
-          >
-            <Ionicons
-              name={isRecording ? 'stop' : 'mic'}
-              size={36}
-              color="white"
-            />
-          </Pressable>
+          )}
         </View>
 
+        {/* Audio Wave Visualization */}
+        <View className="items-center justify-center py-8">
+          <AudioWaveVisualization isRecording={isRecording} />
+        </View>
+
+        <View className="flex-1" />
+
+        {/* Timer */}
         {isRecording && (
-          <View className="items-center">
-            <Text className={`${textStyles.sectionTitle} text-red-500 mb-3`}>
-              Grabando...
-            </Text>
-            <Text className="text-3xl font-mono font-bold text-gray-900">
+          <View className="items-center mb-4">
+            <Text className="text-2xl font-mono text-gray-500">
               {formatDuration(recordingDuration)}
             </Text>
-            {realtimeTranscriptionEnabled && (
-              <View className="flex-row items-center mt-3 bg-blue-50 px-4 py-2 rounded-full">
-                <Ionicons name="flash" size={14} color="#3B82F6" />
-                <Text className={`${textStyles.helper} text-blue-600 ml-2`}>
-                  Transcripción automática activada
-                </Text>
-              </View>
-            )}
           </View>
         )}
 
-        {!isRecording && recordings.length === 0 && (
-          <View className="items-center px-8">
-            <Text className={`${textStyles.sectionTitle} mb-3`}>
-              Listo para grabar
-            </Text>
-            <Text className={`${textStyles.description} text-center`}>
-              Toca el micrófono para comenzar a grabar entrevistas o notas de audio
-            </Text>
+        {/* Recording Controls */}
+        <View className="items-center pb-12">
+          <View className="flex-row items-center justify-center gap-8">
+            {/* Close Button */}
+            <Pressable
+              onPress={() => navigation.goBack()}
+              className="bg-gray-200 rounded-full w-16 h-16 justify-center items-center"
+              style={({ pressed }) => [
+                {
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                  opacity: pressed ? 0.8 : 1,
+                }
+              ]}
+            >
+              <Ionicons name="close" size={28} color="#374151" />
+            </Pressable>
+
+            {/* Main Record/Stop Button */}
+            <Pressable
+              onPress={isRecording ? stopRecording : startRecording}
+              className="bg-black rounded-full w-24 h-24 justify-center items-center shadow-2xl"
+              style={({ pressed }) => [
+                {
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                  shadowColor: isRecording ? '#EC4899' : '#7C3AED',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.8,
+                  shadowRadius: 20,
+                  elevation: 10,
+                }
+              ]}
+            >
+              {isRecording ? (
+                <View className="bg-white w-8 h-8 rounded-sm" />
+              ) : (
+                <View className="bg-white w-8 h-8 rounded-full" />
+              )}
+            </Pressable>
+
+            {/* Settings Button */}
+            <Pressable
+              onPress={() => {
+                Alert.alert(
+                  'Transcripción Automática',
+                  `Estado actual: ${realtimeTranscriptionEnabled ? 'Activada' : 'Desactivada'}`,
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                      text: realtimeTranscriptionEnabled ? 'Desactivar' : 'Activar',
+                      onPress: () => setRealtimeTranscriptionEnabled(!realtimeTranscriptionEnabled)
+                    }
+                  ]
+                );
+              }}
+              className="bg-gray-200 rounded-full w-16 h-16 justify-center items-center"
+              style={({ pressed }) => [
+                {
+                  transform: [{ scale: pressed ? 0.95 : 1 }],
+                  opacity: pressed ? 0.8 : 1,
+                }
+              ]}
+            >
+              <Ionicons 
+                name={realtimeTranscriptionEnabled ? "flash" : "flash-outline"} 
+                size={24} 
+                color={realtimeTranscriptionEnabled ? "#7C3AED" : "#374151"} 
+              />
+            </Pressable>
           </View>
-        )}
-      </View>
+        </View>
+      </LinearGradient>
 
       {/* Recordings List */}
       {recordings.length > 0 && (
