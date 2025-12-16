@@ -9,11 +9,11 @@
   },
   {
     "content": "Agregar modal/pantalla deslizable para lista de grabaciones guardadas",
-    "status": "in_progress"
+    "status": "completed"
   },
   {
     "content": "Implementar transcripción en tiempo real en el área principal de texto",
-    "status": "pending"
+    "status": "in_progress"
   },
   {
     "content": "Probar la nueva UI y verificar funcionalidad con screenshot",
