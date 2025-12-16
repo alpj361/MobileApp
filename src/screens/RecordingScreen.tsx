@@ -91,6 +91,8 @@ export default function RecordingScreen() {
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [showRecordingsList, setShowRecordingsList] = useState(false);
+  const [liveTranscription, setLiveTranscription] = useState<string>('');
+  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
@@ -111,8 +113,16 @@ export default function RecordingScreen() {
     enabled: realtimeTranscriptionEnabled && Boolean(connectedUser?.id),
     userId: connectedUser?.id || 'anonymous',
     onTranscriptionUpdate: (text: string, isFinal: boolean) => {
-      // Handle real-time transcription updates if needed
+      // Update live transcription display
       console.log(`📝 Real-time transcription (${isFinal ? 'final' : 'partial'}):`, text);
+      setLiveTranscription(text);
+      
+      // Update the current recording if available
+      if (currentRecordingId && isFinal) {
+        updateRecording(currentRecordingId, {
+          realtimeTranscription: text
+        });
+      }
     },
     onError: (error: Error) => {
       console.error('❌ Real-time transcription error:', error);
