@@ -151,6 +151,7 @@ export default function RecordingScreen() {
       setRecording(newRecording);
       setIsRecording(true);
       setRecordingDuration(0);
+      setLiveTranscription(''); // Reset live transcription
 
       // Start duration timer
       durationInterval.current = setInterval(() => {
